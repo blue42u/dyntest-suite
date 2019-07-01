@@ -34,6 +34,9 @@ ExternalProject_Add(Dyninst
     -DTBB_ROOT_DIR=${CMAKE_BINARY_DIR}/install/tbb
 )
 
+# A few examples make up the sanity tests
+add_subdirectory(examples)
+
 # HPCToolkit is the main test case. Static code analysis dumper.
 # However, despite using automake, it doesn't search for any of its dependencies.
 # So we have to do most of the work ourselves. Ugh.
@@ -43,6 +46,7 @@ find_package(ZLIB REQUIRED)
 find_package(BZip2 REQUIRED)
 find_package(LibLZMA REQUIRED)
 
+if(FALSE)
 ExternalProject_Add(HPCToolkit
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/hpctoolkit
   BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/hpctoolkit
@@ -71,3 +75,4 @@ ExternalProject_Add_Step(HPCToolkit preconfigure
   DEPENDERS configure
   WORKING_DIRECTORY <SOURCE_DIR>
 )
+endif()
