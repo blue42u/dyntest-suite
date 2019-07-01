@@ -1,0 +1,12 @@
+[submodule "src/hpctoolkit"]
+	path = src/hpctoolkit
+	url = https://github.com/blue42u/hpctoolkit.git
+[submodule "src/dyninst"]
+	path = src/dyninst
+	url = https://github.com/blue42u/dyninst.git
+[submodule "src/elfutils"]
+	path = src/elfutils
+	url = https://github.com/blue42u/elfutils.git
+[submodule "external/pynamic"]
+	path = external/pynamic
+	url = https://github.com/LLNL/pynamic.git
