@@ -10,3 +10,9 @@
 [submodule "external/pynamic"]
 	path = external/pynamic
 	url = https://github.com/LLNL/pynamic.git
+[submodule "refsrc/dyninst"]
+	path = refsrc/dyninst
+	url = https://github.com/dyninst/dyninst.git
+[submodule "refsrc/elfutils"]
+	path = refsrc/elfutils
+	url = https://github.com/blue42u/elfutils.git

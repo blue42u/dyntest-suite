@@ -15,4 +15,6 @@ set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} ${LIB_PATH})
 #message(STATUS "CMake library search path: ${CMAKE_LIBRARY_PATH}")
 
 add_subdirectory(external)
+add_subdirectory(refsrc)
 add_subdirectory(src)
+add_subdirectory(tests)

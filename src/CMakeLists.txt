@@ -5,9 +5,8 @@ include(ExternalProject)
 # Elfutils is used by everyone. DWARF/ELF format parsing and such.
 ExternalProject_Add(Elfutils
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/elfutils
-  BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/elfutils
-  INSTALL_DIR ${CMAKE_BINARY_DIR}/install/elfutils
-  DEPENDS Valgrind
+  BINARY_DIR ${CMAKE_BINARY_DIR}/latest/build/elfutils
+  INSTALL_DIR ${CMAKE_BINARY_DIR}/latest/elfutils
   CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
     --enable-maintainer-mode
 )
@@ -25,13 +24,13 @@ ExternalProject_Add_Step(Elfutils install_elf_header
 # Dyninst is the main part being tested. Static code analysis.
 ExternalProject_Add(Dyninst
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/dyninst
-  BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/dyninst
-  INSTALL_DIR ${CMAKE_BINARY_DIR}/install/dyninst
+  BINARY_DIR ${CMAKE_BINARY_DIR}/latest/build/dyninst
+  INSTALL_DIR ${CMAKE_BINARY_DIR}/latest/dyninst
   DEPENDS Elfutils Boost TBB Valgrind
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-    -DElfUtils_ROOT_DIR=${CMAKE_BINARY_DIR}/install/elfutils
-    -DBoost_ROOT_DIR=${CMAKE_BINARY_DIR}/install/boost
-    -DTBB_ROOT_DIR=${CMAKE_BINARY_DIR}/install/tbb
+    -DElfUtils_ROOT_DIR=$<TARGET_PROPERTY:Elfutils,_EP_INSTALL_DIR>
+    -DBoost_ROOT_DIR=$<TARGET_PROPERTY:Boost,_EP_INSTALL_DIR>
+    -DTBB_ROOT_DIR=$<TARGET_PROPERTY:TBB,_EP_INSTALL_DIR>
 )
 
 # A few examples make up the sanity tests
@@ -49,15 +48,15 @@ find_package(LibLZMA REQUIRED)
 if(FALSE)
 ExternalProject_Add(HPCToolkit
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/hpctoolkit
-  BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/hpctoolkit
-  INSTALL_DIR ${CMAKE_BINARY_DIR}/install/hpctoolkit
+  BINARY_DIR ${CMAKE_BINARY_DIR}/latest/build/hpctoolkit
+  INSTALL_DIR ${CMAKE_BINARY_DIR}/latest/hpctoolkit
   DEPENDS Dyninst Boost TBB Elfutils Xerces
   CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --enable-all-static
-    --with-dyninst=${CMAKE_BINARY_DIR}/install/dyninst/
-    --with-boost=${CMAKE_BINARY_DIR}/install/boost
-    --with-tbb=${CMAKE_BINARY_DIR}/install/tbb
-    --with-elfutils=${CMAKE_BINARY_DIR}/install/elfutils
-    --with-xerces=${CMAKE_BINARY_DIR}/install/xerces
+    --with-dyninst=$<TARGET_PROPERTY:Dyninst,_EP_INSTALL_DIR>
+    --with-boost=$<TARGET_PROPERTY:Boost,_EP_INSTALL_DIR>
+    --with-tbb=$<TARGET_PROPERTY:TBB,_EP_INSTALL_DIR>
+    --with-elfutils=$<TARGET_PROPERTY:Elfutils,_EP_INSTALL_DIR>
+    --with-xerces=$<TARGET_PROPERTY:Xerces,_EP_INSTALL_DIR>
     --with-binutils=${LibBFD_INCLUDE_DIR}/..
     --with-zlib=${ZLIB_INCLUDE_DIR}/..
     --with-bzip=${BZIP2_INCLUDE_DIR}/..
