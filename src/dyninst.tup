@@ -2,34 +2,38 @@
 # Installation prefix is under ./install.
 
 D = dyninst
+preload $(D)
 preload $(D)/cmake/CheckCXX11Features
 preload $(D)/dynC_API/h $(D)/dynC_API/doc $(D)/dynC_API/src
-preload $(D)/dyninstAPI/h
+preload $(D)/dyninstAPI $(D)/dyninstAPI/h
 preload $(D)/dyninstAPI_RT/h $(D)/dyninstAPI_RT/src
 
-preload $(D)/common/h $(D)/common/doc
+preload $(D)/common $(D)/common/h $(D)/common/doc
 
 preload $(D)/dataflowAPI/h
 preload $(D)/dataflowAPI/doc
 
-preload $(D)/instructionAPI/h
+preload $(D)/instructionAPI $(D)/instructionAPI/h
 preload $(D)/instructionAPI/doc $(D)/instructionAPI/doc/API
 preload $(D)/instructionAPI/doc/examples $(D)/instructionAPI/doc/fig
 
-preload $(D)/parseAPI/h
+preload $(D)/parseAPI $(D)/parseAPI/h
 preload $(D)/parseAPI/doc $(D)/parseAPI/doc/API
 
-preload $(D)/patchAPI/h
+preload $(D)/patchAPI $(D)/patchAPI/h
 preload $(D)/patchAPI/doc $(D)/patchAPI/doc/section $(D)/patchAPI/doc/figure
 preload $(D)/patchAPI/doc/figure/abstraction $(D)/patchAPI/doc/figure/command
 
-preload $(D)/symtabAPI/h
+preload $(D)/symtabAPI $(D)/symtabAPI/h
 preload $(D)/symtabAPI/doc $(D)/symtabAPI/doc/API
 preload $(D)/symtabAPI/doc/API/LineInfo $(D)/symtabAPI/doc/API/Symtab
 preload $(D)/symtabAPI/doc/API/Types
 
-preload $(D)/stackwalk/h
+preload $(D)/stackwalk $(D)/stackwalk/h
 preload $(D)/stackwalk/doc $(D)/stackwalk/doc/API $(D)/stackwalk/doc/fig
 
-preload $(D)/elf/h $(D)/dwarf/h $(D)/symlite/h $(D)/proccontrol/h
+preload $(D)/proccontrol $(D)/proccontrol/h
+
+preload $(D)/elf $(D)/elf/h $(D)/dwarf $(D)/dwarf/h $(D)/symlite/h
+
 run $(TUP_CWD)/dyninst.sh install/

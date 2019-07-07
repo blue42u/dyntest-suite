@@ -47,10 +47,10 @@ do
     if d:find(rspatt) then return srcdir..d:match(rspatt)..f end
     if dircache[d] then return dircache[d][f] end
 
-    local p = io.popen('find '..srcdir..d..' -type f -maxdepth 1', 'r')
+    local p = io.popen('find '..srcdir..d..' -type f -maxdepth 1 2> /dev/null', 'r')
     local c = {}
     for l in p:lines() do c[l:match '[^/]+$'] = l end
-    pclose(p)
+    p:close()
     dircache[d] = c
     return c[f]
   end
@@ -63,6 +63,7 @@ do
   end
 end
 
+local makevarpatt = '[%w_<>@.?%%^*+]+'
 
 -- We let make parse the Makefiles for us, and cache the outputs in a little
 -- table to make things faster. Argument is the path to the Makefile.
@@ -86,7 +87,7 @@ local function makeparse(makefn)
     elseif state == 'vars' then
       if l == '# Implicit Rules' then state = 'outsiderule' else
         if #l > 0 and l:sub(1,1) ~= '#' then
-          local k,v = l:match '^([%w_<>@?.%%^*+]+) :?= (.*)$'
+          local k,v = l:match('^('..makevarpatt..') :?= (.*)$')
           assert(k and v, l)
           c.vars[k] = v
         end
@@ -98,7 +99,7 @@ local function makeparse(makefn)
         assert(n and d, l)
         crule = {name=n, depstring=d, implicit=not not n:find '%%'}
       else
-        assert(#l == 0 or l:sub(1,1) == '#')
+        assert(#l == 0 or l:sub(1,1) == '#', l)
       end
     elseif state == 'rulepreamble' then
       if l:sub(1,1) ~= '#' then state = 'rule' else
@@ -169,6 +170,7 @@ local function makerule(makefn, targ)
   -- So we take an approach that is simple although not quite correct.
   local funcs = {}
   local function expand(s, vs)
+    assert(s and vs, s)
     local bits,init = {},1
     repeat
       local i = s:find('%$', init)
@@ -190,30 +192,40 @@ local function makerule(makefn, targ)
               local x,e,ii
               as[#as+1] = ''
               repeat
-                x,e,ii = a:match('^([^,(]*)()(.?)', it)
+                x,e,ii = a:match('^([^,(]*)(.?)()', it)
                 as[#as] = as[#as]..x
                 if e == '(' then
-                  x,ii = a:match('^(%b())()', ii)
+                  x,ii = a:match('^(%b())()', ii-1)
                   as[#as] = as[#as]..x
-                  it = ii
                 end
+                it = ii
               until e == ',' or e == ''
             until e == ''
             if not funcs[f] then
+              for k,v in ipairs(as) do as[k] = ('%q'):format(v) end
               error('Unhandled function expansion: '..f..'('..table.concat(as, ', ')..')')
             end
-            table.insert(bits, expand(funcs[f](table.unpack(as)), vs))
+            table.insert(bits, funcs[f](vs, table.unpack(as)))
+          elseif c:find ':' then  -- Substitution style
+            local v,a,b = c:match '([^:]+):(.*)=(.*)'
+            assert(v and not a:find '%%', c)
+            v = expand(v, vs)
+            assert(v:find '^'..makevarpatt..'$', v)
+            table.insert(bits, (expand(vs[v] or '', vs)
+              :gsub('(%g+)'..unmagic(a), '%1'..b:gsub('%%', '%%%%'))))
           else  -- Variable style
-            table.insert(bits, expand(vs[expand(c)] or '', vs))
+            c = expand(c, vs)
+            assert(c:find '^'..makevarpatt..'$', c)
+            table.insert(bits, expand(vs[c] or '', vs))
           end
         elseif q == '{' then  -- Start of ${}
           local v
           v,init = s:match('^{([^}]+)}()', i+1)
           assert(v)
           table.insert(bits, expand(vs[v] or '', vs))
-        else  -- Start of normal variable
+        else  -- Start of automatic variable
           local v
-          v,init = s:match('^([%w_<>@?.%%^*+]+)()', i+1)
+          v,init = s:match('^([@<*^?])()', i+1)
           assert(v, '"'..s..'" @'..(i+1))
           table.insert(bits, expand(vs[v] or '', vs))
         end
@@ -221,6 +233,12 @@ local function makerule(makefn, targ)
     until not i
     return table.concat(bits)
   end
+
+  -- Function expansions
+  funcs['if'] = function(vs, cond, ifstr, elsestr)
+    return expand(expand(cond, vs):find '%g' and ifstr or elsestr or '', vs)
+  end
+  function funcs.notdir(vs, str) return expand(str, vs):match '[^/]+$' end
 
   -- Now we expand the depstring and split it by word to get the targets.
   r.deps = {}
@@ -233,7 +251,7 @@ local function makerule(makefn, targ)
   }, {__index=rs.vars})
   r.ex = {}
   for _,l in ipairs(r) do
-    table.insert(r.ex, (expand(l, allvars):gsub('^[@-]', '')))
+    table.insert(r.ex, (expand(l, allvars):gsub('^[-@]*', '')))
   end
 
   function r.expand(s) return expand(s, allvars) end
@@ -241,33 +259,89 @@ local function makerule(makefn, targ)
   return targ,r
 end
 
+local AMrecurse = ([[@fail=; if $(am__make_keepgoing); then failcom='fail=yes'; \
+else failcom='exit 1'; fi; dot_seen=no; target=`echo $@ | sed s/-recursive//`; \
+case "$@" in distclean-* | maintainer-clean-*) list='$(DIST_SUBDIRS)' ;; *) \
+list='$(SUBDIRS)' ;; esac; for subdir in $$list; do echo "Making $$target in \
+$$subdir"; if test "$$subdir" = "."; then dot_seen=yes; local_target=\
+"$$target-am"; else local_target="$$target"; fi; ($(am__cd) $$subdir && \
+$(MAKE) $(AM_MAKEFLAGS) $$local_target) || eval $$failcom; done; if test \
+"$$dot_seen" = "no"; then $(MAKE) $(AM_MAKEFLAGS) "$$target-am" || exit 1; \
+fi; test -z "$$fail"]]):gsub('\\\n', '')
+
 -- This is the actual recursive make call. We assume that the Makefiles are
 -- written to actually work and aren't naturally recursive.
-local function make(makefn, targ)
+local makecache2 = {}
+local realmake
+local function make(f, t)
+  if makecache2[f] and makecache2[f][t] then return makecache2[f][t] end
+  makecache2[f] = makecache2[f] or {}
+  local o = realmake(f, t)
+  makecache2[f][t] = o
+  return o
+end
+function realmake(makefn, targ)
   local name, rule = makerule(makefn, targ)
-  if not rule then  -- Source file, don't do anything
-    -- dbg(name..': # Source file')
-    return name
-  end
+  if not rule then return name end  -- Source file, don't do anything
   local realname = pclean(name)
-  local printout,trules = true,{}
+  local printout,trules = false,{}
   local deps = {}
   for i,d in ipairs(rule.deps) do deps[i] = make(makefn, d) end
 
-  for i,cmd in ipairs(rule) do
-    local exc = rule.ex[i]
+  for idx,cmd in ipairs(rule) do
+    local exc = rule.ex[idx]
     local tr = nil
-    -- ...
+    local AM,CM = '# Automake configure ', '# CMake configure '
+    -- Automake-generated rules and commands.
+    if cmd:find '$%(ACLOCAL%)' then tr = AM..'(aclocal)'
+    elseif cmd:find '$%(AUTOHEADER%)' then tr = AM..'(autoheader)'
+    elseif cmd:find '$%(AUTOCONF%)' then tr = AM..'(autoconf)'
+    elseif cmd:find '$%(SHELL%) %./config%.status' then tr = AM..'(config.status)'
+    elseif cmd:find '$%(MAKE%) $%(AM_MAKEFLAGS%) am%-%-refresh' then tr = AM..'(refresh)'
+    elseif exc:find '^test %-f config%.h' then tr = AM..'('..exc:match '|| (.*)'..')'
+    elseif cmd == 'touch $@' then tr = ''
+    elseif exc:find '^rm %-f' then tr = ''
+    -- CMake-generated rules and commands.
+    elseif cmd:find '^$%(CMAKE_COMMAND%) %-S' then tr = CM..'(check build sys)'
+    elseif cmd:find '^$%(CMAKE_COMMAND%) %-E cmake_progress' then tr = CM..'(progress start)'
+    elseif cmd:find '^@$%(CMAKE_COMMAND%) %-E cmake_echo' then tr = CM..'(progress bar)'
+    elseif cmd:find '$%(CMAKE_COMMAND%) %-E cmake_depends' then tr = CM..'(dependency scan)'
+    elseif cmd:find '^@$%(CMAKE_COMMAND%) %-E touch_nocreate' then tr = CM..'(touch)'
+    -- Recursive Make calls
+    elseif exc:find '^make%s' then
+      local fn,targs = makefn,{}
+      for w in exc:match '^make%s+(.*)':gmatch '%g+' do
+        if w:sub(1,1) == '-' then
+          if w:sub(1,2) ~= '--' and w:find 'f' then
+            fn = nil
+          end
+        elseif fn then table.insert(targs, w)
+        else fn = w end
+      end
+      for _,t in ipairs(targs) do make(fn, t) end
+      tr = '# make '..(fn == makefn and '' or '-f '..fn..' ')
+        ..table.concat(targs, ' ')
+    elseif cmd:find '^@fail=;' then
+      assert(cmd == AMrecurse, cmd)
+      assert(not (targ:find '^distclean%-' or targ:find 'maintainer%-clean%-'))
+      local target = targ:gsub('%-recursive$', '')
+      for s in rule.expand('$(SUBDIRS)'):gmatch '%g+' do
+        assert(s ~= '.')
+        make(makefn:gsub('[^/]+$', unmagic(s)..'/%0'), target)
+      end
+      make(makefn, target..'-am')
+      tr = AM..'(recursive make call)'
+    end
     if tr then
       if tr:sub(1,1) == ':' then print(tr)
       elseif tr == '' then tr = '# Skipped: '..exc end
-      trules[i] = tr
+      trules[idx] = tr
     end
   end
 
   for i in ipairs(rule) do if not trules[i] then printout = true; break end end
   if printout then
-    dbg(realname..': '..table.concat(deps, ' '))
+    dbg(makefn..' '..realname..': '..table.concat(deps, ' '))
     for i,c in ipairs(rule) do
       if trules[i] then dbg('  '..trules[i])
       else dbg('  $ '..rule.ex[i]); dbg('  % '..c) end
@@ -276,4 +350,4 @@ local function make(makefn, targ)
   return realname
 end
 
-make('Makefile', 'all')
+make('Makefile', 'install')
