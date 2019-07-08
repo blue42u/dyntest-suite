@@ -36,4 +36,4 @@ preload $(D)/proccontrol $(D)/proccontrol/h
 
 preload $(D)/elf $(D)/elf/h $(D)/dwarf $(D)/dwarf/h $(D)/symlite/h
 
-run $(TUP_CWD)/dyninst.sh install/
+run $(TUP_CWD)/../build/cmake.sh src/dyninst install/

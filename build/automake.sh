@@ -1,12 +1,13 @@
 #!/bin/bash
 
 # Build script for Elfutils, for use under Tup's '`run`.
-# Usage: run $0 <path/to/install> [extra configure args...]
+# Usage: run $0 <path/to/src> <path/to/install> [extra configure args...]
 # Note: Paths should be relative, as per Tup's usual mannerisms.
 
-SRC="`dirname "$0"`"/elfutils
-BUILD="$SRC"/../../build
-INS="$1"; shift
+BUILD="`dirname "$0"`"
+SRC="$BUILD"/../"$1"
+INS="$2"
+shift 2
 
 set -e  # Make sure to exit if anything funny happens
 
@@ -24,8 +25,7 @@ trap "rm -rf $TMP" EXIT  # Make sure to clean up before exiting.
 cd "$TMP"
 
 # Construct the makefiles that will make up everything.
-"$RSRC"/configure --enable-maintainer-mode --disable-dependency-tracking \
-  --prefix="$RINS" "$@" > /dev/null
+"$RSRC"/configure --disable-dependency-tracking --prefix="$RINS" "$@" >/dev/null
 
 # Copy all the files back to "here" so that there's something to make.
 cp -r * "$HERE"/

@@ -1,12 +1,13 @@
 #!/bin/bash
 
 # Build script for Dyninst, for use under Tup's '`run`.
-# Usage: run $0 <path/to/install> [extra configure args...]
-# Note: Paths should be relative, as per Tup's usual mannerisms.
+# Usage: run $0 <path/to/src> <path/to/install> [extra configure args...]
+# Note: Install path should be relative, as per Tup's usual mannerisms.
 
-SRC="`dirname "$0"`"/dyninst
-BUILD="$SRC"/../../build
-INS="$1"; shift
+BUILD="`dirname "$0"`"
+SRC="$BUILD"/../"$1"
+INS="$2"
+shift 2
 
 set -e  # Make sure to exit if anything funny happens
 
@@ -15,13 +16,10 @@ set -e  # Make sure to exit if anything funny happens
 TMP="`mktemp -d`"
 trap "rm -rf $TMP" EXIT  # Make sure to clean up before exiting.
 
-# Construct the Makefiles using CMake.
-cmake -DCMAKE_INSTALL_PREFIX="`realpath $INS`" "$@" -S "$SRC" -B "$TMP" \
-  > "$TMP"/cmake.log
-
-# Ensure that CMake didn't decide to use ExternalProject
-! grep -q 'external project' "$TMP"/cmake.log
-rm "$TMP"/cmake.log
+# Construct the Makefiles using CMake. Modify the MODULE_PATH to (try to)
+# ensure ExternalProject is not used.
+cmake -DCMAKE_INSTALL_PREFIX="`realpath $INS`" -DCMAKE_MODULE_PATH="$BUILD" \
+  "$@" -S "$SRC" -B "$TMP" > /dev/null
 
 # Copy all the files back to "here" so that there's something to make.
 cp -r "$TMP"/* .

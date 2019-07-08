@@ -5,4 +5,5 @@ preload elfutils elfutils/m4 elfutils/backends elfutils/config elfutils/lib
 preload elfutils/libasm elfutils/libcpu elfutils/libdw elfutils/libdwelf
 preload elfutils/libdwfl elfutils/libebl elfutils/libelf elfutils/src
 preload elfutils/tests elfutils/po
-run $(TUP_CWD)/elfutils.sh install/
+run $(TUP_CWD)/../build/automake.sh src/elfutils install/ \
+  --enable-maintainer-mode
