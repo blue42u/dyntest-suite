@@ -246,6 +246,17 @@ local function makerule(makefn, targ)
     return expand(expand(cond, vs):find '%g' and ifstr or elsestr or '', vs)
   end
   function funcs.notdir(vs, str) return expand(str, vs):match '[^/]+$' end
+  funcs['filter-out'] = function(vs, ws, str)
+    ws,str = expand(ws,vs), expand(str,vs)
+    assert(not ws:find '%%')
+    local words = {}
+    for w in ws:gmatch '%g+' do words[w] = '' end
+    return (str:gsub('%g+', words))
+  end
+  function funcs.shell(vs, cmd)  -- By far the hairiest and most sensitive
+    if cmd == 'cd $(srcdir);pwd' then return expand('$(srcdir)', vs)
+    else error('Unhandled shell: '..cmd) end
+  end
 
   -- Now we expand the depstring and split it by word to get the targets.
   r.deps = {}
