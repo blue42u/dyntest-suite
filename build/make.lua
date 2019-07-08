@@ -79,9 +79,11 @@ local function makeparse(makefn, cwd)
   local id = cwd..':'..makefn
   if makecache[id] then return makecache[id] end
 
+  local db = nil
+  -- db = ' | tee /tmp/q_'..cwd:gsub('/','_')..'.'..makefn:gsub('/','_')
   local p = io.popen("cd ./"..cwd.." && "
     .."(cat "..makefn.."; printf '\\nXXdonothing:\\n.PHONY: XXdonothing\\n') | "
-    .."make -pqsrRf- XXdonothing")
+    .."make -pqsrRf- XXdonothing"..(db or ''))
   local c = {vars={}, implicit={}, normal={}}
 
   -- We use a simple single-state machine, to triple-check the database output.
@@ -169,7 +171,7 @@ local function makerule(makefn, targ, cwd)
       table.move(match, 1,#match, 1, r)
     end
     -- If it doesn't match, we'll just pretend its a pseudo-phony and move on.
-    assert(r, makefn..' '..targ)
+    assert(r, cwd..':'..makefn..' '..targ)
   end
   if r.postprocessed then return targ,r end
   r.postprocessed = true
@@ -256,6 +258,7 @@ local function makerule(makefn, targ, cwd)
   end
   function funcs.shell(vs, cmd)  -- By far the hairiest and most sensitive
     if cmd == 'cd $(srcdir);pwd' then return expand('$(srcdir)', vs)
+    elseif cmd == 'pwd' then return './'..cwd
     else error('Unhandled shell: '..cmd) end
   end
 
@@ -305,10 +308,8 @@ local function make(f, t, cwd)
 end
 function realmake(makefn, targ, cwd)
   if targ:find '^%.%./' then
-    -- It belongs to another Makefile, so recurse over thataway.
-    local d,t = targ:match '^(.-)([^/]+)$'
-    local f = makefn:gsub('[^/]+$', d..'/Makefile')
-    return make(f, t)
+    -- It belongs to another Makefile, assume Tup can figure it out.
+    return canonicalize(cwd..targ)
   end
 
   local name, rule = makerule(makefn, targ, cwd)
@@ -356,9 +357,9 @@ function realmake(makefn, targ, cwd)
       local target = targ:gsub('%-recursive$', '')
       for s in rule.expand('$(SUBDIRS)'):gmatch '%g+' do
         assert(s ~= '.')
-        make(makefn:gsub('[^/]+$', unmagic(s)..'/%0'), target, cwd)
+        make('Makefile', target, canonicalize(cwd..s..'/'))
       end
-      make(makefn, target..'-am', cwd)
+      make('Makefile', target..'-am', cwd)
       tr = AM..'(recursive make call)'
     elseif cmd:find('^cd '..unmagic(tmpdir)..'/?%g* && $%(MAKE%)') then
       local d = cmd:match('^cd '..unmagic(tmpdir)..'/?(%g*)')
@@ -375,7 +376,7 @@ function realmake(makefn, targ, cwd)
 
   for i in ipairs(rule) do if not trules[i] then printout = true; break end end
   if printout then
-    dbg(makefn..' '..realname..': '..table.concat(deps, ' '))
+    dbg(cwd..'|'..makefn..' '..realname..': '..table.concat(deps, ' '))
     for i,c in ipairs(rule) do
       if trules[i] then dbg('  '..trules[i])
       else dbg('  $ '..rule.ex[i]); dbg('  % '..c) end
