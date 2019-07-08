@@ -4,6 +4,7 @@
 -- Somewhat automatic conversion from Makefiles to Tup rules.
 -- Usage: ./make.lua <path/to/source> <path/to/install> <path/of/tmpdir> <extra deps>
 local srcdir,instdir,group,tmpdir,exdeps,transforms = ...
+local exd = ' | '..exdeps..' '
 
 -- Debugging function for outputting info to stderr.
 local function dbg(...)
@@ -475,10 +476,11 @@ function realmake(makefn, targ, cwd)
       make('Makefile', 'all', canonicalize((#cwd > 0 and cwd..'/' or '')..d..'/'))
       tr = '# CMake recursion into '..d
     -- Simple compilation calls
-    elseif cmd:find '$%(COMPILE%)' or cmd:find '$%(COMPILE.os%)' then
-      local c = exc:match ';(.*)'  -- AM-style, after ;
+    elseif cmd:find '$%(COMPILE%)' or cmd:find '$%(COMPILE.os%)'
+      or cmd:find '$%(LINK%)' then
+      local c = exc:match ';%s*(.*)' or exc:match '&&%s*(.*)'
       local first,ins,out = true,{},nil
-      c = gosub(c, 'D:I:std:W:f:g,O:c,o:', {
+      c = gosub(c, 'D:I:std:W:f:g,O:c,o:shared,l:', {
         [false]=function(p) if first then first = false; return p end
           ins[#ins+1] = make(makefn, p, cwd)
         end,
@@ -490,7 +492,15 @@ function realmake(makefn, targ, cwd)
         end,
       })
       assert(not c:find '%%o', c)
-      tr = ': '..table.concat(ins, ' ')..' |> '..c..' -o %o %f |> '..out
+      tr = ': '..table.concat(ins, ' ')..exd..' |> '..c..' -o %o %f |> '..out
+    -- Simple archiving (AR) calls
+    elseif cmd:find '$%(RANLIB%)' then tr = ''  -- Skip ranlib
+    elseif cmd:find '$%([%w_]+AR%)' then
+      local ins,out = {},pclean((#cwd > 0 and cwd..'/' or '')..rule.name)
+      for i,d in ipairs(rule.deps) do
+        ins[i] = pclean((#cwd > 0 and cwd..'/' or '')..d)
+      end
+      tr = ': '..table.concat(ins, ' ')..exd..' |> ar scr %o %f |> '..out
     end
     if tr then
       if tr:sub(1,1) == ':' then print(tr); table.insert(commands, tr)
@@ -510,6 +520,6 @@ end
 
 make('Makefile', 'all', '')
 
-print(": | "..exdeps.." |> ^ Wrote build.tup.gen^ printf '"
+print(": "..exd.." |> ^ Wrote build.tup.gen^ printf '"
   ..table.concat(commands, '\\n'):gsub('\n', '\\n')
   .."' > %o |> build.tup.gen <"..group..">")
