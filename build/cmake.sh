@@ -27,4 +27,4 @@ rm -r "$TMP"
 trap - EXIT
 
 # Call our version of make to "build" everything.
-"$BUILD"/make.lua "$SRC" "$INS"
+"$BUILD"/make.lua "$SRC" "$INS" "$TMP"

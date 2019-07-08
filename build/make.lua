@@ -2,8 +2,8 @@
 -- luacheck: std lua53
 
 -- Somewhat automatic conversion from Makefiles to Tup rules.
--- Usage: ./make.lua <path/to/source> <path/to/install>
-local srcdir,instdir = ...  -- luacheck: no unused
+-- Usage: ./make.lua <path/to/source> <path/to/install> <path/of/tmpdir>
+local srcdir,instdir,tmpdir = ...  -- luacheck: no unused
 
 -- Debugging function for outputting info to stderr.
 local function dbg(...)
@@ -74,12 +74,13 @@ local makevarpatt = '[%w_<>@.?%%^*+]+'
 -- We let make parse the Makefiles for us, and cache the outputs in a little
 -- table to make things faster. Argument is the path to the Makefile.
 local makecache = {}
-local function makeparse(makefn)
+local function makeparse(makefn, cwd)
   makefn = canonicalize(makefn)
-  if makecache[makefn] then return makecache[makefn] end
+  local id = cwd..':'..makefn
+  if makecache[id] then return makecache[id] end
 
-  local p = io.popen(
-    "(cat "..makefn.."; printf '\\nXXdonothing:\\n.PHONY: XXdonothing\\n') |"
+  local p = io.popen("cd ./"..cwd.." && "
+    .."(cat "..makefn.."; printf '\\nXXdonothing:\\n.PHONY: XXdonothing\\n') | "
     .."make -pqsrRf- XXdonothing")
   local c = {vars={}, implicit={}, normal={}}
 
@@ -131,9 +132,9 @@ local function makeparse(makefn)
       end
     end
   end
+  pclose(p)
   assert(state == 'outsiderule', 'Database ended in wrong state!')
 
-  pclose(p)
   makecache[makefn] = c
   return c
 end
@@ -142,8 +143,8 @@ end
 -- done (variable expansion and implicit rule search), but there is a lot of
 -- Make that is far more complex than we want to handle. So we only do such
 -- processing on-demand when its needed.
-local function makerule(makefn, targ)
-  local rs = makeparse(makefn)
+local function makerule(makefn, targ, cwd)
+  local rs = makeparse(makefn, cwd)
   local r = rs.normal[targ]
   if not r or #r == 0 then
     if insrc(targ) then  -- Its a source file, so return the real name
@@ -293,15 +294,16 @@ local commands = {}
 -- written to actually work and aren't naturally recursive.
 local makecache2 = {}
 local realmake
-local function make(f, t)
+local function make(f, t, cwd)
   f,t = canonicalize(f),canonicalize(t)
-  if makecache2[f] and makecache2[f][t] then return makecache2[f][t] end
-  makecache2[f] = makecache2[f] or {}
-  local o = realmake(f, t)
-  makecache2[f][t] = o
+  local id = cwd..':'..f
+  if makecache2[id] and makecache2[id][t] then return makecache2[id][t] end
+  makecache2[id] = makecache2[id] or {}
+  local o = realmake(f, t, cwd)
+  makecache2[id][t] = o
   return o
 end
-function realmake(makefn, targ)
+function realmake(makefn, targ, cwd)
   if targ:find '^%.%./' then
     -- It belongs to another Makefile, so recurse over thataway.
     local d,t = targ:match '^(.-)([^/]+)$'
@@ -309,12 +311,12 @@ function realmake(makefn, targ)
     return make(f, t)
   end
 
-  local name, rule = makerule(makefn, targ)
+  local name, rule = makerule(makefn, targ, cwd)
   if not rule then return name end  -- Source file, don't do anything
-  local realname = pclean(name)
-  local printout,trules = true,{}
+  local realname = pclean(cwd..name)
+  local printout,trules = false,{}
   local deps = {}
-  for i,d in ipairs(rule.deps) do deps[i] = make(makefn, d) end
+  for i,d in ipairs(rule.deps) do deps[i] = make(makefn, d, cwd) end
 
   for idx,cmd in ipairs(rule) do
     local exc = rule.ex[idx]
@@ -337,7 +339,7 @@ function realmake(makefn, targ)
     elseif cmd:find '^@$%(CMAKE_COMMAND%) %-E touch_nocreate' then tr = CM..'(touch)'
     -- Recursive Make calls
     elseif exc:find '^make%s' then
-      local fn,targs = makefn,{}
+      local fn,targs = 'Makefile',{}
       for w in exc:match '^make%s+(.*)':gmatch '%g+' do
         if w:sub(1,1) == '-' then
           if w:sub(1,2) ~= '--' and w:find 'f' then
@@ -346,19 +348,23 @@ function realmake(makefn, targ)
         elseif fn then table.insert(targs, w)
         else fn = w end
       end
-      for _,t in ipairs(targs) do make(fn, t) end
-      tr = '# make '..(fn == makefn and '' or '-f '..fn..' ')
-        ..table.concat(targs, ' ')
+      for _,t in ipairs(targs) do make(fn, t, cwd) end
+      tr = '# make '..(fn and '' or '-f '..fn..' ')..table.concat(targs, ' ')
     elseif cmd:find '^@fail=;' then
       assert(cmd == AMrecurse, cmd)
       assert(not (targ:find '^distclean%-' or targ:find 'maintainer%-clean%-'))
       local target = targ:gsub('%-recursive$', '')
       for s in rule.expand('$(SUBDIRS)'):gmatch '%g+' do
         assert(s ~= '.')
-        make(makefn:gsub('[^/]+$', unmagic(s)..'/%0'), target)
+        make(makefn:gsub('[^/]+$', unmagic(s)..'/%0'), target, cwd)
       end
-      make(makefn, target..'-am')
+      make(makefn, target..'-am', cwd)
       tr = AM..'(recursive make call)'
+    elseif cmd:find('^cd '..unmagic(tmpdir)..'/?%g* && $%(MAKE%)') then
+      local d = cmd:match('^cd '..unmagic(tmpdir)..'/?(%g*)')
+      assert(d, cmd)
+      make('Makefile', 'all', canonicalize(cwd..d..'/'))
+      tr = '# CMake recursion into '..d
     end
     if tr then
       if tr:sub(1,1) == ':' then print(tr); table.insert(commands, tr)
@@ -378,7 +384,7 @@ function realmake(makefn, targ)
   return realname
 end
 
-make('Makefile', 'all')
+make('Makefile', 'all', '')
 
 print(": |> ^ Write build.tup.gen^ printf '"
   ..table.concat(commands, '\\n'):gsub('\n', '\\n')
