@@ -8,7 +8,7 @@ local srcdir,instdir = ...  -- luacheck: no unused
 -- Debugging function for outputting info to stderr.
 local function dbg(...)
   local t = {...}
-  for i,v in ipairs(t) do t[i] = tostring(v) end
+  for i,v in pairs(t) do t[i] = tostring(v) end
   io.stderr:write(table.concat(t, '\t')..'\n')
 end
 
@@ -33,6 +33,12 @@ local function unmagic(s)
   return (s:gsub('[]^$()%%.[*+?-]', '%%%0'))
 end
 
+-- Get a canonical path for the given path
+local function canonicalize(p)
+  return (p:sub(1,1) == '/' and '/' or '')..('/'..p):gsub('[^/]+/%.%.', '')
+    :gsub('//+', '/'):sub(2)
+end
+
 local insrc,pclean
 do
   local rspatt = '^'..unmagic(exec('realpath '..srcdir):gsub('%s*$', ''))..'(.*)'
@@ -43,8 +49,8 @@ do
   function insrc(fn)
     fn = fn:gsub('//+', '/'):gsub('%./', '')
     local d,f = fn:match '^(.-)([^/]+)$'
-    d = ('/'..d..'/'):gsub('//+', '/')
-    if d:find(rspatt) then return srcdir..d:match(rspatt)..f end
+    if d:find(rspatt) then return canonicalize(srcdir..d:match(rspatt)..f) end
+    d = canonicalize('/'..d..'/')
     if dircache[d] then return dircache[d][f] end
 
     local p = io.popen('find '..srcdir..d..' -type f -maxdepth 1 2> /dev/null', 'r')
@@ -57,9 +63,9 @@ do
   -- Paths sometimes will reference the source directories. This cleans a
   -- potental path to adjust references accordingly.
   function pclean(path)
-    if path:find(rspatt) then return srcdir..path:match(rspatt)
-    elseif path:find(ripatt) then return instdir..path:match(ripatt)
-    else return path end
+    if path:find(rspatt) then return canonicalize(srcdir..path:match(rspatt))
+    elseif path:find(ripatt) then return canonicalize(instdir..path:match(ripatt))
+    else return canonicalize(path) end
   end
 end
 
@@ -69,7 +75,7 @@ local makevarpatt = '[%w_<>@.?%%^*+]+'
 -- table to make things faster. Argument is the path to the Makefile.
 local makecache = {}
 local function makeparse(makefn)
-  makefn = makefn:gsub('//+', '/'):gsub('%./', '')
+  makefn = canonicalize(makefn)
   if makecache[makefn] then return makecache[makefn] end
 
   local p = io.popen(
@@ -93,9 +99,9 @@ local function makeparse(makefn)
         end
       end
     elseif state == 'outsiderule' then
-      if l:find '^%g+:' then
+      if l:find '^[^#%s].*:' then
         state = 'rulepreamble'
-        local n,d = l:match '^(%g-):(.*)'
+        local n,d = l:match '^(%g+).-:(.*)'
         assert(n and d, l)
         crule = {name=n, depstring=d, implicit=not not n:find '%%'}
       else
@@ -117,7 +123,7 @@ local function makeparse(makefn)
           c.normal[crule.name] = crule
         end
       else
-        assert(l:sub(1,1) == '\t')
+        assert(l:sub(1,1) == '\t', l)
         if #crule > 0 and crule[#crule]:sub(-1) == '\\' then
           crule[#crule] = crule[#crule]:sub(1,-2):gsub('%s*$', '')
             ..' '..l:gsub('^%s*', '')
@@ -159,9 +165,10 @@ local function makerule(makefn, targ)
       r = {name=targ, implicit=false, stem=stem}
       r.depstring = match.depstring:gsub('%%', stem)
       rs[targ] = r
+      table.move(match, 1,#match, 1, r)
     end
     -- If it doesn't match, we'll just pretend its a pseudo-phony and move on.
-    assert(r, targ)
+    assert(r, makefn..' '..targ)
   end
   if r.postprocessed then return targ,r end
   r.postprocessed = true
@@ -276,6 +283,7 @@ local commands = {}
 local makecache2 = {}
 local realmake
 local function make(f, t)
+  f,t = canonicalize(f),canonicalize(t)
   if makecache2[f] and makecache2[f][t] then return makecache2[f][t] end
   makecache2[f] = makecache2[f] or {}
   local o = realmake(f, t)
@@ -283,10 +291,17 @@ local function make(f, t)
   return o
 end
 function realmake(makefn, targ)
+  if targ:find '^%.%./' then
+    -- It belongs to another Makefile, so recurse over thataway.
+    local d,t = targ:match '^(.-)([^/]+)$'
+    local f = makefn:gsub('[^/]+$', d..'/Makefile')
+    return make(f, t)
+  end
+
   local name, rule = makerule(makefn, targ)
   if not rule then return name end  -- Source file, don't do anything
   local realname = pclean(name)
-  local printout,trules = false,{}
+  local printout,trules = true,{}
   local deps = {}
   for i,d in ipairs(rule.deps) do deps[i] = make(makefn, d) end
 
