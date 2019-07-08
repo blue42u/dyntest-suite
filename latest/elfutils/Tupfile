@@ -1,2 +1,8 @@
 include_rules
+
+include ../../build/hasbuildtup.lua
+ifeq (y,$(HAS_BUILD_TUP))
+include build.tup
+else
 include ../../src/elfutils.tup
+endif

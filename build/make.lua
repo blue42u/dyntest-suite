@@ -269,6 +269,8 @@ $(MAKE) $(AM_MAKEFLAGS) $$local_target) || eval $$failcom; done; if test \
 "$$dot_seen" = "no"; then $(MAKE) $(AM_MAKEFLAGS) "$$target-am" || exit 1; \
 fi; test -z "$$fail"]]):gsub('\\\n', '')
 
+local commands = {}
+
 -- This is the actual recursive make call. We assume that the Makefiles are
 -- written to actually work and aren't naturally recursive.
 local makecache2 = {}
@@ -333,7 +335,7 @@ function realmake(makefn, targ)
       tr = AM..'(recursive make call)'
     end
     if tr then
-      if tr:sub(1,1) == ':' then print(tr)
+      if tr:sub(1,1) == ':' then print(tr); table.insert(commands, tr)
       elseif tr == '' then tr = '# Skipped: '..exc end
       trules[idx] = tr
     end
@@ -350,4 +352,8 @@ function realmake(makefn, targ)
   return realname
 end
 
-make('Makefile', 'install')
+make('Makefile', 'all')
+
+print(": |> ^ Write build.tup.gen^ printf '"
+  ..table.concat(commands, '\\n'):gsub('\n', '\\n')
+  .."' > %o |> build.tup.gen")
