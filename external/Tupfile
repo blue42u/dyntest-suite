@@ -1,0 +1,11 @@
+include_rules
+
+include findboost.lua
+ifeq (y,$(BUILD_BOOST))
+: |> ./boost.sh |> $(BOOST_FILES) <boost>
+endif
+
+include findtbb.lua
+ifeq (y,$(BUILD_TBB))
+: |> ./tbb.sh |> $(TBB_FILES) <tbb>
+endif

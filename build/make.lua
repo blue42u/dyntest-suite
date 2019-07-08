@@ -2,8 +2,8 @@
 -- luacheck: std lua53
 
 -- Somewhat automatic conversion from Makefiles to Tup rules.
--- Usage: ./make.lua <path/to/source> <path/to/install> <path/of/tmpdir>
-local srcdir,instdir,tmpdir = ...  -- luacheck: no unused
+-- Usage: ./make.lua <path/to/source> <path/to/install> <path/of/tmpdir> <extra deps>
+local srcdir,instdir,group,tmpdir,exdeps,transforms = ...
 
 -- Debugging function for outputting info to stderr.
 local function dbg(...)
@@ -60,12 +60,17 @@ do
     dircache[d] = c
     return c[f]
   end
+  local patts = {}
+  for p,v in transforms:gmatch '(%g+)=(%g+)' do
+    patts['^'..unmagic(p)..'(.*)'] = v
+  end
   -- Paths sometimes will reference the source directories. This cleans a
   -- potental path to adjust references accordingly.
   function pclean(path)
-    if path:find(rspatt) then return canonicalize(srcdir..path:match(rspatt))
-    elseif path:find(ripatt) then return canonicalize(instdir..path:match(ripatt))
-    else return canonicalize(path) end
+    if path:find(rspatt) then return canonicalize(srcdir..path:match(rspatt)) end
+    if path:find(ripatt) then return canonicalize(instdir..path:match(ripatt)) end
+    for p,d in pairs(patts) do if path:find(p) then return canonicalize(d..path:match(p)) end end
+    return canonicalize(path)
   end
 end
 
@@ -387,6 +392,6 @@ end
 
 make('Makefile', 'all', '')
 
-print(": |> ^ Write build.tup.gen^ printf '"
+print(": | "..exdeps.." |> ^ Wrote build.tup.gen^ printf '"
   ..table.concat(commands, '\\n'):gsub('\n', '\\n')
-  .."' > %o |> build.tup.gen")
+  .."' > %o |> build.tup.gen <"..group..">")

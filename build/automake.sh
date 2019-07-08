@@ -1,13 +1,16 @@
 #!/bin/bash
 
 # Build script for Elfutils, for use under Tup's '`run`.
-# Usage: run $0 <path/to/src> <path/to/install> [extra configure args...]
+# Usage: run $0 <path/to/src> <path/to/install> [extra deps] [extra configure args...]
 # Note: Paths should be relative, as per Tup's usual mannerisms.
 
 BUILD="`dirname "$0"`"
 SRC="$BUILD"/../"$1"
 INS="$2"
-shift 2
+GROUP="$3"
+EXDEPS="$4"
+TRANSFORMS="$5"
+shift 5
 
 set -e  # Make sure to exit if anything funny happens
 
@@ -34,4 +37,4 @@ cd "$HERE"
 trap - EXIT
 
 # Call our version of make to "build" everything.
-"$BUILD"/make.lua "$SRC" "$INS" "$TMP"
+"$BUILD"/make.lua "$SRC" "$INS" "$GROUP" "$TMP" "$EXDEPS" "$TRANSFORMS"
