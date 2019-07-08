@@ -6,11 +6,12 @@
 
 BUILD="`dirname "$0"`"
 SRC="$BUILD"/../"$1"
-INS="`realpath $2`"
-GROUP="$3"
-EXDEPS="$4"
-TRANSFORMS="$5"
-shift 5
+RELSRC="$2"
+INS="$3"
+GROUP="$4"
+EXDEPS="$5"
+TRANSFORMS="$6"
+shift 6
 
 set -e  # Make sure to exit if anything funny happens
 
@@ -21,7 +22,7 @@ trap "rm -rf $TMP" EXIT  # Make sure to clean up before exiting.
 
 # Construct the Makefiles using CMake. Modify the MODULE_PATH to (try to)
 # ensure ExternalProject is not used.
-cmake -DCMAKE_INSTALL_PREFIX="$INS" -DCMAKE_MODULE_PATH="$BUILD" \
+cmake -DCMAKE_INSTALL_PREFIX="`realpath $INS`" -DCMAKE_MODULE_PATH="$BUILD" \
   "${@/&/$TMP}" -S "$SRC" -B "$TMP" > /dev/null
 
 # Copy all the files back to "here" so that there's something to make.
@@ -30,4 +31,4 @@ rm -r "$TMP"
 trap - EXIT
 
 # Call our version of make to "build" everything.
-"$BUILD"/make.lua "$SRC" "$INS" "$GROUP" "$TMP" "$EXDEPS" "$TRANSFORMS"
+"$BUILD"/make.lua "$RELSRC" "$INS" "$GROUP" "$TMP" "$EXDEPS" "$TRANSFORMS"

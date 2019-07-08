@@ -62,5 +62,5 @@ preload $(D)/proccontrol $(D)/proccontrol/h
 
 preload $(D)/elf $(D)/elf/h $(D)/dwarf $(D)/dwarf/h $(D)/symlite/h
 
-run $(TUP_CWD)/../build/cmake.sh src/dyninst install/ dyninst \
-  '$(EX_DEPS)' "$(TRANSFORMS)" $(CM_FLAGS)
+run $(TUP_CWD)/../build/cmake.sh src/dyninst $(TUP_CWD)/dyninst install/ \
+  dyninst '$(EX_DEPS)' "$(TRANSFORMS)" $(CM_FLAGS)

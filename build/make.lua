@@ -35,8 +35,87 @@ end
 
 -- Get a canonical path for the given path
 local function canonicalize(p)
-  return (p:sub(1,1) == '/' and '/' or '')..('/'..p):gsub('[^/]+/%.%.', '')
-    :gsub('//+', '/'):sub(2)
+  local abs = p:sub(1,1) == '/'
+  local pre,real = {},{}
+  for b in p:gmatch '[^/]+' do
+    if b == '..' then
+      if #real > 0 then real[#real] = nil else table.insert(pre, b) end
+    elseif b ~= '.' then table.insert(real, b) end
+  end
+  if abs and #pre > 0 then abs = false end  -- Fake abs path
+  table.move(real, 1,#real, #pre+1, pre)
+  if not abs and #pre == 0 then return '.' end
+  return (abs and '/' or '')..table.concat(pre, '/')
+end
+
+-- A partially-correct implementation of getopt, for command line munging.
+-- Opts is a table with ['flag'] = 'simple' | 'arg', or an optstring
+local function gosub(s, opts, repl)
+  if type(opts) == 'string' then
+    local o = {}
+    for f,a in opts:gmatch '([^,:]+)([,:])' do
+      o[f] = a == ':' and 'arg' or 'simple'
+    end
+    opts = o
+  end
+
+  local function munch(flag, arg, prefix)
+    local r = repl[flag]
+    if r then
+      if type(r) == 'function' then return (r(arg, prefix)) end
+      if type(r) == 'table' and r[arg] then return prefix..r[arg] end
+      if type(r) == 'string' then
+        return (r:gsub('%%0', prefix):gsub('%%1', (arg or ''):gsub('%%', '%%%%')))
+      end
+    end
+    if r == false then return '' end
+    return prefix..(arg or '')
+  end
+  local bits = {}
+  local cur,curfix
+  local quoted
+  for rw in s:gmatch '%g+' do
+    local w = rw
+    if quoted then quoted, w = quoted..' '..w, nil end
+    if #rw:gsub('[^"]+', '') & 1 == 1 then  -- Odd number of "'s, toggle quoted
+      quoted,w = w,quoted
+    end
+    if w then  -- Parse the word
+      if cur then
+        table.insert(bits, munch(cur, w, curfix))
+        cur,curfix = nil,nil
+      else
+        if w:sub(1,1) == '-' then  -- Start of a new flag
+          assert(w:sub(1,2) ~= '--', "Can't handle real long options yet!")
+          if opts[w:sub(2,2)] then  -- Simple flag
+            local f,a = w:sub(2,2),w:sub(3)
+            if #a > 0 then  -- Argument in this word, munch and continue
+              assert(opts[f] == 'arg', "Can't handle multiple short options yet!")
+              table.insert(bits, munch(f, a, '-'..f))
+            elseif opts[w:sub(2,2)] == 'simple' then  -- That's all folks
+              table.insert(bits, munch(f, nil, '-'..f))
+            else  -- Argument in next word, mark for consumption
+              cur,curfix = f,'-'..f..' '
+            end
+          else  -- Must be a long word. Break at the = if possible
+            local f,e,a = w:sub(2):match '([^=]+)(=?)(.*)'
+            assert(opts[f], "No option "..f..' for '..('%q'):format(s)..'!')
+            if e == '=' then  -- There was an =, argument in this word.
+              assert(opts[f] == 'arg', "Argument given to non-arg longer flag!")
+              table.insert(bits, munch(f, a, '-'..f..'='))
+            elseif opts[f] == 'simple' then  -- That's all folks
+              table.insert(bits, munch(f, nil, '-'..f))
+            else  -- Argument is in next word, mark for consumption
+              cur,curfix = f,'-'..f..' '
+            end
+          end
+        else  -- Non-option word. Format with repl[false]
+          table.insert(bits, munch(false, w, ''))
+        end
+      end
+    end
+  end
+  return table.concat(bits, ' ')
 end
 
 local insrc,pclean
@@ -69,8 +148,12 @@ do
   function pclean(path)
     if path:find(rspatt) then return canonicalize(srcdir..path:match(rspatt)) end
     if path:find(ripatt) then return canonicalize(instdir..path:match(ripatt)) end
-    for p,d in pairs(patts) do if path:find(p) then return canonicalize(d..path:match(p)) end end
-    return canonicalize(path)
+    local res
+    for p,d in pairs(patts) do if path:find(p) then
+      assert(not res, "Multiple patts match "..('%q'):format(path).."!")
+      res = canonicalize(d..path:match(p))
+    end end
+    return res or canonicalize(path)
   end
 end
 
@@ -154,18 +237,38 @@ local function makerule(makefn, targ, cwd)
   local rs = makeparse(makefn, cwd)
   local r = rs.normal[targ]
   if not r or #r == 0 then
-    if insrc(targ) then  -- Its a source file, so return the real name
-      return insrc(targ)
+    local fn = (#cwd > 0 and cwd..'/' or '')..targ
+    if insrc(fn) then  -- Its a source file, so return the real name
+      return insrc(fn)
     end
 
     -- Find the most applicable implicit rule for our purposes.
-    local match,stem
+    local match,stem,found
+    local errs = {}
     for ir in pairs(rs.implicit) do
       local p = unmagic(ir.name:gsub('%%', ':;!')):gsub(':;!', '(.+)')
       local s = targ:match(p)
-      if s and (not match or #match.name <= #ir.name) then
-        match,stem = ir,s
+      if #ir == 0 then assert(not ir.depstring:find '%g', ir.name..': '..ir.depstring)
+      elseif s and (not match or #match.name <= #ir.name) then
+        found = true
+        -- Work through the postprocessed depstr and see if the deps are available
+        local ok,ds = true,{}
+        for d in ir.depstring:gsub('%%', s):gmatch '%g+' do
+          if not d:find '^%.%./' then
+            ok = ok and pcall(makerule, makefn, d, cwd)
+            ds[#ds+1] = d
+          end
+        end
+        if ok then
+          assert(not match or #match.name ~= #ir.name, "Multiple implicits match!")
+          match,stem = ir,s
+        else errs[table.concat(ds, ',')] = true end
       end
+    end
+    if not match and found then
+      local x = {}
+      for t in pairs(errs) do x[#x+1] = '{'..t..'}' end
+      error(cwd..'|'..makefn..': no '..table.concat(x, ' or '))
     end
 
     if match then
@@ -314,12 +417,12 @@ end
 function realmake(makefn, targ, cwd)
   if targ:find '^%.%./' then
     -- It belongs to another Makefile, assume Tup can figure it out.
-    return canonicalize(cwd..targ)
+    return canonicalize(cwd..'/'..targ)
   end
 
   local name, rule = makerule(makefn, targ, cwd)
   if not rule then return name end  -- Source file, don't do anything
-  local realname = pclean(cwd..name)
+  local realname = pclean((#cwd > 0 and cwd..'/' or '')..name)
   local printout,trules = false,{}
   local deps = {}
   for i,d in ipairs(rule.deps) do deps[i] = make(makefn, d, cwd) end
@@ -362,24 +465,39 @@ function realmake(makefn, targ, cwd)
       local target = targ:gsub('%-recursive$', '')
       for s in rule.expand('$(SUBDIRS)'):gmatch '%g+' do
         assert(s ~= '.')
-        make('Makefile', target, canonicalize(cwd..s..'/'))
+        make('Makefile', target, canonicalize((#cwd > 0 and cwd..'/' or '')..s..'/'))
       end
       make('Makefile', target..'-am', cwd)
       tr = AM..'(recursive make call)'
     elseif cmd:find('^cd '..unmagic(tmpdir)..'/?%g* && $%(MAKE%)') then
       local d = cmd:match('^cd '..unmagic(tmpdir)..'/?(%g*)')
       assert(d, cmd)
-      make('Makefile', 'all', canonicalize(cwd..d..'/'))
+      make('Makefile', 'all', canonicalize((#cwd > 0 and cwd..'/' or '')..d..'/'))
       tr = '# CMake recursion into '..d
+    -- Simple compilation calls
+    elseif cmd:find '$%(COMPILE%)' or cmd:find '$%(COMPILE.os%)' then
+      local c = exc:match ';(.*)'  -- AM-style, after ;
+      local first,ins,out = true,{},nil
+      c = gosub(c, 'D:I:std:W:f:g,O:c,o:', {
+        [false]=function(p) if first then first = false; return p end
+          ins[#ins+1] = make(makefn, p, cwd)
+        end,
+        o=function(p) out = pclean((#cwd > 0 and cwd..'/' or '')..p) end,
+        I=function(p)
+          if p == '.' then return '-I'..canonicalize(cwd)
+          elseif p == '..' then return '-I'..canonicalize(cwd..'/..')
+          else return '-I'..pclean(p) end
+        end,
+      })
+      assert(not c:find '%%o', c)
+      tr = ': '..table.concat(ins, ' ')..' |> '..c..' -o %o %f |> '..out
     end
     if tr then
       if tr:sub(1,1) == ':' then print(tr); table.insert(commands, tr)
       elseif tr == '' then tr = '# Skipped: '..exc end
       trules[idx] = tr
-    end
+    else printout = true end
   end
-
-  for i in ipairs(rule) do if not trules[i] then printout = true; break end end
   if printout then
     dbg(cwd..'|'..makefn..' '..realname..': '..table.concat(deps, ' '))
     for i,c in ipairs(rule) do
