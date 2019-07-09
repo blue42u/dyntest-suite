@@ -401,6 +401,7 @@ $(MAKE) $(AM_MAKEFLAGS) $$local_target) || eval $$failcom; done; if test \
 fi; test -z "$$fail"]]):gsub('\\\n', '')
 
 local commands = {}
+local firstylwrap = true
 
 -- This is the actual recursive make call. We assume that the Makefiles are
 -- written to actually work and aren't naturally recursive.
@@ -408,11 +409,13 @@ local makecache2 = {}
 local realmake
 local function make(f, t, cwd)
   f,t = canonicalize(f),canonicalize(t)
-  local id = cwd..':'..f
-  if makecache2[id] and makecache2[id][t] then return makecache2[id][t] end
-  makecache2[id] = makecache2[id] or {}
+  local c1 = makecache2[cwd]
+  if not c1 then c1 = {}; makecache2[cwd] = c1 end
+  local c2 = c1[f]
+  if not c2 then c2 = {}; c1[f] = c2 end
+  if c2[t] then return c2[t] end
   local o = realmake(f, t, cwd)
-  makecache2[id][t] = o
+  c2[t] = o
   return o
 end
 function realmake(makefn, targ, cwd)
@@ -477,8 +480,12 @@ function realmake(makefn, targ, cwd)
       tr = '# CMake recursion into '..d
     -- Simple compilation calls
     elseif cmd:find '$%(COMPILE%)' or cmd:find '$%(COMPILE.os%)'
-      or cmd:find '$%(LINK%)' then
+      or cmd:find '$%(LINK%)' or cmd:find '$%(CC%)' then
       local c = exc:match ';%s*(.*)' or exc:match '&&%s*(.*)'
+      -- Glitchy thing with one of the commands. The system will figure it out.
+      c = c:gsub(
+        unmagic(rule.expand "`test -f 'bpf_disasm.c' || echo '$(srcdir)/'`"),
+        '')
       local first,ins,out = true,{},nil
       c = gosub(c, 'D:I:std:W:f:g,O:c,o:shared,l:', {
         [false]=function(p) if first then first = false; return p end
@@ -492,7 +499,7 @@ function realmake(makefn, targ, cwd)
         end,
       })
       assert(not c:find '%%o', c)
-      tr = ': '..table.concat(ins, ' ')..exd..' |> '..c..' -o %o %f |> '..out
+      tr = ': '..table.concat(ins, ' ')..exd..' |> '..c..' -o %o %f |> '..out..' <'..group..'>'
     -- Simple archiving (AR) calls
     elseif cmd:find '$%(RANLIB%)' then tr = ''  -- Skip ranlib
     elseif cmd:find '$%([%w_]+AR%)' then
@@ -500,7 +507,37 @@ function realmake(makefn, targ, cwd)
       for i,d in ipairs(rule.deps) do
         ins[i] = pclean((#cwd > 0 and cwd..'/' or '')..d)
       end
-      tr = ': '..table.concat(ins, ' ')..exd..' |> ar scr %o %f |> '..out
+      tr = ': '..table.concat(ins, ' ')..exd..' |> ar scr %o %f |> '..out..' <'..group..'>'
+    -- YLWRAP-style commands are hardcoded. It would be too complex otherwise.
+    elseif cmd:find '$%(YLWRAP%)' then
+      if firstylwrap then
+        firstylwrap = false
+        local f = assert(io.open(srcdir..'/config/ylwrap', 'r'))
+        local x = f:read 'a':gsub('\n', '\\n'):gsub('%%', '%%%%')
+        f:close()
+        print(": |> ^Wrote ylwrap^ printf '"..x.."' > %o && chmod u+x %o |> ylwrap <"..group..">")
+      end
+      local c = cmd:match '$%(YLWRAP%)%s+(.*)'
+      assert(c)
+      if c == '$< $(LEX_OUTPUT_ROOT).c $@ -- $(LEXCOMPILE)' then
+        local top = #cwd > 0 and cwd:gsub('[^/]+', '..')..'/' or ''
+        local ylw = top..'ylwrap'
+        local cd = #cwd > 0 and 'cd '..cwd..' && ' or ''
+        tr = (': %s %s ylwrap |> %s%s %s %s.c %s -- %s |> %s <%s>'):format(
+          deps[1], exd, cd, ylw, top..deps[1],
+          rule.expand '$(LEX_OUTPUT_ROOT)', targ,
+          rule.expand '$(LEXCOMPILE)', realname, group)
+        printout = true
+      elseif c == '$< y.tab.c $@ y.tab.h `echo $@ | $(am__yacc_c2h)` y.output $*.output -- $(YACCCOMPILE)' then
+        local top = #cwd > 0 and cwd:gsub('[^/]+', '..')..'/' or ''
+        local ylw = top..'ylwrap'
+        local cd = #cwd > 0 and 'cd '..cwd..' && ' or ''
+        tr = (': %s %s ylwrap |> %s%s %s y.tab.c %s y.tab.h %s y.output %s.output -- |> %s <%s>'):format(
+          deps[1], exd, cd, ylw, top..deps[1],
+          targ, targ:gsub('cc$','hh'):gsub('cpp$','hpp'):gsub('c%+%+$','h++'):gsub('c$','h'),
+          assert(rule.stem),
+          realname, group)
+      else error('Unhandled YLWRAP: '..cmd) end
     end
     if tr then
       if tr:sub(1,1) == ':' then print(tr); table.insert(commands, tr)
@@ -519,7 +556,3 @@ function realmake(makefn, targ, cwd)
 end
 
 make('Makefile', 'all', '')
-
-print(": "..exd.." |> ^ Wrote build.tup.gen^ printf '"
-  ..table.concat(commands, '\\n'):gsub('\n', '\\n')
-  .."' > %o |> build.tup.gen <"..group..">")
