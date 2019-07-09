@@ -22,8 +22,7 @@ endif
 
 # Connection and overrides for our compiled Elfutils
 EX_DEPS += $(TUP_CWD)/../latest/elfutils/<elfutils>
-CM_FLAGS += -DLibElf_ROOT_DIR=`realpath $(TUP_CWD)/../dummy/elfutils`
-CM_FLAGS += -DLibDwarf_ROOT_DIR=`realpath $(TUP_CWD)/../dummy/elfutils`
+CM_FLAGS += -DElfUtils_ROOT_DIR=`realpath $(TUP_CWD)/../dummy/elfutils`
 TRANSFORMS += `realpath $(TUP_CWD)/../dummy/elfutils`=$(TUP_CWD)/../latest/elfutils/install
 preload ../dummy/elfutils
 preload ../dummy/elfutils/lib
@@ -32,37 +31,47 @@ D = dyninst
 preload $(D)
 preload $(D)/cmake/CheckCXX11Features
 preload $(D)/dynC_API/h $(D)/dynC_API/doc $(D)/dynC_API/src
-preload $(D)/dyninstAPI $(D)/dyninstAPI/h
 preload $(D)/dyninstAPI_RT $(D)/dyninstAPI_RT/h $(D)/dyninstAPI_RT/src
+
+preload $(D)/dyninstAPI $(D)/dyninstAPI/h $(D)/dyninstAPI/src
+preload $(D)/dyninstAPI/src/Relocation $(D)/dyninstAPI/src/Relocation/CFG
+preload $(D)/dyninstAPI/src/Relocation/Widgets
+preload $(D)/dyninstAPI/src/Relocation/Transformers
+preload $(D)/dyninstAPI/src/StackMod
 
 preload $(D)/common $(D)/common/h $(D)/common/src $(D)/common/doc
 
-preload $(D)/dataflowAPI/h
-preload $(D)/dataflowAPI/doc
+preload $(D)/dataflowAPI/h $(D)/dataflowAPI/src $(D)/dataflowAPI/doc
+preload $(D)/dataflowAPI/rose $(D)/dataflowAPI/rose/util
+preload $(D)/dataflowAPI/rose/semantics
 
-preload $(D)/instructionAPI $(D)/instructionAPI/h
+preload $(D)/instructionAPI $(D)/instructionAPI/h $(D)/instructionAPI/src
 preload $(D)/instructionAPI/doc $(D)/instructionAPI/doc/API
 preload $(D)/instructionAPI/doc/examples $(D)/instructionAPI/doc/fig
 
-preload $(D)/parseAPI $(D)/parseAPI/h
+preload $(D)/parseAPI $(D)/parseAPI/h $(D)/parseAPI/src
 preload $(D)/parseAPI/doc $(D)/parseAPI/doc/API
 
-preload $(D)/patchAPI $(D)/patchAPI/h
+preload $(D)/patchAPI $(D)/patchAPI/h $(D)/patchAPI/src
 preload $(D)/patchAPI/doc $(D)/patchAPI/doc/section $(D)/patchAPI/doc/figure
 preload $(D)/patchAPI/doc/figure/abstraction $(D)/patchAPI/doc/figure/command
 
-preload $(D)/symtabAPI $(D)/symtabAPI/h
+preload $(D)/symtabAPI $(D)/symtabAPI/h $(D)/symtabAPI/src
 preload $(D)/symtabAPI/doc $(D)/symtabAPI/doc/API
 preload $(D)/symtabAPI/doc/API/LineInfo $(D)/symtabAPI/doc/API/Symtab
 preload $(D)/symtabAPI/doc/API/Types
 
-preload $(D)/stackwalk $(D)/stackwalk/h
+preload $(D)/stackwalk $(D)/stackwalk/h $(D)/stackwalk/src
 preload $(D)/stackwalk/doc $(D)/stackwalk/doc/API $(D)/stackwalk/doc/fig
 
-preload $(D)/proccontrol $(D)/proccontrol/h
+preload $(D)/proccontrol $(D)/proccontrol/h $(D)/proccontrol/src
+preload $(D)/proccontrol/src/loadLibrary
 
 preload $(D)/elf $(D)/elf/src $(D)/elf/h $(D)/dwarf $(D)/dwarf/src $(D)/dwarf/h
-preload $(D)/symlite/h
+preload $(D)/symlite/h $(D)/symlite/src
 
-#run $(TUP_CWD)/../build/cmake.sh src/dyninst $(TUP_CWD)/dyninst install/ \
-#  dyninst '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(CM_FLAGS)
+preload $(D)/parseThat/src $(D)/examples/codeCoverage.dir
+preload $(D)/examples/unstrip.dir
+
+run $(TUP_CWD)/../build/cmake.sh src/dyninst $(TUP_CWD)/dyninst install/ \
+  dyninst '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(CM_FLAGS)

@@ -63,8 +63,10 @@ end
 local function gosub(s, opts, repl)
   if type(opts) == 'string' then
     local o = {}
-    for f,a in opts:gmatch '([^,:]+)([,:])' do
-      o[f] = a == ':' and 'arg' or 'simple'
+    for f,a in opts:gmatch '([^,;:]+)([,;:])' do
+      if a == ':' then o[f] = 'arg'
+      elseif a == ';' then o[f] = 'argword'
+      else o[f] = 'simple' end
     end
     opts = o
   end
@@ -101,9 +103,9 @@ local function gosub(s, opts, repl)
           if opts[w:sub(2,2)] then  -- Simple flag
             local f,a = w:sub(2,2),w:sub(3)
             if #a > 0 then  -- Argument in this word, munch and continue
-              assert(opts[f] == 'arg', "Can't handle multiple short options yet!")
+              assert(opts[f] ~= 'simple', "Can't handle multiple short options yet!")
               table.insert(bits, munch(f, a, '-'..f))
-            elseif opts[w:sub(2,2)] == 'simple' then  -- That's all folks
+            elseif opts[w:sub(2,2)] ~= 'arg' then  -- That's all folks
               table.insert(bits, munch(f, nil, '-'..f))
             else  -- Argument in next word, mark for consumption
               cur,curfix = f,'-'..f..' '
@@ -112,7 +114,7 @@ local function gosub(s, opts, repl)
             local f,e,a = w:sub(2):match '([^=]+)(=?)(.*)'
             assert(opts[f], "No option "..f..' for '..('%q'):format(s)..'!')
             if e == '=' then  -- There was an =, argument in this word.
-              assert(opts[f] == 'arg', "Argument given to non-arg longer flag!")
+              assert(opts[f] ~= 'simple', "Argument given to non-arg longer flag!")
               table.insert(bits, munch(f, a, '-'..f..'='))
             elseif opts[f] == 'simple' then  -- That's all folks
               table.insert(bits, munch(f, nil, '-'..f))
@@ -132,10 +134,15 @@ end
 
 local exists,pclean,isinst
 do
-  local rspatt = '^'..unmagic(exec('realpath '..srcdir):gsub('%s*$', ''))..'(.*)'
-  local ripatt = '^'..unmagic(exec('realpath '..instdir):gsub('%s*$', ''))..'(.*)'
-  local rtpatt = '^'..unmagic(exec('realpath '..tmpdir):gsub('%s*$', ''))..'(.*)'
+  local rspatt = '^'..unmagic(exec('realpath '..srcdir):gsub('/?%s*$', ''))..'(.*)'
+  local ripatt = '^'..unmagic(exec('realpath '..instdir):gsub('/?%s*$', ''))..'(.*)'
+  local rtpatt = '^'..unmagic(exec('realpath '..tmpdir):gsub('/?%s*$', ''))..'(.*)'
   local expatt = '^'..unmagic(canonicalize(extdir))
+  local patts,afters = {},{}
+  for p,v in transforms:gmatch '(%g+)=(%g+)' do
+    patts['^'..unmagic(p)..'(.*)'] = v
+    afters['^'..unmagic(canonicalize(v))] = true
+  end
   local dircache = {}
   -- We often will need to check for files in the filesystem to know whether a
   -- file is a source file or not (implicit rules). This does the actual check.
@@ -144,6 +151,8 @@ do
     local d,f = fn:match '^(.-)([^/]+)$'
     d = d:gsub('/?$', '/')  -- Ensure there's a / at the end
     if d:find(expatt) then return true end  -- Externals always exist
+    -- Things that work with transforms always exist
+    for p in pairs(afters) do if d:find(p) then return true end end
     if d:sub(1,1) ~= '/' and d:sub(1,3) ~= '../' then return false end
     if dircache[d] then return dircache[d][f] end
 
@@ -153,10 +162,6 @@ do
     p:close()
     dircache[d] = c
     return c[f]
-  end
-  local patts = {}
-  for p,v in transforms:gmatch '(%g+)=(%g+)' do
-    patts['^'..unmagic(p)..'(.*)'] = v
   end
   function isinst(p) return not not p:find(ripatt) end
   -- Paths sometimes will reference the source directories. This cleans a
@@ -177,7 +182,7 @@ do
       x = path:match(ripatt)
       if x then x = canonicalize(instdir..x); return x,x,x end
       x = path:match(rtpatt)
-      if x then x = canonicalize(x); return x,x,x end
+      if x then x = canonicalize(x:gsub('^/(.)', '%1')); return x,x,x end
       local res
       for p,d in pairs(patts) do if path:find(p) then
         x = path:match(p)
@@ -187,8 +192,8 @@ do
         end
       end end
       if res then return res,res,res end
-      -- At this point all the prefixes have been tried.
-      error("Unhandled absolute path: "..path)
+      -- At this point all the prefixes have been tried. Must be a system thing.
+      return path,path,path
     else  -- Relative path, use ref to sort it out
       local x = canonicalize(ref..path)
       return x,x,canonicalize(srcdir..ref..path)
@@ -484,10 +489,7 @@ local function make(f, t, cwd)
 end
 function realmake(makefn, targ, cwd)
   -- Targets that are actually handled via other methods are sorted up here.
-  if targ == 'libelf.pc' or targ == 'libdw.pc' or targ == 'version.h' then
-    local n = pclean(targ, cwd)
-    table.insert(commands, ': |> ^o Wrote %o^ '..copy(tmpdir..'/'..n)..' |> '..n..' <'..group..'>')
-  elseif targ == 'known-dwarf.h' then
+  if targ == 'known-dwarf.h' then
     local _,_,s = pclean(targ, cwd)
     return s
   elseif targ == 'make-debug-archive' then
@@ -607,8 +609,8 @@ function realmake(makefn, targ, cwd)
         '')
       local ins,out = {},nil
       local mydeps = ''
-      local cpre = cwd:gsub('[^/]+', '..'):gsub('/?$', '/')
-      c = gosub(c, 'D:I:std:W:f:g,O:c,o:shared,l:w,', {
+      local cpre = cwd:gsub('[^/]+', '..'):gsub('/?$', '/'):gsub('^/$', '')
+      c = gosub(c, 'D:I:std:W;f:g,O:c,o:shared,l:w,', {
         [false]=function(p)
           ins[#ins+1] = make(makefn, p, cwd)
           return cpre..ins[#ins]
@@ -623,6 +625,7 @@ function realmake(makefn, targ, cwd)
           else return '-I'..cpre..pclean(p) end
         end,
         W=function(a)
+          if not a then return '-W' end
           local vs = a:match '^l,%-%-version%-script,(.*)'
           if vs then
             local f,e = vs:match '([^,]+)(.*)'
@@ -647,7 +650,7 @@ function realmake(makefn, targ, cwd)
         end
       end
       local cd = #cwd > 0 and 'cd '..cwd..' && ' or ''
-      tr = ': '..table.concat(ins, ' ')..' |^'..mydeps..'|> ^o cc -o %o ...^ '
+      tr = ': '..table.concat(ins, ' ')..' |^ <_gen> '..mydeps..'|> ^o cc -o %o ...^ '
         ..cd..c..' |> '..out
     -- Simple archiving (AR) calls
     elseif cmd:find '$%(RANLIB%)' then tr = ''  -- Skip ranlib
@@ -671,7 +674,6 @@ function realmake(makefn, targ, cwd)
         end,
       })
       tr = ': '..table.concat(ins, ' ')..' |> ^o gawk > %o ...^ '..c..' |> '..out..' <_gen>'
-      if not exdeps:find '<_gen>' then exdeps = exdeps..' <_gen>' end
     elseif exc:find ';m4%s' then
       local ins,out = {},nil
       local c = gosub(exc:match ';(.*)', 'D:', {
@@ -685,7 +687,6 @@ function realmake(makefn, targ, cwd)
         end,
       })
       tr = ': '..table.concat(ins, ' ')..' |> ^o m4 > %o ...^ '..c..' |> '..out..' <_gen>'
-      if not exdeps:find '<_gen>' then exdeps = exdeps..' <_gen>' end
     elseif exc:find ';sed%s' then
       local ins,out = {},nil
       local c = gosub(exc:match ';(.*)', 'u,', {
@@ -701,7 +702,6 @@ function realmake(makefn, targ, cwd)
         end,
       })
       tr = ': '..table.concat(ins, ' ')..' |> ^o sed > %o ...^ '..c..' |> '..out..' <_gen>'
-      if not exdeps:find '<_gen>' then exdeps = exdeps..' <_gen>' end
     elseif exc:find ';%./i386_gendis%s' then  -- Hardcoded from EU
       local ins,out,gd = {},nil,nil
       local c = gosub(exc:match ';(.*)', '', {
@@ -802,6 +802,17 @@ function realmake(makefn, targ, cwd)
     end
   end
   return realname
+end
+
+-- Copy over files that are built by the build systems and needed for cc etc.
+for _,f in ipairs{
+  'config/libelf.pc', 'config/libdw.pc',  -- Elfutils pkg-config stuff
+  'version.h', -- Automake version header
+  'common/h/dyninstversion.h',  -- Dyninst version header
+} do
+  if exists(tmpdir..f) then
+    table.insert(commands, ': |> ^o Wrote %o^ '..copy(tmpdir..f)..' |> '..f..' <_gen>')
+  end
 end
 
 make('Makefile', 'all', '')
