@@ -130,7 +130,7 @@ local function gosub(s, opts, repl)
   return table.concat(bits, ' ')
 end
 
-local exists,pclean
+local exists,pclean,isinst
 do
   local rspatt = '^'..unmagic(exec('realpath '..srcdir):gsub('%s*$', ''))..'(.*)'
   local ripatt = '^'..unmagic(exec('realpath '..instdir):gsub('%s*$', ''))..'(.*)'
@@ -158,6 +158,7 @@ do
   for p,v in transforms:gmatch '(%g+)=(%g+)' do
     patts['^'..unmagic(p)..'(.*)'] = v
   end
+  function isinst(p) return not not p:find(ripatt) end
   -- Paths sometimes will reference the source directories. This cleans a
   -- potental path to adjust references accordingly.
   -- Three paths are returned, one is the actual file w/ respect to the current
@@ -482,6 +483,18 @@ local function make(f, t, cwd)
   return o
 end
 function realmake(makefn, targ, cwd)
+  -- Targets that are actually handled via other methods are sorted up here.
+  if targ == 'libelf.pc' or targ == 'libdw.pc' or targ == 'version.h' then
+    local n = pclean(targ, cwd)
+    table.insert(commands, ': |> ^o Wrote %o^ '..copy(tmpdir..'/'..n)..' |> '..n..' <'..group..'>')
+  elseif targ == 'known-dwarf.h' then
+    local _,_,s = pclean(targ, cwd)
+    return s
+  elseif targ == 'make-debug-archive' then
+    local n = pclean(targ, cwd)
+    table.insert(commands, ': |> ^o Stand-in for %o^ touch %o |> '..n..' <'..group..'>')
+  end
+
   local name, rule = makerule(makefn, targ, cwd)
   if not rule then return name end  -- Source file, don't do anything
   local realname = pclean(name, cwd)
@@ -494,6 +507,7 @@ function realmake(makefn, targ, cwd)
     local tr = nil
     local AM,CM = '# Automake configure ', '# CMake configure '
     if not cmd:find '%g' then tr = ' '
+    elseif exc == ':' then tr = ' '
     -- Automake-generated rules and commands.
     elseif cmd:find '$%(ACLOCAL%)' then tr = AM..'(aclocal)'
     elseif cmd:find '$%(AUTOHEADER%)' then tr = AM..'(autoheader)'
@@ -508,6 +522,44 @@ function realmake(makefn, targ, cwd)
       else tr = AM..'('..c..')' end
     elseif cmd == 'touch $@' then tr = ''
     elseif exc:find '^rm %-f' then tr = ''
+    elseif cmd:find '$%(INSTALL' then
+      local list = cmd:match "^@list='([^']+)'"
+      local c = cmd:match ';%s*($%(INSTALL[^|;]+)' or cmd:match '%s*($%(INSTALL[^|;]+)'
+      assert(c, cmd)
+      c = c:gsub('%s*$', ''):gsub('$$dir', '')
+      local ins,outs,args = {},{},nil
+      if list then
+        assert(({files=true, list2=true})[c:match '%s$$(%g+)'], c)
+        c:gsub('$$files', '%%f'):gsub('$$list2', '%%f')
+        local fs = {}
+        for w in rule.expand(list):gmatch '%g+' do
+          table.insert(fs, w)
+          table.insert(ins, make(makefn, w, cwd))
+        end
+        local dir = rule.expand(c:match '%g+$'):gsub('"', '')
+        for _,x in ipairs(fs) do table.insert(outs, (pclean(dir..'/'..x))) end
+        args = '%f '..pclean(dir)
+      elseif cmd:find '^for m in $%(modules%)' then
+        ins = ''
+      else
+        local s,d = c:match '%f[%g]([^$]%g+)%s+(%g+)'
+        if s then
+          s,d = make(makefn, s, cwd),pclean(rule.expand(d))
+          ins,outs,args = {s},{d},'%f %o'
+        end
+      end
+      if not args then
+        tr = '# '..cmd
+      else
+        local first = true
+        c = gosub(rule.expand(c):match '/install.*', 'c,m:', {
+          [true]=false,
+          [false]=function() if first then first = false; return args end end,
+        })
+        tr = ': '..table.concat(ins, ' ')..' |> ^ Installed %o^ install '..c..' |> '
+          ..table.concat(outs, ' ')..' <'..group..'>'
+      end
+    elseif cmd:find '^$%(mkinstalldirs%)' then tr = AM..'(mkdir)'
     -- CMake-generated rules and commands.
     elseif cmd:find '^$%(CMAKE_COMMAND%) %-S' then tr = CM..'(check build sys)'
     elseif cmd:find '^$%(CMAKE_COMMAND%) %-E cmake_progress' then tr = CM..'(progress start)'
@@ -596,7 +648,7 @@ function realmake(makefn, targ, cwd)
       end
       local cd = #cwd > 0 and 'cd '..cwd..' && ' or ''
       tr = ': '..table.concat(ins, ' ')..' |^'..mydeps..'|> ^o cc -o %o ...^ '
-        ..cd..c..' |> '..out..' <'..group..'>'
+        ..cd..c..' |> '..out
     -- Simple archiving (AR) calls
     elseif cmd:find '$%(RANLIB%)' then tr = ''  -- Skip ranlib
     elseif cmd:find '$%([%w_]+AR%)' then
@@ -604,7 +656,7 @@ function realmake(makefn, targ, cwd)
       for i,d in ipairs(rule.deps) do
         ins[i] = pclean(d, cwd)
       end
-      tr = ': '..table.concat(ins, ' ')..' |> ^o ar %o ...^ ar scr %o %f |> '..out..' <'..group..'>'
+      tr = ': '..table.concat(ins, ' ')..' |> ^o ar %o ...^ ar scr %o %f |> '..out
     -- Generation expressions: gawk, sed, m4 and ./i386_gendis
     elseif exc:find '^gawk' then
       local ins,out = {},nil
@@ -669,8 +721,12 @@ function realmake(makefn, targ, cwd)
       local args = {}
       for w in exc:gmatch '%f[%g][^-]%g+' do args[#args+1] = w end
       assert(#args == 3, '{'..table.concat(args, ', ')..'}')
-      local src,dst = pclean(args[2],cwd), pclean(args[3],cwd)
-      tr = ': '..src..' |> ln -s %f %o |> '..dst..' <'..group..'>'
+      if isinst(args[3]) then
+        tr = ': |> ln -s '..args[2]..' %o |> '..pclean(args[3], cwd)
+      else
+        local src,dst = pclean(args[2],cwd), pclean(args[3],cwd)
+        tr = ': '..src..' |> ln -s %f %o |> '..dst
+      end
     -- Elfutils does a check that TEXTREL doesn't appear in the output .so.
     elseif cmd == '@$(textrel_check)' then
       assert(trules[idx-1], "textrel_check can't fold behind!")
@@ -701,7 +757,7 @@ function realmake(makefn, targ, cwd)
       if firstylwrap then
         firstylwrap = false
         print(": |> ^o Wrote ylwrap^ "..copy(srcdir..'/config/ylwrap')
-          .." && chmod u+x %o |> ylwrap <"..group..">")
+          .." && chmod u+x %o |> ylwrap")
       end
       local c = cmd:match '$%(YLWRAP%)%s+(.*)'
       assert(c)
@@ -737,9 +793,11 @@ function realmake(makefn, targ, cwd)
     if v and v:sub(1,1) == ':' then table.insert(commands, v) end
   end
   if printout then
+    dbg()
     dbg(cwd..'|'..makefn..' '..realname..': '..table.concat(deps, ' '))
     for i,c in ipairs(rule) do
-      if trules[i] then dbg('  '..trules[i])
+      if trules[i] then
+        if trules[i]:find '%g' then dbg('  '..trules[i]) end
       else dbg('  $ '..rule.ex[i]); dbg('  % '..c) end
     end
   end
@@ -747,6 +805,7 @@ function realmake(makefn, targ, cwd)
 end
 
 make('Makefile', 'all', '')
+make('Makefile', 'install', '')
 
 local x = exdeps:find '%g' and '| '..exdeps..' ' or '|'
 for _,c in ipairs(commands) do
