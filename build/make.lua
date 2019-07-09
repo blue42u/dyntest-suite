@@ -421,9 +421,16 @@ local function makerule(makefn, targ, cwd)
     for w in ws:gmatch '%g+' do words[w] = '' end
     return (str:gsub('%g+', words))
   end
-  function funcs.shell(vs, cmd)  -- By far the hairiest and most sensitive
+  function funcs.addprefix(vs, pre, str)
+    return (expand(str, vs):gsub('%g+', pre:gsub('%%','%%%%')..'%0'))
+  end
+  function funcs.shell(vs, cmd)  -- By far the hairiest and most sensitive, hack
     if cmd == 'cd $(srcdir);pwd' then return expand('$(srcdir)', vs)
     elseif cmd == 'pwd' then return './'..cwd
+    elseif cmd == '$(AR) t ../libdwfl/libdwfl.a' then
+      return [[dwfl_begin.o dwfl_end.o dwfl_error.o dwfl_version.o dwfl_module.o dwfl_report_elf.o relocate.o dwfl_module_build_id.o dwfl_module_report_build_id.o derelocate.o offline.o segment.o dwfl_module_info.o dwfl_getmodules.o dwfl_getdwarf.o dwfl_module_getdwarf.o dwfl_module_getelf.o dwfl_validate_address.o argp-std.o find-debuginfo.o dwfl_build_id_find_elf.o dwfl_build_id_find_debuginfo.o linux-kernel-modules.o linux-proc-maps.o dwfl_addrmodule.o dwfl_addrdwarf.o cu.o dwfl_module_nextcu.o dwfl_nextcu.o dwfl_cumodule.o dwfl_module_addrdie.o dwfl_addrdie.o lines.o dwfl_lineinfo.o dwfl_line_comp_dir.o dwfl_linemodule.o dwfl_linecu.o dwfl_dwarf_line.o dwfl_getsrclines.o dwfl_onesrcline.o dwfl_module_getsrc.o dwfl_getsrc.o dwfl_module_getsrc_file.o libdwfl_crc32.o libdwfl_crc32_file.o elf-from-memory.o dwfl_module_dwarf_cfi.o dwfl_module_eh_cfi.o dwfl_module_getsym.o dwfl_module_addrname.o dwfl_module_addrsym.o dwfl_module_return_value_location.o dwfl_module_register_names.o dwfl_segment_report_module.o link_map.o core-file.o open.o image-header.o dwfl_frame.o frame_unwind.o dwfl_frame_pc.o linux-pid-attach.o linux-core-attach.o dwfl_frame_regs.o gzip.o bzip2.o lzma.o]]  -- luacheck: no max line length
+    elseif cmd == '$(AR) t ../libdwelf/libdwelf.a' then
+      return [[dwelf_elf_gnu_debuglink.o dwelf_dwarf_gnu_debugaltlink.o dwelf_elf_gnu_build_id.o dwelf_scn_gnu_compressed_size.o dwelf_strtab.o dwelf_elf_begin.o]] -- luacheck: no max line length
     else error('Unhandled shell: '..cmd) end
   end
 
@@ -554,7 +561,10 @@ function realmake(makefn, targ, cwd)
           ins[#ins+1] = make(makefn, p, cwd)
           return cpre..ins[#ins]
         end,
-        o=function(p) out = pclean(p, cwd); return '-o '..cpre..out end,
+        o=function(p)
+          out = pclean(p, cwd)
+          return '-o '..cpre..out
+        end,
         I=function(p)
           if p == '.' then return '-I'..cpre..canonicalize(cwd)
           elseif p == '..' then return '-I'..cpre..canonicalize(cwd..'/..')
@@ -578,7 +588,10 @@ function realmake(makefn, targ, cwd)
         local x = out:match '%s*libcpu/(%g-)_disasm%.o%s*'
         if x and x ~= 'libcpu_bpf_a-bpf' then
           mydeps = mydeps..' '..make(makefn, x..'.mnemonics', cwd)
-            -- ..' '..make(makefn, x..'_dis.h', cwd)
+            ..' '..make(makefn, x..'_dis.h', cwd)
+        end
+        if out == 'src/objdump' then
+          mydeps = mydeps..' libdw/libdw.so.1'
         end
       end
       local cd = #cwd > 0 and 'cd '..cwd..' && ' or ''
@@ -592,7 +605,7 @@ function realmake(makefn, targ, cwd)
         ins[i] = pclean(d, cwd)
       end
       tr = ': '..table.concat(ins, ' ')..' |> ar scr %o %f |> '..out..' <'..group..'>'
-    -- Generation expressions: gawk, sed and m4
+    -- Generation expressions: gawk, sed, m4 and ./i386_gendis
     elseif exc:find '^gawk' then
       local ins,out = {},nil
       local c = gosub(exc, 'f,', {
@@ -637,6 +650,20 @@ function realmake(makefn, targ, cwd)
       })
       tr = ': '..table.concat(ins, ' ')..' |> '..c..' |> '..out..' <_gen>'
       if not exdeps:find '<_gen>' then exdeps = exdeps..' <_gen>' end
+    elseif exc:find ';%./i386_gendis%s' then  -- Hardcoded from EU
+      local ins,out,gd = {},nil,nil
+      local c = gosub(exc:match ';(.*)', '', {
+        [true]=function(p) gd = make(makefn, p, cwd); return './'..gd end,
+        [false]=function(p)
+          if p == '>' then out = false; return '>'
+          elseif out == false then out = pclean(p, cwd); return '%o'
+          else
+            ins[#ins+1] = make(makefn, p, cwd)
+            if #ins == 1 then return '%f' end
+          end
+        end,
+      })
+      tr = ': '..table.concat(ins, ' ')..'| '..gd..' |> '..c..' |> '..out
     -- Symlink creation calls
     elseif exc:find '^ln%s' then
       local args = {}
@@ -648,7 +675,8 @@ function realmake(makefn, targ, cwd)
     elseif cmd == '@$(textrel_check)' then
       assert(trules[idx-1], "textrel_check can't fold behind!")
       assert(trules[idx-1]:find '|>.*|>%s*%g+%.so', "textrel_check not after .so output!")
-      local c = '&& ! (readelf -d %%o | grep -Fq TEXTREL '
+      local o = trules[idx-1]:match '%f[%g]%-o%s+(%g+)'
+      local c = '&& ! (readelf -d '..o..' | grep -Fq TEXTREL '
         ..'&& echo "WARNING: TEXTREL found in %%o!")'
       trules[idx-1] = trules[idx-1]:gsub('|>(.*)|>', '|>%1 '..c..' |>')
       tr = '# TEXTREL check folded into previous command'
