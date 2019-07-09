@@ -165,9 +165,14 @@ do
   -- a build file, and the third is where it would be if it was a src file.
   function pclean(path, ref)
     ref = (ref and #ref > 0) and ref..'/' or ''
+    local rev = ref:gsub('[^/]+', '..')
     if path:sub(1,1) == '/' then  -- Absolute path, try to find a good prefix
       local x = path:match(rspatt)
-      if x then local z = canonicalize(srcdir..x); return z,canonicalize(ref..x),z end
+      if x then
+        local z = canonicalize(srcdir..x)
+        local y,w = x:gsub('^/',''):match '^(.-)([^/]*)$'
+        return z,canonicalize(y..rev..w),z
+      end
       x = path:match(ripatt)
       if x then x = canonicalize(instdir..x); return x,x,x end
       x = path:match(rtpatt)
@@ -242,7 +247,15 @@ local function makeparse(makefn, cwd)
       if #l == 0 then
         state = 'outsiderule'
         assert(#crule == 0 or crule[#crule]:sub(-1) ~= '\\')
-        if crule.implicit then c.implicit[crule] = crule.name else
+
+        if crule.implicit then
+          if crule.name:find '_dis%.h$' then
+            -- Hack for EU, put stuff in build
+            local _
+            _,crule.name = pclean(crule.name, cwd)
+          end
+          c.implicit[crule] = crule.name
+        else
           assert(not c.normal[crule.name], crule.name)
           c.normal[crule.name] = crule
         end
@@ -258,7 +271,7 @@ local function makeparse(makefn, cwd)
   pclose(p)
   assert(state == 'outsiderule', 'Database ended in wrong state!')
 
-  makecache[makefn] = c
+  makecache[id] = c
   return c
 end
 
@@ -533,20 +546,19 @@ function realmake(makefn, targ, cwd)
       c = c:gsub(
         unmagic(rule.expand "`test -f 'bpf_disasm.c' || echo '$(srcdir)/'`"),
         '')
-      -- Hack for handling something in EU
-      c = c:gsub('`wc %-l < (.-)`',
-        function(x) return '`wc -l < '..make(makefn,x,cwd)..'`' end)
       local ins,out = {},nil
       local mydeps = ''
+      local cpre = cwd:gsub('[^/]+', '..'):gsub('/?$', '/')
       c = gosub(c, 'D:I:std:W:f:g,O:c,o:shared,l:w,', {
         [false]=function(p)
           ins[#ins+1] = make(makefn, p, cwd)
+          return cpre..ins[#ins]
         end,
-        o=function(p) out = pclean(p, cwd) end,
+        o=function(p) out = pclean(p, cwd); return '-o '..cpre..out end,
         I=function(p)
-          if p == '.' then return '-I'..canonicalize(cwd)
-          elseif p == '..' then return '-I'..canonicalize(cwd..'/..')
-          else return '-I'..pclean(p) end
+          if p == '.' then return '-I'..cpre..canonicalize(cwd)
+          elseif p == '..' then return '-I'..cpre..canonicalize(cwd..'/..')
+          else return '-I'..cpre..pclean(p) end
         end,
         W=function(a)
           local vs = a:match '^l,%-%-version%-script,(.*)'
@@ -554,7 +566,7 @@ function realmake(makefn, targ, cwd)
             local f,e = vs:match '([^,]+)(.*)'
             f = pclean(f)
             if not f:find '^%.%./' then mydeps = mydeps..' '..f end
-            return '-Wl,--version-script,'..f..e
+            return '-Wl,--version-script,'..cpre..f..e
           end
           return '-W'..a
         end,
@@ -564,12 +576,14 @@ function realmake(makefn, targ, cwd)
       if amstyle then
         c = c..' -DHAVE_CONFIG_H '
         local x = out:match '%s*libcpu/(%g-)_disasm%.o%s*'
-        if x then
-          c = c..[[ '-DMNEFILE="]]..make(makefn, x..'.mnemonics', cwd)..[["' ]]
+        if x and x ~= 'libcpu_bpf_a-bpf' then
+          mydeps = mydeps..' '..make(makefn, x..'.mnemonics', cwd)
+            -- ..' '..make(makefn, x..'_dis.h', cwd)
         end
       end
+      local cd = #cwd > 0 and 'cd '..cwd..' && ' or ''
       tr = ': '..table.concat(ins, ' ')..' |^'..mydeps..'|> '
-        ..c..' -o %o %f |> '..out..' <'..group..'>'
+        ..cd..c..' |> '..out..' <'..group..'>'
     -- Simple archiving (AR) calls
     elseif cmd:find '$%(RANLIB%)' then tr = ''  -- Skip ranlib
     elseif cmd:find '$%([%w_]+AR%)' then
@@ -607,7 +621,6 @@ function realmake(makefn, targ, cwd)
       })
       tr = ': '..table.concat(ins, ' ')..' |> '..c..' |> '..out..' <_gen>'
       if not exdeps:find '<_gen>' then exdeps = exdeps..' <_gen>' end
-      printout = true
     elseif exc:find ';sed%s' then
       local ins,out = {},nil
       local c = gosub(exc:match ';(.*)', 'u,', {
@@ -624,7 +637,6 @@ function realmake(makefn, targ, cwd)
       })
       tr = ': '..table.concat(ins, ' ')..' |> '..c..' |> '..out..' <_gen>'
       if not exdeps:find '<_gen>' then exdeps = exdeps..' <_gen>' end
-      printout = true
     -- Symlink creation calls
     elseif exc:find '^ln%s' then
       local args = {}
