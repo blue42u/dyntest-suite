@@ -31,11 +31,8 @@ cd "$TMP"
 # Construct the makefiles that will make up everything.
 "$RSRC"/configure --disable-dependency-tracking --prefix="$RINS" "$@" >/dev/null
 
-# Copy all the files back to "here" so that there's something to make.
-cp -r * "$HERE"/
-rm -r "$TMP"
+# Head back to "here"
 cd "$HERE"
-trap - EXIT
 
 # Call our version of make to "build" everything.
 "$BUILD"/make.lua "$RELSRC" "$INS" "$GROUP" "$TMP" "$EXDEPS" "$TRANSFORMS"

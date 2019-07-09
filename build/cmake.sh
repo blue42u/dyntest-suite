@@ -25,10 +25,5 @@ trap "rm -rf $TMP" EXIT  # Make sure to clean up before exiting.
 cmake -DCMAKE_INSTALL_PREFIX="`realpath $INS`" -DCMAKE_MODULE_PATH="$BUILD" \
   "${@/&/$TMP}" -S "$SRC" -B "$TMP" > /dev/null
 
-# Copy all the files back to "here" so that there's something to make.
-cp -r "$TMP"/* .
-rm -r "$TMP"
-trap - EXIT
-
 # Call our version of make to "build" everything.
 "$BUILD"/make.lua "$RELSRC" "$INS" "$GROUP" "$TMP" "$EXDEPS" "$TRANSFORMS"

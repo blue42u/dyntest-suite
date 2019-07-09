@@ -4,7 +4,6 @@
 -- Somewhat automatic conversion from Makefiles to Tup rules.
 -- Usage: ./make.lua <path/to/source> <path/to/install> <path/of/tmpdir> <extra deps>
 local srcdir,instdir,group,tmpdir,exdeps,transforms = ...
-local exd = ' | '..exdeps..' '
 
 -- Debugging function for outputting info to stderr.
 local function dbg(...)
@@ -47,6 +46,12 @@ local function canonicalize(p)
   table.move(real, 1,#real, #pre+1, pre)
   if not abs and #pre == 0 then return '.' end
   return (abs and '/' or '')..table.concat(pre, '/')
+end
+
+-- Function for saving and copying data, by storing gzip in base64.
+local function copy(fn, dst)
+  local b64 = exec('gzip < '..fn..' | base64 -w0')
+  return "echo '"..b64.."' | base64 -d | gzip -d > "..(dst or '%o')
 end
 
 -- A partially-correct implementation of getopt, for command line munging.
@@ -170,7 +175,7 @@ local function makeparse(makefn, cwd)
 
   local db = nil
   -- db = ' | tee /tmp/q_'..cwd:gsub('/','_')..'.'..makefn:gsub('/','_')
-  local p = io.popen("cd ./"..cwd.." && "
+  local p = io.popen("cd "..tmpdir.."/"..cwd.." && "
     .."(cat "..makefn.."; printf '\\nXXdonothing:\\n.PHONY: XXdonothing\\n') | "
     .."make -pqsrRf- XXdonothing"..(db or ''))
   local c = {vars={}, implicit={}, normal={}}
@@ -421,7 +426,7 @@ end
 function realmake(makefn, targ, cwd)
   if targ:find '^%.%./' then
     -- It belongs to another Makefile, assume Tup can figure it out.
-    return canonicalize(cwd..'/'..targ)
+    return canonicalize((#cwd > 0 and cwd..'/' or '')..targ)
   end
 
   local name, rule = makerule(makefn, targ, cwd)
@@ -435,13 +440,19 @@ function realmake(makefn, targ, cwd)
     local exc = rule.ex[idx]
     local tr = nil
     local AM,CM = '# Automake configure ', '# CMake configure '
+    if not cmd:find '%g' then tr = ' '
     -- Automake-generated rules and commands.
-    if cmd:find '$%(ACLOCAL%)' then tr = AM..'(aclocal)'
+    elseif cmd:find '$%(ACLOCAL%)' then tr = AM..'(aclocal)'
     elseif cmd:find '$%(AUTOHEADER%)' then tr = AM..'(autoheader)'
     elseif cmd:find '$%(AUTOCONF%)' then tr = AM..'(autoconf)'
     elseif cmd:find '$%(SHELL%) %./config%.status' then tr = AM..'(config.status)'
     elseif cmd:find '$%(MAKE%) $%(AM_MAKEFLAGS%) am%-%-refresh' then tr = AM..'(refresh)'
-    elseif exc:find '^test %-f config%.h' then tr = AM..'('..exc:match '|| (.*)'..')'
+    elseif exc:find '^test %-f config%.h' then
+      local c = exc:match '|| (.*)'
+      if c:find '^%s*make%s' then  -- Copy config.h to the final product
+        tr = ": |> ^ Wrote config.h^ "..copy(tmpdir..'/config.h').." > %o |> config.h"
+        exdeps = exdeps..' config.h'
+      else tr = AM..'('..c..')' end
     elseif cmd == 'touch $@' then tr = ''
     elseif exc:find '^rm %-f' then tr = ''
     -- CMake-generated rules and commands.
@@ -480,14 +491,17 @@ function realmake(makefn, targ, cwd)
       tr = '# CMake recursion into '..d
     -- Simple compilation calls
     elseif cmd:find '$%(COMPILE%)' or cmd:find '$%(COMPILE.os%)'
-      or cmd:find '$%(LINK%)' or cmd:find '$%(CC%)' then
-      local c = exc:match ';%s*(.*)' or exc:match '&&%s*(.*)'
+      or cmd:find '$%(LINK%)' or cmd:find '$%(CC%)'
+      or cmd:find '$%(C_FLAGS%)' or cmd:find '$%(CXX_FLAGS%)' then
+      local amstyle = false
+      local c = exc:match ';%s*(.*)'
+      if c then amstyle = true else c = exc:match '&&%s*(.*)' or exc end
       -- Glitchy thing with one of the commands. The system will figure it out.
       c = c:gsub(
         unmagic(rule.expand "`test -f 'bpf_disasm.c' || echo '$(srcdir)/'`"),
         '')
       local first,ins,out = true,{},nil
-      c = gosub(c, 'D:I:std:W:f:g,O:c,o:shared,l:', {
+      c = gosub(c, 'D:I:std:W:f:g,O:c,o:shared,l:w,', {
         [false]=function(p) if first then first = false; return p end
           ins[#ins+1] = make(makefn, p, cwd)
         end,
@@ -499,7 +513,8 @@ function realmake(makefn, targ, cwd)
         end,
       })
       assert(not c:find '%%o', c)
-      tr = ': '..table.concat(ins, ' ')..exd..' |> '..c..' -o %o %f |> '..out..' <'..group..'>'
+      if amstyle then c = c..' -DHAVE_CONFIG_H ' end
+      tr = ': '..table.concat(ins, ' ')..' |^|> '..c..' -o %o %f |> '..out..' <'..group..'>'
     -- Simple archiving (AR) calls
     elseif cmd:find '$%(RANLIB%)' then tr = ''  -- Skip ranlib
     elseif cmd:find '$%([%w_]+AR%)' then
@@ -507,15 +522,13 @@ function realmake(makefn, targ, cwd)
       for i,d in ipairs(rule.deps) do
         ins[i] = pclean((#cwd > 0 and cwd..'/' or '')..d)
       end
-      tr = ': '..table.concat(ins, ' ')..exd..' |> ar scr %o %f |> '..out..' <'..group..'>'
+      tr = ': '..table.concat(ins, ' ')..' |> ar scr %o %f |> '..out..' <'..group..'>'
     -- YLWRAP-style commands are hardcoded. It would be too complex otherwise.
     elseif cmd:find '$%(YLWRAP%)' then
       if firstylwrap then
         firstylwrap = false
-        local f = assert(io.open(srcdir..'/config/ylwrap', 'r'))
-        local x = f:read 'a':gsub('\n', '\\n'):gsub('%%', '%%%%')
-        f:close()
-        print(": |> ^Wrote ylwrap^ printf '"..x.."' > %o && chmod u+x %o |> ylwrap <"..group..">")
+        print(": |> ^ Wrote ylwrap^ "..copy(srcdir..'/config/ylwrap')
+          .." && chmod u+x %o |> ylwrap <"..group..">")
       end
       local c = cmd:match '$%(YLWRAP%)%s+(.*)'
       assert(c)
@@ -523,8 +536,8 @@ function realmake(makefn, targ, cwd)
         local top = #cwd > 0 and cwd:gsub('[^/]+', '..')..'/' or ''
         local ylw = top..'ylwrap'
         local cd = #cwd > 0 and 'cd '..cwd..' && ' or ''
-        tr = (': %s %s ylwrap |> %s%s %s %s.c %s -- %s |> %s <%s>'):format(
-          deps[1], exd, cd, ylw, top..deps[1],
+        tr = (': %s | ylwrap |> %s%s %s %s.c %s -- %s |> %s <%s>'):format(
+          deps[1], cd, ylw, top..deps[1],
           rule.expand '$(LEX_OUTPUT_ROOT)', targ,
           rule.expand '$(LEXCOMPILE)', realname, group)
         printout = true
@@ -532,15 +545,15 @@ function realmake(makefn, targ, cwd)
         local top = #cwd > 0 and cwd:gsub('[^/]+', '..')..'/' or ''
         local ylw = top..'ylwrap'
         local cd = #cwd > 0 and 'cd '..cwd..' && ' or ''
-        tr = (': %s %s ylwrap |> %s%s %s y.tab.c %s y.tab.h %s y.output %s.output -- |> %s <%s>'):format(
-          deps[1], exd, cd, ylw, top..deps[1],
+        tr = (': %s | ylwrap |> %s%s %s y.tab.c %s y.tab.h %s y.output %s.output -- |> %s <%s>'):format(
+          deps[1], cd, ylw, top..deps[1],
           targ, targ:gsub('cc$','hh'):gsub('cpp$','hpp'):gsub('c%+%+$','h++'):gsub('c$','h'),
           assert(rule.stem),
           realname, group)
       else error('Unhandled YLWRAP: '..cmd) end
     end
     if tr then
-      if tr:sub(1,1) == ':' then print(tr); table.insert(commands, tr)
+      if tr:sub(1,1) == ':' then table.insert(commands, tr)
       elseif tr == '' then tr = '# Skipped: '..exc end
       trules[idx] = tr
     else printout = true end
@@ -556,3 +569,8 @@ function realmake(makefn, targ, cwd)
 end
 
 make('Makefile', 'all', '')
+
+local x = exdeps:find '%g' and '| '..exdeps..' |>' or '|>'
+for _,c in ipairs(commands) do
+  io.stdout:write(c:gsub('|^|>', x),'\n')
+end
