@@ -503,7 +503,7 @@ function realmake(makefn, targ, cwd)
     elseif exc:find '^test %-f config%.h' then
       local c = exc:match '|| (.*)'
       if c:find '^%s*make%s' then  -- Copy config.h to the final product
-        tr = ": |> ^ Wrote config.h^ "..copy(tmpdir..'/config.h').." > %o |> config.h"
+        tr = ": |> ^o Wrote config.h^ "..copy(tmpdir..'/config.h').." > %o |> config.h"
         exdeps = exdeps..' config.h'
       else tr = AM..'('..c..')' end
     elseif cmd == 'touch $@' then tr = ''
@@ -595,7 +595,7 @@ function realmake(makefn, targ, cwd)
         end
       end
       local cd = #cwd > 0 and 'cd '..cwd..' && ' or ''
-      tr = ': '..table.concat(ins, ' ')..' |^'..mydeps..'|> '
+      tr = ': '..table.concat(ins, ' ')..' |^'..mydeps..'|> ^o cc -o %o ...^ '
         ..cd..c..' |> '..out..' <'..group..'>'
     -- Simple archiving (AR) calls
     elseif cmd:find '$%(RANLIB%)' then tr = ''  -- Skip ranlib
@@ -604,7 +604,7 @@ function realmake(makefn, targ, cwd)
       for i,d in ipairs(rule.deps) do
         ins[i] = pclean(d, cwd)
       end
-      tr = ': '..table.concat(ins, ' ')..' |> ar scr %o %f |> '..out..' <'..group..'>'
+      tr = ': '..table.concat(ins, ' ')..' |> ^o ar %o ...^ ar scr %o %f |> '..out..' <'..group..'>'
     -- Generation expressions: gawk, sed, m4 and ./i386_gendis
     elseif exc:find '^gawk' then
       local ins,out = {},nil
@@ -618,7 +618,7 @@ function realmake(makefn, targ, cwd)
           end
         end,
       })
-      tr = ': '..table.concat(ins, ' ')..' |> '..c..' |> '..out..' <_gen>'
+      tr = ': '..table.concat(ins, ' ')..' |> ^o gawk > %o ...^ '..c..' |> '..out..' <_gen>'
       if not exdeps:find '<_gen>' then exdeps = exdeps..' <_gen>' end
     elseif exc:find ';m4%s' then
       local ins,out = {},nil
@@ -632,7 +632,7 @@ function realmake(makefn, targ, cwd)
           end
         end,
       })
-      tr = ': '..table.concat(ins, ' ')..' |> '..c..' |> '..out..' <_gen>'
+      tr = ': '..table.concat(ins, ' ')..' |> ^o m4 > %o ...^ '..c..' |> '..out..' <_gen>'
       if not exdeps:find '<_gen>' then exdeps = exdeps..' <_gen>' end
     elseif exc:find ';sed%s' then
       local ins,out = {},nil
@@ -648,7 +648,7 @@ function realmake(makefn, targ, cwd)
           end
         end,
       })
-      tr = ': '..table.concat(ins, ' ')..' |> '..c..' |> '..out..' <_gen>'
+      tr = ': '..table.concat(ins, ' ')..' |> ^o sed > %o ...^ '..c..' |> '..out..' <_gen>'
       if not exdeps:find '<_gen>' then exdeps = exdeps..' <_gen>' end
     elseif exc:find ';%./i386_gendis%s' then  -- Hardcoded from EU
       local ins,out,gd = {},nil,nil
@@ -663,7 +663,7 @@ function realmake(makefn, targ, cwd)
           end
         end,
       })
-      tr = ': '..table.concat(ins, ' ')..'| '..gd..' |> '..c..' |> '..out
+      tr = ': '..table.concat(ins, ' ')..'| '..gd..' |> ^o ./gendis > %o ...^ '..c..' |> '..out
     -- Symlink creation calls
     elseif exc:find '^ln%s' then
       local args = {}
@@ -675,7 +675,7 @@ function realmake(makefn, targ, cwd)
     elseif cmd == '@$(textrel_check)' then
       assert(trules[idx-1], "textrel_check can't fold behind!")
       assert(trules[idx-1]:find '|>.*|>%s*%g+%.so', "textrel_check not after .so output!")
-      local o = trules[idx-1]:match '%f[%g]%-o%s+(%g+)'
+      local o = trules[idx-1]:match '%f[%g]%-o%s+([^%s%%]+)'
       local c = '&& ! (readelf -d '..o..' | grep -Fq TEXTREL '
         ..'&& echo "WARNING: TEXTREL found in %%o!")'
       trules[idx-1] = trules[idx-1]:gsub('|>(.*)|>', '|>%1 '..c..' |>')
@@ -694,13 +694,13 @@ function realmake(makefn, targ, cwd)
     elseif cmd == "$(AM_V_at)echo 'ELFUTILS_$(PACKAGE_VERSION) { global: $*_init; local: *; };' > $(@:.so=.map)" then
       local ver = rule.expand '$(PACKAGE_VERSION)'
       local out = pclean(rule.expand '$(@:.so=.map)')
-      tr = ": |> echo 'ELFUTILS_"..ver.." { global: "
+      tr = ": |> ^o Wrote %o^ echo 'ELFUTILS_"..ver.." { global: "
         ..rule.stem.."_init; local: *; };' > %o |> "..out
     -- YLWRAP-style commands are hardcoded. It would be too complex otherwise.
     elseif cmd:find '$%(YLWRAP%)' then
       if firstylwrap then
         firstylwrap = false
-        print(": |> ^ Wrote ylwrap^ "..copy(srcdir..'/config/ylwrap')
+        print(": |> ^o Wrote ylwrap^ "..copy(srcdir..'/config/ylwrap')
           .." && chmod u+x %o |> ylwrap <"..group..">")
       end
       local c = cmd:match '$%(YLWRAP%)%s+(.*)'
@@ -709,7 +709,7 @@ function realmake(makefn, targ, cwd)
         local top = #cwd > 0 and cwd:gsub('[^/]+', '..')..'/' or ''
         local ylw = top..'ylwrap'
         local cd = #cwd > 0 and 'cd '..cwd..' && ' or ''
-        tr = (': %s | ylwrap |> %s%s %s %s.c %s -- %s |> %s <_gen>'):format(
+        tr = (': %s | ylwrap |> ^o ylwrap > %%o^ %s%s %s %s.c %s -- %s |> %s <_gen>'):format(
           deps[1], cd, ylw, top..deps[1],
           rule.expand '$(LEX_OUTPUT_ROOT)', targ,
           rule.expand '$(LEXCOMPILE)', realname)
@@ -720,11 +720,12 @@ function realmake(makefn, targ, cwd)
         local function c2h(x)
           return x:gsub('cc$','hh'):gsub('cpp$','hpp'):gsub('c%+%+$','h++'):gsub('c$','h')
         end
-        tr = (': %s | ylwrap |> %s%s %s y.tab.c %s y.tab.h %s y.output %s.output -- %s |> %s %s <_gen>'):format(
-          deps[1], cd, ylw, top..deps[1],
-          targ, c2h(targ), assert(rule.stem),
-          rule.expand('$(YACCCOMPILE)'),
-          realname, c2h(realname))
+        tr = (': %s | ylwrap |> ^o ylwrap > %%o^ %s%s %s y.tab.c %s y.tab.h'
+          ..' %s y.output %s.output -- %s |> %s %s <_gen>'):format(
+            deps[1], cd, ylw, top..deps[1],
+            targ, c2h(targ), assert(rule.stem),
+            rule.expand('$(YACCCOMPILE)'),
+            realname, c2h(realname))
       else error('Unhandled YLWRAP: '..cmd) end
     end
     if tr then
