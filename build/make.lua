@@ -660,6 +660,31 @@ function realmake(makefn, targ, cwd)
         ins[i] = pclean(d, cwd)
       end
       tr = ': '..table.concat(ins, ' ')..' |> ^o ar %o ...^ ar scr %o %f |> '..out
+    -- Linking for CMake, a combo of the above two sections
+    elseif cmd:find '$%(CMAKE_COMMAND%)%s+%-E%s+cmake_link_script' then
+      local cd = cmd:match '^%s*cd%s+(%g+)'
+      cd = cd and pclean(cd) or cwd
+      local l = assert(cmd:match '%-E%s+cmake_link_script%s+(%g+)')
+      local f = assert(io.open(tmpdir..pclean(l, cd)))
+      local cmds = {}
+      for c in f:lines 'l' do
+        if c:find '^%g+%s+qc' then  -- ar command actually
+          local ar = c:match '^%g+'
+          local ins,out = {},nil
+          for w in c:match '%sqc%s+(.+)':gmatch '%g+' do
+
+          end
+          c = ':  '..ar..' scr '
+        elseif c:find '^%g+%s+%g+$' then  -- Probably a ranlib, we skip it.
+          c = nil
+        else  -- Assume its a cc-style command
+        end
+        cmds[#cmds+1] = c
+      end
+      f:close()
+
+      assert(#cmds == 1, "Too many commands!")
+      tr = '# '..table.concat(cmds, '; ')
     -- Generation expressions: gawk, sed, m4 and ./i386_gendis
     elseif exc:find '^gawk' then
       local ins,out = {},nil
