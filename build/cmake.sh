@@ -11,7 +11,8 @@ INS="$3"
 GROUP="$4"
 EXDEPS="$5"
 TRANSFORMS="$6"
-shift 6
+EXTDIR="$7"
+shift 7
 
 set -e  # Make sure to exit if anything funny happens
 
@@ -23,7 +24,7 @@ trap "rm -rf $TMP" EXIT  # Make sure to clean up before exiting.
 # Construct the Makefiles using CMake. Modify the MODULE_PATH to (try to)
 # ensure ExternalProject is not used.
 cmake -DCMAKE_INSTALL_PREFIX="`realpath $INS`" -DCMAKE_MODULE_PATH="$BUILD" \
-  "${@/&/$TMP}" -S "$SRC" -B "$TMP" > /dev/null
+  "$@" -S "$SRC" -B "$TMP" >&2 #> /dev/null
 
 # Call our version of make to "build" everything.
-"$BUILD"/make.lua "$RELSRC" "$INS" "$GROUP" "$TMP" "$EXDEPS" "$TRANSFORMS"
+"$BUILD"/make.lua "$RELSRC" "$INS" "$GROUP" "$TMP" "$EXDEPS" "$TRANSFORMS" "$EXTDIR"

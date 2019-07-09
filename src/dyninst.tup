@@ -22,7 +22,8 @@ endif
 
 # Connection and overrides for our compiled Elfutils
 EX_DEPS += $(TUP_CWD)/../latest/elfutils/<elfutils>
-CM_FLAGS += -DElfUtils_ROOT_DIR=`realpath $(TUP_CWD)/../dummy/elfutils`
+CM_FLAGS += -DLibElf_ROOT_DIR=`realpath $(TUP_CWD)/../dummy/elfutils`
+CM_FLAGS += -DLibDwarf_ROOT_DIR=`realpath $(TUP_CWD)/../dummy/elfutils`
 TRANSFORMS += `realpath $(TUP_CWD)/../dummy/elfutils`=$(TUP_CWD)/../latest/elfutils/install
 preload ../dummy/elfutils
 preload ../dummy/elfutils/lib
@@ -34,7 +35,7 @@ preload $(D)/dynC_API/h $(D)/dynC_API/doc $(D)/dynC_API/src
 preload $(D)/dyninstAPI $(D)/dyninstAPI/h
 preload $(D)/dyninstAPI_RT $(D)/dyninstAPI_RT/h $(D)/dyninstAPI_RT/src
 
-preload $(D)/common $(D)/common/h $(D)/common/doc
+preload $(D)/common $(D)/common/h $(D)/common/src $(D)/common/doc
 
 preload $(D)/dataflowAPI/h
 preload $(D)/dataflowAPI/doc
@@ -60,7 +61,8 @@ preload $(D)/stackwalk/doc $(D)/stackwalk/doc/API $(D)/stackwalk/doc/fig
 
 preload $(D)/proccontrol $(D)/proccontrol/h
 
-preload $(D)/elf $(D)/elf/h $(D)/dwarf $(D)/dwarf/h $(D)/symlite/h
+preload $(D)/elf $(D)/elf/src $(D)/elf/h $(D)/dwarf $(D)/dwarf/src $(D)/dwarf/h
+preload $(D)/symlite/h
 
-run $(TUP_CWD)/../build/cmake.sh src/dyninst $(TUP_CWD)/dyninst install/ \
-  dyninst '$(EX_DEPS)' "$(TRANSFORMS)" $(CM_FLAGS)
+#run $(TUP_CWD)/../build/cmake.sh src/dyninst $(TUP_CWD)/dyninst install/ \
+#  dyninst '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(CM_FLAGS)

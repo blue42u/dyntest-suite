@@ -3,7 +3,11 @@
 
 -- Somewhat automatic conversion from Makefiles to Tup rules.
 -- Usage: ./make.lua <path/to/source> <path/to/install> <path/of/tmpdir> <extra deps>
-local srcdir,instdir,group,tmpdir,exdeps,transforms = ...
+local srcdir,instdir,group,tmpdir,exdeps,transforms,extdir = ...
+srcdir = srcdir:gsub('/?$', '/')
+instdir = instdir:gsub('/?$', '/')
+tmpdir = tmpdir:gsub('/?$', '/')
+extdir = extdir:gsub('/?$', '/')
 
 -- Debugging function for outputting info to stderr.
 local function dbg(...)
@@ -124,23 +128,25 @@ local function gosub(s, opts, repl)
   return table.concat(bits, ' ')
 end
 
-local insrc,pclean
+local exists,pclean
 do
   local rspatt = '^'..unmagic(exec('realpath '..srcdir):gsub('%s*$', ''))..'(.*)'
   local ripatt = '^'..unmagic(exec('realpath '..instdir):gsub('%s*$', ''))..'(.*)'
+  local rtpatt = '^'..unmagic(exec('realpath '..tmpdir):gsub('%s*$', ''))..'(.*)'
+  local expatt = '^'..unmagic(canonicalize(extdir))
   local dircache = {}
   -- We often will need to check for files in the filesystem to know whether a
   -- file is a source file or not (implicit rules). This does the actual check.
-  function insrc(fn)
-    fn = fn:gsub('//+', '/'):gsub('%./', '')
+  function exists(fn)
+    fn = canonicalize(fn)
     local d,f = fn:match '^(.-)([^/]+)$'
-    if d:find(rspatt) then return canonicalize(srcdir..d:match(rspatt)..f) end
-    d = canonicalize('/'..d..'/')
+    d = d:gsub('/?$', '/')  -- Ensure there's a / at the end
+    if d:find(expatt) then return true end  -- Externals always exist
     if dircache[d] then return dircache[d][f] end
 
-    local p = io.popen('find '..srcdir..d..' -type f -maxdepth 1 2> /dev/null', 'r')
+    local p = io.popen('find '..d..' -type f -maxdepth 1 2> /dev/null', 'r')
     local c = {}
-    for l in p:lines() do c[l:match '[^/]+$'] = l end
+    for l in p:lines() do c[l:match '[^/]+$'] = true end
     p:close()
     dircache[d] = c
     return c[f]
@@ -151,15 +157,33 @@ do
   end
   -- Paths sometimes will reference the source directories. This cleans a
   -- potental path to adjust references accordingly.
-  function pclean(path)
-    if path:find(rspatt) then return canonicalize(srcdir..path:match(rspatt)) end
-    if path:find(ripatt) then return canonicalize(instdir..path:match(ripatt)) end
-    local res
-    for p,d in pairs(patts) do if path:find(p) then
-      assert(not res, "Multiple patts match "..('%q'):format(path).."!")
-      res = canonicalize(d..path:match(p))
-    end end
-    return res or canonicalize(path)
+  -- Three paths are returned, one is the actual file w/ respect to the current
+  -- location (build), the second is the location the file would be in if it was
+  -- a build file, and the third is where it would be if it was a src file.
+  function pclean(path, ref)
+    ref = (ref and #ref > 0) and ref..'/' or ''
+    if path:sub(1,1) == '/' then  -- Absolute path, try to find a good prefix
+      local x = path:match(rspatt)
+      if x then local z = canonicalize(srcdir..x); return z,canonicalize(ref..x),z end
+      x = path:match(ripatt)
+      if x then x = canonicalize(instdir..x); return x,x,x end
+      x = path:match(rtpatt)
+      if x then x = canonicalize(x); return x,x,x end
+      local res
+      for p,d in pairs(patts) do if path:find(p) then
+        x = path:match(p)
+        if x then
+          assert(not res, "Multiple patts match "..('%q'):format(path).."!")
+          res = canonicalize(d..x)
+        end
+      end end
+      if res then return res,res,res end
+      -- At this point all the prefixes have been tried.
+      error("Unhandled absolute path: "..path)
+    else  -- Relative path, use ref to sort it out
+      local x = canonicalize(ref..path)
+      return x,x,canonicalize(srcdir..ref..path)
+    end
   end
 end
 
@@ -235,6 +259,14 @@ local function makeparse(makefn, cwd)
   return c
 end
 
+-- List of "hack" targets that AM doesn't handle very well.
+local euhacks = {
+  ['../libelf/libelf.so'] = true,
+  ['../libdw/libdw.so'] = true,
+  ['../lib/libeu.so'] = true,
+  ['../lib/libeu.a'] = true,
+}
+
 -- After a rule is parsed above, there is a lot of postprocessing that can be
 -- done (variable expansion and implicit rule search), but there is a lot of
 -- Make that is far more complex than we want to handle. So we only do such
@@ -243,10 +275,10 @@ local function makerule(makefn, targ, cwd)
   local rs = makeparse(makefn, cwd)
   local r = rs.normal[targ]
   if not r or #r == 0 then
-    local fn = (#cwd > 0 and cwd..'/' or '')..targ
-    if insrc(fn) then  -- Its a source file, so return the real name
-      return insrc(fn)
-    end
+    local fn,_,fnsrc = pclean(targ, cwd)
+    if exists(fn) then return fn end
+    if exists(fnsrc) then return fnsrc end
+    if fn:find '^%.%.' then error('File '..fn..' does not exist!') end
 
     -- Find the most applicable implicit rule for our purposes.
     local match,stem,found
@@ -276,7 +308,6 @@ local function makerule(makefn, targ, cwd)
       for t in pairs(errs) do x[#x+1] = '{'..t..'}' end
       error(cwd..'|'..makefn..': no '..table.concat(x, ' or '))
     end
-
     if match then
       -- Instance the implicit rule to get the unprocessed final recipe
       r = {name=targ, implicit=false, stem=stem}
@@ -284,6 +315,10 @@ local function makerule(makefn, targ, cwd)
       rs[targ] = r
       table.move(match, 1,#match, 1, r)
     end
+
+    -- Hack for Elfutils, it doesn't really work in parallel. Tup will sort it.
+    if euhacks[targ] then return fn end
+
     -- If it doesn't match, we'll just pretend its a pseudo-phony and move on.
     assert(r, cwd..':'..makefn..' '..targ)
   end
@@ -424,14 +459,9 @@ local function make(f, t, cwd)
   return o
 end
 function realmake(makefn, targ, cwd)
-  if targ:find '^%.%./' then
-    -- It belongs to another Makefile, assume Tup can figure it out.
-    return canonicalize((#cwd > 0 and cwd..'/' or '')..targ)
-  end
-
   local name, rule = makerule(makefn, targ, cwd)
   if not rule then return name end  -- Source file, don't do anything
-  local realname = pclean((#cwd > 0 and cwd..'/' or '')..name)
+  local realname = pclean(name, cwd)
   local printout,trules = false,{}
   local deps = {}
   for i,d in ipairs(rule.deps) do deps[i] = make(makefn, d, cwd) end
@@ -480,14 +510,14 @@ function realmake(makefn, targ, cwd)
       local target = targ:gsub('%-recursive$', '')
       for s in rule.expand('$(SUBDIRS)'):gmatch '%g+' do
         assert(s ~= '.')
-        make('Makefile', target, canonicalize((#cwd > 0 and cwd..'/' or '')..s..'/'))
+        make('Makefile', target, pclean(s, cwd))
       end
       make('Makefile', target..'-am', cwd)
       tr = AM..'(recursive make call)'
     elseif cmd:find('^cd '..unmagic(tmpdir)..'/?%g* && $%(MAKE%)') then
       local d = cmd:match('^cd '..unmagic(tmpdir)..'/?(%g*)')
       assert(d, cmd)
-      make('Makefile', 'all', canonicalize((#cwd > 0 and cwd..'/' or '')..d..'/'))
+      make('Makefile', 'all', pclean(d, cwd))
       tr = '# CMake recursion into '..d
     -- Simple compilation calls
     elseif cmd:find '$%(COMPILE%)' or cmd:find '$%(COMPILE.os%)'
@@ -505,7 +535,7 @@ function realmake(makefn, targ, cwd)
         [false]=function(p) if first then first = false; return p end
           ins[#ins+1] = make(makefn, p, cwd)
         end,
-        o=function(p) out = pclean((#cwd > 0 and cwd..'/' or '')..p) end,
+        o=function(p) out = pclean(p, cwd) end,
         I=function(p)
           if p == '.' then return '-I'..canonicalize(cwd)
           elseif p == '..' then return '-I'..canonicalize(cwd..'/..')
@@ -518,9 +548,9 @@ function realmake(makefn, targ, cwd)
     -- Simple archiving (AR) calls
     elseif cmd:find '$%(RANLIB%)' then tr = ''  -- Skip ranlib
     elseif cmd:find '$%([%w_]+AR%)' then
-      local ins,out = {},pclean((#cwd > 0 and cwd..'/' or '')..rule.name)
+      local ins,out = {},pclean(rule.name, cwd)
       for i,d in ipairs(rule.deps) do
-        ins[i] = pclean((#cwd > 0 and cwd..'/' or '')..d)
+        ins[i] = pclean(d, cwd)
       end
       tr = ': '..table.concat(ins, ' ')..' |> ar scr %o %f |> '..out..' <'..group..'>'
     -- YLWRAP-style commands are hardcoded. It would be too complex otherwise.

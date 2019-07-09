@@ -11,7 +11,8 @@ INS="$3"
 GROUP="$4"
 EXDEPS="$5"
 TRANSFORMS="$6"
-shift 6
+EXDIR="$7"
+shift 7
 
 set -e  # Make sure to exit if anything funny happens
 
@@ -35,4 +36,4 @@ cd "$TMP"
 cd "$HERE"
 
 # Call our version of make to "build" everything.
-"$BUILD"/make.lua "$RELSRC" "$INS" "$GROUP" "$TMP" "$EXDEPS" "$TRANSFORMS"
+"$BUILD"/make.lua "$RELSRC" "$INS" "$GROUP" "$TMP" "$EXDEPS" "$TRANSFORMS" "$EXDIR"
