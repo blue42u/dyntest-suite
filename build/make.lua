@@ -54,7 +54,7 @@ end
 
 -- Function for saving and copying data, by storing gzip in base64.
 local function copy(fn, dst)
-  local b64 = exec('gzip < '..fn..' | base64 -w0')
+  local b64 = exec('gzip -n < '..fn..' | base64 -w0')
   return "echo '"..b64.."' | base64 -d | gzip -d > "..(dst or '%o')
 end
 
@@ -503,7 +503,7 @@ function realmake(makefn, targ, cwd)
     elseif exc:find '^test %-f config%.h' then
       local c = exc:match '|| (.*)'
       if c:find '^%s*make%s' then  -- Copy config.h to the final product
-        tr = ": |> ^o Wrote config.h^ "..copy(tmpdir..'/config.h').." > %o |> config.h"
+        tr = ": |> ^o Wrote config.h^ "..copy(tmpdir..'/config.h').." |> config.h"
         exdeps = exdeps..' config.h'
       else tr = AM..'('..c..')' end
     elseif cmd == 'touch $@' then tr = ''
