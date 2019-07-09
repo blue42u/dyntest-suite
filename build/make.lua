@@ -84,6 +84,7 @@ local function gosub(s, opts, repl)
   local bits = {}
   local cur,curfix
   local quoted
+  local firstnonopt = true
   for rw in s:gmatch '%g+' do
     local w = rw
     if quoted then quoted, w = quoted..' '..w, nil end
@@ -120,7 +121,8 @@ local function gosub(s, opts, repl)
             end
           end
         else  -- Non-option word. Format with repl[false]
-          table.insert(bits, munch(false, w, ''))
+          table.insert(bits, munch(firstnonopt, w, ''))
+          firstnonopt = false
         end
       end
     end
@@ -142,6 +144,7 @@ do
     local d,f = fn:match '^(.-)([^/]+)$'
     d = d:gsub('/?$', '/')  -- Ensure there's a / at the end
     if d:find(expatt) then return true end  -- Externals always exist
+    if d:sub(1,1) ~= '/' and d:sub(1,3) ~= '../' then return false end
     if dircache[d] then return dircache[d][f] end
 
     local p = io.popen('find '..d..' -type f -maxdepth 1 2> /dev/null', 'r')
@@ -530,9 +533,13 @@ function realmake(makefn, targ, cwd)
       c = c:gsub(
         unmagic(rule.expand "`test -f 'bpf_disasm.c' || echo '$(srcdir)/'`"),
         '')
-      local first,ins,out = true,{},nil
+      -- Hack for handling something in EU
+      c = c:gsub('`wc %-l < (.-)`',
+        function(x) return '`wc -l < '..make(makefn,x,cwd)..'`' end)
+      local ins,out = {},nil
+      local mydeps = ''
       c = gosub(c, 'D:I:std:W:f:g,O:c,o:shared,l:w,', {
-        [false]=function(p) if first then first = false; return p end
+        [false]=function(p)
           ins[#ins+1] = make(makefn, p, cwd)
         end,
         o=function(p) out = pclean(p, cwd) end,
@@ -541,10 +548,28 @@ function realmake(makefn, targ, cwd)
           elseif p == '..' then return '-I'..canonicalize(cwd..'/..')
           else return '-I'..pclean(p) end
         end,
+        W=function(a)
+          local vs = a:match '^l,%-%-version%-script,(.*)'
+          if vs then
+            local f,e = vs:match '([^,]+)(.*)'
+            f = pclean(f)
+            if not f:find '^%.%./' then mydeps = mydeps..' '..f end
+            return '-Wl,--version-script,'..f..e
+          end
+          return '-W'..a
+        end,
       })
       assert(not c:find '%%o', c)
-      if amstyle then c = c..' -DHAVE_CONFIG_H ' end
-      tr = ': '..table.concat(ins, ' ')..' |^|> '..c..' -o %o %f |> '..out..' <'..group..'>'
+      -- Hacks for handling oddities in Elfutils
+      if amstyle then
+        c = c..' -DHAVE_CONFIG_H '
+        local x = out:match '%s*libcpu/(%g-)_disasm%.o%s*'
+        if x then
+          c = c..[[ '-DMNEFILE="]]..make(makefn, x..'.mnemonics', cwd)..[["' ]]
+        end
+      end
+      tr = ': '..table.concat(ins, ' ')..' |^'..mydeps..'|> '
+        ..c..' -o %o %f |> '..out..' <'..group..'>'
     -- Simple archiving (AR) calls
     elseif cmd:find '$%(RANLIB%)' then tr = ''  -- Skip ranlib
     elseif cmd:find '$%([%w_]+AR%)' then
@@ -553,6 +578,84 @@ function realmake(makefn, targ, cwd)
         ins[i] = pclean(d, cwd)
       end
       tr = ': '..table.concat(ins, ' ')..' |> ar scr %o %f |> '..out..' <'..group..'>'
+    -- Generation expressions: gawk, sed and m4
+    elseif exc:find '^gawk' then
+      local ins,out = {},nil
+      local c = gosub(exc, 'f,', {
+        [false]=function(p)
+          if p == '>' then out = false; return '>'
+          elseif out == false then out = pclean(p, cwd); return '%o'
+          else
+            ins[#ins+1] = make(makefn, p, cwd)
+            if #ins == 1 then return '%f' end
+          end
+        end,
+      })
+      tr = ': '..table.concat(ins, ' ')..' |> '..c..' |> '..out..' <_gen>'
+      if not exdeps:find '<_gen>' then exdeps = exdeps..' <_gen>' end
+    elseif exc:find ';m4%s' then
+      local ins,out = {},nil
+      local c = gosub(exc:match ';(.*)', 'D:', {
+        [false]=function(p)
+          if p == '>' then out = false; return '>'
+          elseif out == false then out = pclean(p, cwd); return '%o'
+          else
+            ins[#ins+1] = make(makefn, p, cwd)
+            if #ins == 1 then return '%f' end
+          end
+        end,
+      })
+      tr = ': '..table.concat(ins, ' ')..' |> '..c..' |> '..out..' <_gen>'
+      if not exdeps:find '<_gen>' then exdeps = exdeps..' <_gen>' end
+      printout = true
+    elseif exc:find ';sed%s' then
+      local ins,out = {},nil
+      local c = gosub(exc:match ';(.*)', 'u,', {
+        [false]=function(p)
+          if p == '|' or p == 'sort' or p:sub(1,1) == "'" then
+            return p:gsub('%%', '%%%%')
+          elseif p == '>' then out = false; return '>'
+          elseif out == false then out = pclean(p, cwd); return '%o'
+          else
+            ins[#ins+1] = make(makefn, p, cwd)
+            if #ins == 1 then return '%f' end
+          end
+        end,
+      })
+      tr = ': '..table.concat(ins, ' ')..' |> '..c..' |> '..out..' <_gen>'
+      if not exdeps:find '<_gen>' then exdeps = exdeps..' <_gen>' end
+      printout = true
+    -- Symlink creation calls
+    elseif exc:find '^ln%s' then
+      local args = {}
+      for w in exc:gmatch '%f[%g][^-]%g+' do args[#args+1] = w end
+      assert(#args == 3, '{'..table.concat(args, ', ')..'}')
+      local src,dst = pclean(args[2],cwd), pclean(args[3],cwd)
+      tr = ': '..src..' |> ln -s %f %o |> '..dst..' <'..group..'>'
+    -- Elfutils does a check that TEXTREL doesn't appear in the output .so.
+    elseif cmd == '@$(textrel_check)' then
+      assert(trules[idx-1], "textrel_check can't fold behind!")
+      assert(trules[idx-1]:find '|>.*|>%s*%g+%.so', "textrel_check not after .so output!")
+      local c = '&& ! (readelf -d %%o | grep -Fq TEXTREL '
+        ..'&& echo "WARNING: TEXTREL found in %%o!")'
+      trules[idx-1] = trules[idx-1]:gsub('|>(.*)|>', '|>%1 '..c..' |>')
+      tr = '# TEXTREL check folded into previous command'
+    -- Elfutils does a gawk-then-move trick for some reason. We do it this way.
+    elseif exc:find '^mv%s' then
+      local args = {}
+      for w in exc:gmatch '%f[%g][^-]%g+' do args[#args+1] = w end
+      assert(#args == 3, '{'..table.concat(args, ', ')..'}')
+      local src,dst = pclean(args[2],cwd),pclean(args[3],cwd)
+      src,dst = unmagic(src), dst:gsub('%%', '%%%%')
+      for k,v in pairs(trules) do trules[k] = v:gsub(src, dst) end
+      exdeps = exdeps:gsub(src, dst)
+      tr = '# mv folded into previous commands'
+    -- Elfutils also generates .map files at times. Handle it here.
+    elseif cmd == "$(AM_V_at)echo 'ELFUTILS_$(PACKAGE_VERSION) { global: $*_init; local: *; };' > $(@:.so=.map)" then
+      local ver = rule.expand '$(PACKAGE_VERSION)'
+      local out = pclean(rule.expand '$(@:.so=.map)')
+      tr = ": |> echo 'ELFUTILS_"..ver.." { global: "
+        ..rule.stem.."_init; local: *; };' > %o |> "..out
     -- YLWRAP-style commands are hardcoded. It would be too complex otherwise.
     elseif cmd:find '$%(YLWRAP%)' then
       if firstylwrap then
@@ -566,27 +669,31 @@ function realmake(makefn, targ, cwd)
         local top = #cwd > 0 and cwd:gsub('[^/]+', '..')..'/' or ''
         local ylw = top..'ylwrap'
         local cd = #cwd > 0 and 'cd '..cwd..' && ' or ''
-        tr = (': %s | ylwrap |> %s%s %s %s.c %s -- %s |> %s <%s>'):format(
+        tr = (': %s | ylwrap |> %s%s %s %s.c %s -- %s |> %s <_gen>'):format(
           deps[1], cd, ylw, top..deps[1],
           rule.expand '$(LEX_OUTPUT_ROOT)', targ,
-          rule.expand '$(LEXCOMPILE)', realname, group)
-        printout = true
+          rule.expand '$(LEXCOMPILE)', realname)
       elseif c == '$< y.tab.c $@ y.tab.h `echo $@ | $(am__yacc_c2h)` y.output $*.output -- $(YACCCOMPILE)' then
         local top = #cwd > 0 and cwd:gsub('[^/]+', '..')..'/' or ''
         local ylw = top..'ylwrap'
         local cd = #cwd > 0 and 'cd '..cwd..' && ' or ''
-        tr = (': %s | ylwrap |> %s%s %s y.tab.c %s y.tab.h %s y.output %s.output -- |> %s <%s>'):format(
+        local function c2h(x)
+          return x:gsub('cc$','hh'):gsub('cpp$','hpp'):gsub('c%+%+$','h++'):gsub('c$','h')
+        end
+        tr = (': %s | ylwrap |> %s%s %s y.tab.c %s y.tab.h %s y.output %s.output -- %s |> %s %s <_gen>'):format(
           deps[1], cd, ylw, top..deps[1],
-          targ, targ:gsub('cc$','hh'):gsub('cpp$','hpp'):gsub('c%+%+$','h++'):gsub('c$','h'),
-          assert(rule.stem),
-          realname, group)
+          targ, c2h(targ), assert(rule.stem),
+          rule.expand('$(YACCCOMPILE)'),
+          realname, c2h(realname))
       else error('Unhandled YLWRAP: '..cmd) end
     end
     if tr then
-      if tr:sub(1,1) == ':' then table.insert(commands, tr)
-      elseif tr == '' then tr = '# Skipped: '..exc end
+      if tr == '' then tr = '# Skipped: '..exc end
       trules[idx] = tr
     else printout = true end
+  end
+  for _,v in pairs(trules) do
+    if v and v:sub(1,1) == ':' then table.insert(commands, v) end
   end
   if printout then
     dbg(cwd..'|'..makefn..' '..realname..': '..table.concat(deps, ' '))
@@ -600,7 +707,7 @@ end
 
 make('Makefile', 'all', '')
 
-local x = exdeps:find '%g' and '| '..exdeps..' |>' or '|>'
+local x = exdeps:find '%g' and '| '..exdeps..' ' or '|'
 for _,c in ipairs(commands) do
-  io.stdout:write(c:gsub('|^|>', x),'\n')
+  io.stdout:write(c:gsub('|^', x),'\n')
 end
