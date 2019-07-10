@@ -132,10 +132,11 @@ local function gosub(s, opts, repl)
   return table.concat(bits, ' ')
 end
 
+local rinstdir = exec('realpath '..instdir)
 local exists,pclean,isinst
 do
   local rspatt = '^'..unmagic(exec('realpath '..srcdir):gsub('/?%s*$', ''))..'(.*)'
-  local ripatt = '^'..unmagic(exec('realpath '..instdir):gsub('/?%s*$', ''))..'(.*)'
+  local ripatt = '^'..unmagic(rinstdir:gsub('/?%s*$', ''))..'(.*)'
   local rtpatt = '^'..unmagic(exec('realpath '..tmpdir):gsub('/?%s*$', ''))..'(.*)'
   local expatt = '^'..unmagic(canonicalize(extdir))
   local patts,afters = {},{}
@@ -492,9 +493,9 @@ function realmake(makefn, targ, cwd)
   if targ == 'known-dwarf.h' then
     local _,_,s = pclean(targ, cwd)
     return s
-  elseif targ == 'make-debug-archive' then
-    local n = pclean(targ, cwd)
-    table.insert(commands, ': |> ^o Stand-in for %o^ touch %o |> '..n..' <'..group..'>')
+  elseif targ == 'elfutils.pot-update' or targ == 'stamp-po'
+    or targ:match '[^/]+$' == 'Makefile.in' then
+    return targ
   end
 
   local name, rule = makerule(makefn, targ, cwd)
@@ -746,9 +747,12 @@ function realmake(makefn, targ, cwd)
         end,
       })
       tr = ': '..table.concat(ins, ' ')..' |> ^o m4 > %o ...^ '..c..' |> '..out..' <_gen>'
-    elseif exc:find ';sed%s' then
+    elseif exc:find ';%s*sed%s' or exc:find '^sed%s' then
+      local rcmd = exc:gsub('^%s*echo[^;]+;', '')
+      local pre,sed = rcmd:match '(.-;)%s*(sed.*)'
+      if not pre then pre,sed = '',rcmd end
       local ins,out = {},nil
-      local c = gosub(exc:match ';(.*)', 'u,', {
+      local c = pre:gsub(rinstdir, '')..gosub(sed, 'u,e:', {
         [false]=function(p)
           if p == '|' or p == 'sort' or p:sub(1,1) == "'" then
             return p:gsub('%%', '%%%%')
@@ -759,6 +763,7 @@ function realmake(makefn, targ, cwd)
             if #ins == 1 then return '%f' end
           end
         end,
+        e=function(x) return '-e '..x:gsub('%%', '%%%%') end,
       })
       tr = ': '..table.concat(ins, ' ')..' |> ^o sed > %o ...^ '..c..' |> '..out..' <_gen>'
     elseif exc:find ';%./i386_gendis%s' then  -- Hardcoded from EU
@@ -808,6 +813,11 @@ function realmake(makefn, targ, cwd)
         ..'&& echo "WARNING: TEXTREL found in %%o!")'
       trules[idx-1] = trules[idx-1]:gsub('|>(.*)|>', '|>%1 '..c..' |>')
       tr = '# TEXTREL check folded into previous command'
+    elseif exc:find '^chmod%s+%+x' then
+      assert(trules[idx-1], "chmod can't fold behind!")
+      local c = '&& chmod +x %%o'
+      trules[idx-1] = trules[idx-1]:gsub('|>(.*)|>', '|>%1 '..c..' |>')
+      tr = '# chmod +x folded into previous command'
     -- Elfutils does a gawk-then-move trick for some reason. We do it this way.
     elseif exc:find '^mv%s' then
       local args = {}
