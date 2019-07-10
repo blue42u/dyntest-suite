@@ -1,0 +1,46 @@
+# Include this file wherever you want HPCToolkit built.
+# Installation prefix is under ./install.
+
+# Connection and overrides for our compiled Boost
+include ../external/findboost.lua
+ifeq (y,$(BUILD_BOOST))
+EX_DEPS += $(TUP_CWD)/../external/<boost>
+AM_FLAGS += --with-boost=`realpath $(TUP_CWD)/../dummy/boost`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/boost`=$(TUP_CWD)/../external/boost
+preload ../dummy/boost/lib
+endif
+
+# Connection and overrides for our compiled TBB
+include ../external/findtbb.lua
+ifeq (y,$(BUILD_TBB))
+EX_DEPS += $(TUP_CWD)/../external/<tbb>
+AM_FLAGS += --with-tbb=`realpath $(TUP_CWD)/../dummy/tbb`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/tbb`=$(TUP_CWD)/../external/tbb
+preload ../dummy/tbb/lib
+endif
+
+# Connection and overrides for our compiled Elfutils
+EX_DEPS += $(TUP_CWD)/../latest/elfutils/<elfutils>
+AM_FLAGS += --with-elfutils=`realpath $(TUP_CWD)/../dummy/elfutils`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/elfutils`=$(TUP_CWD)/../latest/elfutils/install
+
+# Connection and overrides for our compiled Dyninst
+EX_DEPS += $(TUP_CWD)/../latest/dyninst/<dyninst>
+AM_FLAGS += --with-dyninst=`realpath $(TUP_CWD)/../dummy/dyninst`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/dyninst`=$(TUP_CWD)/../latest/dyninst/install
+
+preload hpctoolkit hpctoolkit/config hpctoolkit/src hpctoolkit/src/lib
+preload hpctoolkit/src/lib/prof-lean hpctoolkit/src/lib/prof-lean/lush
+preload hpctoolkit/src/lib/support-lean hpctoolkit/src/lib/analysis
+preload hpctoolkit/src/lib/banal hpctoolkit/src/lib/binutils
+preload hpctoolkit/src/lib/isa hpctoolkit/src/lib/prof
+preload hpctoolkit/src/lib/profxml hpctoolkit/src/lib/xml
+preload hpctoolkit/src/lib/support hpctoolkit/src/lib/stubs-gcc_s
+preload hpctoolkit/src/tool hpctoolkit/src/tool/hpcstruct
+preload hpctoolkit/src/tool/hpcprof hpctoolkit/src/tool/hpcproftt
+preload hpctoolkit/src/tool/hpclump hpctoolkit/src/tool/hpctracedump
+preload hpctoolkit/doc hpctoolkit/doc/www hpctoolkit/doc/www/fig
+preload hpctoolkit/doc/www/style hpctoolkit/doc/man hpctoolkit/doc/manual
+preload hpctoolkit/lib hpctoolkit/lib/dtd hpctoolkit/lib/dtd/mathml
+run $(TUP_CWD)/../build/automake.sh src/hpctoolkit $(TUP_CWD)/hpctoolkit install/ \
+  hpctoolkit '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(AM_FLAGS)

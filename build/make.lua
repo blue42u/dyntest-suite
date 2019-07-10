@@ -209,7 +209,7 @@ do
   end
 end
 
-local makevarpatt = '[%w_<>@.?%%^*+]+'
+local makevarpatt = '[%w_<>@.?%%^*+-]+'
 
 -- We let make parse the Makefiles for us, and cache the outputs in a little
 -- table to make things faster. Argument is the path to the Makefile.
@@ -295,6 +295,7 @@ local euhacks = {
   ['../libdw/libdw.so'] = true,
   ['../lib/libeu.so'] = true,
   ['../lib/libeu.a'] = true,
+  ['../../../libtool'] = true,
 }
 
 -- After a rule is parsed above, there is a lot of postprocessing that can be
@@ -438,6 +439,14 @@ local function makerule(makefn, targ, cwd)
   function funcs.addprefix(vs, pre, str)
     return (expand(str, vs):gsub('%g+', pre:gsub('%%','%%%%')..'%0'))
   end
+  function funcs.patsubst(vs, patt, repl, str)
+    if patt:find '%%' then
+      patt,repl = unmagic(patt:gsub('%%', '(.*)')), repl:gsub('%%', '%%1')
+    else
+      patt,repl = '(%g+)'..unmagic(patt), '%1'..repl:gsub('%%', '%%%%')
+    end
+    return (expand(str, vs):gsub(patt, repl))
+  end
   function funcs.shell(vs, cmd)  -- By far the hairiest and most sensitive, hack
     if cmd == 'cd $(srcdir);pwd' then return expand('$(srcdir)', vs)
     elseif cmd == 'pwd' then return './'..cwd
@@ -446,6 +455,18 @@ local function makerule(makefn, targ, cwd)
     elseif cmd == '$(AR) t ../libdwelf/libdwelf.a' then
       return [[dwelf_elf_gnu_debuglink.o dwelf_dwarf_gnu_debugaltlink.o dwelf_elf_gnu_build_id.o dwelf_scn_gnu_compressed_size.o dwelf_strtab.o dwelf_elf_begin.o]] -- luacheck: no max line length
     else error('Unhandled shell: '..cmd) end
+  end
+  function funcs.call(_, cmd)
+    if cmd == 'HPC_moveIfStaticallyLinked' then
+      -- Expand to a magic that will be handled down below somewhere
+      return '!;@MISL@;!'
+    elseif cmd == 'copy-libs' then
+      -- The copy of all the bits to the ext_libs directory. Skip for now.
+      return '!;@CL@;!'
+    elseif cmd == 'strip-debug' then
+      -- Strip the debugging info off the files. Skip for now.
+      return '!;@SD@;!'
+    else error('Unhandled call: '..cmd) end
   end
 
   -- Now we expand the depstring and split it by word to get the targets.
@@ -531,21 +552,31 @@ function realmake(makefn, targ, cwd)
     elseif exc:find '^rm %-f' then tr = ''
     elseif cmd:find '$%(INSTALL' then
       local list = cmd:match "^@list='([^']+)'"
-      local c = cmd:match ';%s*($%(INSTALL[^|;]+)' or cmd:match '%s*($%(INSTALL[^|;]+)'
+        or cmd:match "^@list1='';%s+list2='([^']+)'"
+      local c
+      for x in cmd:gmatch ';%s*($%(INSTALL[^|;]+)' do c = x end
+      if not c then for x in cmd:gmatch '%s*($%(INSTALL[^|;]+)' do c = x end end
       assert(c, cmd)
       c = c:gsub('%s*$', ''):gsub('$$dir', '')
       local ins,outs,args = {},{},nil
       if list then
-        assert(({files=true, list2=true})[c:match '%s$$(%g+)'], c)
-        c:gsub('$$files', '%%f'):gsub('$$list2', '%%f')
+        assert(({files=true, list2=true, xfiles=true})[c:match '%s$$(%g+)'], c)
+        c:gsub('$$x?files', '%%f'):gsub('$$list2', '%%f')
+        local dir = pclean((rule.expand(c:match '%g+$'):gsub('"', '')))
         local fs = {}
         for w in rule.expand(list):gmatch '%g+' do
-          table.insert(fs, w)
-          table.insert(ins, make(makefn, w, cwd))
+          local d = w:match '(.-)[^/]+$'
+          if not fs[d] then fs[d] = {} end
+          table.insert(outs, dir..'/'..w)
+          w = make(makefn, w, cwd)
+          table.insert(fs[d], w)
+          table.insert(ins, w)
         end
-        local dir = rule.expand(c:match '%g+$'):gsub('"', '')
-        for _,x in ipairs(fs) do table.insert(outs, (pclean(dir..'/'..x))) end
-        args = '%f '..pclean(dir)
+        args = {}
+        for d,ws in pairs(fs) do
+          table.insert(ws, dir..'/'..d)
+          table.insert(args, table.concat(ws, ' '))
+        end
       elseif cmd:find '^for m in $%(modules%)' then
         ins = ''
       else
@@ -560,10 +591,19 @@ function realmake(makefn, targ, cwd)
       else
         local first = true
         c = gosub(rule.expand(c):match '/install.*', 'c,m:', {
-          [true]=false,
-          [false]=function() if first then first = false; return args end end,
+          [true]='install',
+          [false]=function() if first then first = false; return ':!;' end end,
         })
-        tr = ': '..table.concat(ins, ' ')..' |> ^ Installed %o^ install '..c..' |> '
+        if type(args) == 'string' then
+          c = c:gsub(':!;', (args:gsub('%%', '%%%%')))
+        else
+          local cs = {}
+          for i,as in ipairs(args) do
+            cs[i] = c:gsub(':!;', (as:gsub('%%', '%%%%')))
+          end
+          c = table.concat(cs, ' && ')
+        end
+        tr = ': '..table.concat(ins, ' ')..' |> ^ Installed %o^ '..c..' |> '
           ..table.concat(outs, ' ')..' <'..group..'>'
       end
     elseif cmd:find '^$%(mkinstalldirs%)' then tr = AM..'(mkdir)'
@@ -684,21 +724,32 @@ function realmake(makefn, targ, cwd)
       tr = '# CMake recursion into '..d
     -- Simple compilation calls
     elseif cmd:find '$%(COMPILE%)' or cmd:find '$%(COMPILE.os%)'
-      or cmd:find '$%(LINK%)' or cmd:find '$%(CC%)'
+      or cmd:find '$%([^)]*LINK%)' or cmd:find '$%(CC%)' or cmd:find '$%(CXX%)'
       or cmd:find '$%(C_FLAGS%)' or cmd:find '$%(CXX_FLAGS%)' then
       local amstyle = false
-      local c = exc:match ';%s*(.*)'
-      if c then amstyle = true else c = exc:match '&&%s*(.*)' or exc end
+      local c
+      if cmd:find '$%(LIBTOOL%)' or exc:find '/libtool' then
+        c = assert(exc:match '%-%-mode=%g+%s+(.*)', exc)
+        amstyle = true
+      else
+        c = exc:match ';%s*(.*)'
+        if c then amstyle = true else c = exc:match '&&%s*(.*)' or exc end
+      end
       local cd = cmd:match '^%s*cd%s+(%g+)'
       cd = cd and pclean(cd) or cwd
       -- Glitchy thing with one of the commands. The system will figure it out.
       c = c:gsub(
-        unmagic(rule.expand "`test -f 'bpf_disasm.c' || echo '$(srcdir)/'`"),
+        unmagic(rule.expand "`test -f ':;!' || echo '$(srcdir)/'`")
+          :gsub(':;!', "[^']+"),
         '')
       local ins,out = {},nil
       local mydeps = ''
       local cpre = cd:gsub('[^/]+', '..'):gsub('/?$', '/'):gsub('^/$', '')
-      c = gosub(c, 'D:I:std:W;f:g,O:c,o:shared,l:w,', {
+      local function li(p, pre)
+        if p:sub(1,1) == '/' then return pre..cpre..pclean(p)
+        else return pre..pclean(p) end
+      end
+      c = gosub(c, 'D:I:std:W;f:g,O:c,o:shared,l:w,L:', {
         [false]=function(p)
           ins[#ins+1] = make(makefn, p, cwd)
           return cpre..ins[#ins]
@@ -707,11 +758,7 @@ function realmake(makefn, targ, cwd)
           out = pclean(p, cd)
           return '-o '..cpre..out
         end,
-        I=function(p)
-          if p == '.' then return '-I'..cpre..canonicalize(cd)
-          elseif p == '..' then return '-I'..cpre..canonicalize(cd..'/..')
-          else return '-I'..cpre..pclean(p) end
-        end,
+        I=li, L=li,
         W=function(a)
           if not a then return '-W' end
           local vs = a:match '^l,%-%-version%-script,(.*)'
@@ -893,13 +940,16 @@ function realmake(makefn, targ, cwd)
       tr = ': |> '..table.concat(cmds, ' && ')..' |> '..table.concat(dsts, ' ')..' <'..group..'>'
     -- Elfutils does a check that TEXTREL doesn't appear in the output .so.
     elseif cmd == '@$(textrel_check)' then
-      assert(trules[idx-1], "textrel_check can't fold behind!")
-      assert(trules[idx-1]:find '|>.*|>%s*%g+%.so', "textrel_check not after .so output!")
-      local o = trules[idx-1]:match '%f[%g]%-o%s+([^%s%%]+)'
-      local c = '&& ! (readelf -d '..o..' | grep -Fq TEXTREL '
-        ..'&& echo "WARNING: TEXTREL found in %%o!")'
-      trules[idx-1] = trules[idx-1]:gsub('|>(.*)|>', '|>%1 '..c..' |>')
-      tr = '# TEXTREL check folded into previous command'
+      if not trules[idx-1] then
+        tr = '# TEXTREL check skipped, unable to fold.'
+      else
+        assert(trules[idx-1]:find '|>.*|>%s*%g+%.so', "textrel_check not after .so output!")
+        local o = trules[idx-1]:match '%f[%g]%-o%s+([^%s%%]+)'
+        local c = '&& ! (readelf -d '..o..' | grep -Fq TEXTREL '
+          ..'&& echo "WARNING: TEXTREL found in %%o!")'
+        trules[idx-1] = trules[idx-1]:gsub('|>(.*)|>', '|>%1 '..c..' |>')
+        tr = '# TEXTREL check folded into previous command'
+      end
     elseif exc:find '^chmod%s+%+x' then
       assert(trules[idx-1], "chmod can't fold behind!")
       local c = '&& chmod +x %%o'
@@ -923,6 +973,19 @@ function realmake(makefn, targ, cwd)
       local out = pclean(rule.expand '$(@:.so=.map)')
       tr = ": |> ^o Wrote %o^ echo 'ELFUTILS_"..ver.." { global: "
         ..rule.stem.."_init; local: *; };' > %o |> "..out
+    -- HPCToolkit generates man pages from latex files. Why, I do not know.
+    elseif cmd:find '^$%(MYLATEX2MAN%)' then
+      local fs = {}
+      local c = gosub(exc, 't:H,', {
+        [true]=function(x) return pclean(x, cwd) end,
+        t=function(x) return '-t '..pclean(x, cwd) end,
+        [false]=function(p)
+          if #fs == 0 then table.insert(fs, make(makefn, p, cwd)); return '%f'
+          elseif #fs == 1 then table.insert(fs, (pclean(p, cwd))); return '%o'
+          else error(exc) end
+        end,
+      })
+      tr = ': '..fs[1]..' |> ^o Latex2Man %o^ '..c..' |> '..fs[2]
     -- YLWRAP-style commands are hardcoded. It would be too complex otherwise.
     elseif cmd:find '$%(YLWRAP%)' then
       if firstylwrap then
@@ -980,6 +1043,13 @@ for _,f in ipairs{
   'config/libelf.pc', 'config/libdw.pc',  -- Elfutils pkg-config stuff
   'version.h', -- Automake version header
   'common/h/dyninstversion.h',  -- Dyninst version header
+  -- HPCToolkit boot scripts
+  'src/tool/hpcstruct/hpcstruct', 'src/tool/hpcstruct/dotgraph',
+  'src/tool/hpcprof/hpcprof', 'src/tool/hpcproftt/hpcproftt',
+  'src/tool/hpcprof-flat/hpcprof-flat', 'src/tool/hpcprof-mpi/hpcprof-mpi',
+  'src/tool/hpcfnbounds/hpcfnbounds',
+  -- HPCToolkit configuration header
+  'src/include/hpctoolkit-config.h',
 } do
   if exists(tmpdir..f) then
     table.insert(commands, ': |> ^o Wrote %o^ '..copy(tmpdir..f)..' |> '..f..' <_gen>')

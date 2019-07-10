@@ -18,7 +18,12 @@ set -e  # Make sure to exit if anything funny happens
 
 # Install automake in the source dir. Make sure the cache is never created.
 export AUTOM4TE="$BUILD"/autom4te-no-cache
+if [ ! -x "$SRC"/configure ]; then
 autoreconf -is "$SRC" >&2 2> /dev/null
+fi
+
+# HPCToolkit likes to use git. Tup doesn't, so this handles that little issue.
+export PATH="$BUILD"/bin:"$PATH"
 
 # Configure trys some things that Tup really doesn't like. So we configure in a
 # temporary directory and copy the important parts back to "here".
