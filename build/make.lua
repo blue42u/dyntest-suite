@@ -53,17 +53,28 @@ local function canonicalize(p)
 end
 
 -- Function for saving and copying data, by storing gzip in base64.
-local function copy(fn, dst)
-  local b64 = exec('gzip -n < '..fn..' | base64 -w0')
-  return "echo '"..b64.."' | base64 -d | gzip -d > "..(dst or '%o')
+local function storefile(fn)
+  local p = io.popen('gzip -n < '..fn..' | base64 -w0')
+  local x = {}
+  repeat
+    local n = p:read(80000)
+    x[#x+1] = n
+  until not n
+  pclose(p)
+  return #x == 1 and x[1] or x
 end
-local function save(str, ...)
+local function storefor(...)
   local tmpf = tmpdir..'/ZZZluatmp'
   local f = io.open(tmpf, 'w')
-  f:write(str)
+  for l in ... do f:write(l) end
   f:close()
-  return copy(tmpf, ...)
+  return storefile(tmpf)
 end
+local function dumpin(dst)
+  return "base64 -d | gzip -d > "..(dst or '%o')
+end
+local function dump(b64, ...) return "echo '"..b64.."' | "..dumpin(...) end
+local function copy(fn, ...) return dump(storefile(fn), ...) end
 
 -- A partially-correct implementation of getopt, for command line munging.
 -- Opts is a table with ['flag'] = 'simple' | 'arg', or an optstring
@@ -727,9 +738,11 @@ function realmake(makefn, targ, cwd)
       or cmd:find '$%([^)]*LINK%)' or cmd:find '$%(CC%)' or cmd:find '$%(CXX%)'
       or cmd:find '$%(C_FLAGS%)' or cmd:find '$%(CXX_FLAGS%)' then
       local amstyle = false
-      local c
+      local lbpre,lbpost,c = '',''
       if cmd:find '$%(LIBTOOL%)' or exc:find '/libtool' then
-        c = assert(exc:match '%-%-mode=%g+%s+(.*)', exc)
+        lbpre,c = exc:match '^(.-%-%-mode=%g+%s+)(.*)'
+        lbpost = ' && rm -r .libs'
+        assert(lbpre and c, exc)
         amstyle = true
       else
         c = exc:match ';%s*(.*)'
@@ -786,7 +799,7 @@ function realmake(makefn, targ, cwd)
       end
       local cdcd = #cd > 0 and 'cd '..cd..' && ' or ''
       tr = ': '..table.concat(ins, ' ')..' |^ <_gen> '..mydeps..'|> ^o cc -o %o ...^ '
-        ..cdcd..c..' |> '..out
+        ..cdcd..lbpre..c..lbpost..' |> '..out
     -- Simple archiving (AR) calls
     elseif cmd:find '$%(RANLIB%)' then tr = ''  -- Skip ranlib
     elseif cmd:find '$%([%w_]+AR%)' then
@@ -1042,17 +1055,34 @@ end
 for _,f in ipairs{
   'config/libelf.pc', 'config/libdw.pc',  -- Elfutils pkg-config stuff
   'version.h', -- Automake version header
+  'libtool!',  -- Libtool script
   'common/h/dyninstversion.h',  -- Dyninst version header
   -- HPCToolkit boot scripts
   'src/tool/hpcstruct/hpcstruct', 'src/tool/hpcstruct/dotgraph',
   'src/tool/hpcprof/hpcprof', 'src/tool/hpcproftt/hpcproftt',
   'src/tool/hpcprof-flat/hpcprof-flat', 'src/tool/hpcprof-mpi/hpcprof-mpi',
   'src/tool/hpcfnbounds/hpcfnbounds',
-  -- HPCToolkit configuration header
-  'src/include/hpctoolkit-config.h',
+  'src/include/hpctoolkit-config.h', -- HPCToolkit configuration header
 } do
+  local p = ''
+  if f:find '!$' then
+    f = f:gsub('!$', '')
+    p = ' && chmod +x %o'
+  end
   if exists(tmpdir..f) then
-    table.insert(commands, ': |> ^o Wrote %o^ '..copy(tmpdir..f)..' |> '..f..' <_gen>')
+    local data = storefile(tmpdir..f)
+    if type(data) == 'string' then
+      table.insert(commands, ': |> ^o Wrote %o^ '..dump(data)..p..' |> '
+        ..f..' <_gen>')
+    else
+      for i,b in ipairs(data) do
+        local ff = f..i
+        io.stdout:write(": |> ^o Wrote %o^ echo '",b,"' > %o |> "..ff..'\n')
+        data[i] = ff
+      end
+      io.stdout:write(': '..table.concat(data, ' ')..' |> ^o Concatinated %o^ '
+        ..'cat %f | '..dumpin()..' |> '..f..'\n')
+    end
   end
 end
 
@@ -1060,8 +1090,20 @@ make('Makefile', 'all', '')
 make('Makefile', 'install', '')
 
 local x = exdeps:find '%g' and '| '..exdeps..' ' or '|'
-for _,c in ipairs(commands) do
+for i,c in ipairs(commands) do
   io.stdout:write(c:gsub('|^', x),'\n')
+  commands[i] = c..'\n'
 end
-table.insert(commands, '')
-io.stdout:write(': |> ^o Wrote %o^'..save(table.concat(commands, '\n'))..' |> build.tup.gen\n')
+
+local btgen = storefor(ipairs(commands))
+if type(btgen) == 'string' then
+  io.stdout:write(': |> ^o Wrote %o^',dump(btgen),' |> build.tup.gen\n')
+else
+  for i,p in ipairs(btgen) do
+    local f = 'build.tup.gen'..i
+    io.stdout:write(": |> ^o Wrote %o^ echo '",p,"' > %o |> "..f..'\n')
+    btgen[i] = f
+  end
+  io.stdout:write(': '..table.concat(btgen, ' ')..' |> ^o Concatinated %o^ '
+    ..'cat %f | '..dumpin()..' |> build.tup.gen\n')
+end
