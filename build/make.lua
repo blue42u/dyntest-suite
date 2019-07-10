@@ -57,6 +57,13 @@ local function copy(fn, dst)
   local b64 = exec('gzip -n < '..fn..' | base64 -w0')
   return "echo '"..b64.."' | base64 -d | gzip -d > "..(dst or '%o')
 end
+local function save(str, ...)
+  local tmpf = tmpdir..'/ZZZluatmp'
+  local f = io.open(tmpf, 'w')
+  f:write(str)
+  f:close()
+  return copy(tmpf, ...)
+end
 
 -- A partially-correct implementation of getopt, for command line munging.
 -- Opts is a table with ['flag'] = 'simple' | 'arg', or an optstring
@@ -490,10 +497,7 @@ local function make(f, t, cwd)
 end
 function realmake(makefn, targ, cwd)
   -- Targets that are actually handled via other methods are sorted up here.
-  if targ == 'known-dwarf.h' then
-    local _,_,s = pclean(targ, cwd)
-    return s
-  elseif targ == 'elfutils.pot-update' or targ == 'stamp-po'
+  if targ == 'elfutils.pot-update' or targ == 'stamp-po'
     or targ:match '[^/]+$' == 'Makefile.in' then
     return targ
   end
@@ -707,11 +711,10 @@ function realmake(makefn, targ, cwd)
             end,
             l=function(x)
               assert(not x:find '/', x)
+              return '-l'..x
             end,
             L=li, I=li,
           })
-          -- Hack for dyninst
-          c = c..' -ldl -lboost_filesystem -lboost_thread -ltbb'
           c = ': '..table.concat(ins, ' ')..' |^ <_gen> |> ^o cc -o %o ...^ '..c..' |> '..out
         end
         cmds[#cmds+1] = c
@@ -726,7 +729,10 @@ function realmake(makefn, targ, cwd)
       local c = gosub(exc, 'f,', {
         [false]=function(p)
           if p == '>' then out = false; return '>'
-          elseif out == false then out = pclean(p, cwd); return '%o'
+          elseif out == false then
+            if p:find '/known%-dwarf%.h%.new$' then p = 'known-dwarf.h.new' end
+            out = pclean(p, cwd)
+            return '%o'
           else
             ins[#ins+1] = make(makefn, p, cwd)
             if #ins == 1 then return '%f' end
@@ -823,6 +829,8 @@ function realmake(makefn, targ, cwd)
       local args = {}
       for w in exc:gmatch '%f[%g][^-]%g+' do args[#args+1] = w end
       assert(#args == 3, '{'..table.concat(args, ', ')..'}')
+      if args[2]:find '/known%-dwarf%.h%.new$' then args[2] = 'known-dwarf.h.new' end
+      if args[3]:find '/known%-dwarf%.h$' then args[3] = 'known-dwarf.h' end
       local src,dst = pclean(args[2],cwd),pclean(args[3],cwd)
       src,dst = unmagic(src), dst:gsub('%%', '%%%%')
       for k,v in pairs(trules) do trules[k] = v:gsub(src, dst) end
@@ -904,3 +912,5 @@ local x = exdeps:find '%g' and '| '..exdeps..' ' or '|'
 for _,c in ipairs(commands) do
   io.stdout:write(c:gsub('|^', x),'\n')
 end
+table.insert(commands, '')
+io.stdout:write(': |> ^o Wrote %o^'..save(table.concat(commands, '\n'))..' |> build.tup.gen\n')
