@@ -19,6 +19,14 @@ TRANSFORMS += `realpath $(TUP_CWD)/../dummy/tbb`=$(TUP_CWD)/../external/tbb
 preload ../dummy/tbb/lib
 endif
 
+# Connection and overrides for our compiled Xerces
+include ../external/findxerces.lua
+ifeq (y,$(BUILD_XERCES))
+EX_DEPS += $(TUP_CWD)/../external/<xerces>
+AM_FLAGS += --with-xerces=`realpath $(TUP_CWD)/../dummy/xerces`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/xerces`=$(TUP_CWD)/../external/xerces
+endif
+
 # Connection and overrides for our compiled Elfutils
 EX_DEPS += $(TUP_CWD)/../latest/elfutils/<elfutils>
 AM_FLAGS += --with-elfutils=`realpath $(TUP_CWD)/../dummy/elfutils`

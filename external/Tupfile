@@ -2,10 +2,15 @@ include_rules
 
 include findboost.lua
 ifeq (y,$(BUILD_BOOST))
-: |> ./boost.sh |> $(BOOST_FILES) <boost>
+: |> ^o Built Boost^ ./boost.sh |> $(BOOST_FILES) <boost>
 endif
 
 include findtbb.lua
 ifeq (y,$(BUILD_TBB))
-: |> ./tbb.sh |> $(TBB_FILES) <tbb>
+: |> ^o Built TBB^ ./tbb.sh |> $(TBB_FILES) <tbb>
+endif
+
+include findxerces.lua
+ifeq (y,$(BUILD_XERCES))
+: |> ^o Built Xerces^ ./xerces.sh |> $(XERCES_FILES) <xerces>
 endif
