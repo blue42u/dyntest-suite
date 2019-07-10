@@ -23,8 +23,9 @@ trap "rm -rf $TMP" EXIT  # Make sure to clean up before exiting.
 
 # Construct the Makefiles using CMake. Modify the MODULE_PATH to (try to)
 # ensure ExternalProject is not used.
-cmake -DCMAKE_INSTALL_PREFIX="`realpath $INS`" -DCMAKE_MODULE_PATH="$BUILD" \
+cmake -DCMAKE_INSTALL_PREFIX="$TMP/install-x" -DCMAKE_MODULE_PATH="$BUILD" \
   "$@" -S "$SRC" -B "$TMP" > /dev/null
 
 # Call our version of make to "build" everything.
-"$BUILD"/make.lua "$RELSRC" "$INS" "$GROUP" "$TMP" "$EXDEPS" "$TRANSFORMS" "$EXTDIR"
+"$BUILD"/make.lua "$RELSRC" "$INS" "$GROUP" "$TMP" "$EXDEPS" \
+  "$TRANSFORMS $TMP/install-x=`realpath $INS`" "$EXTDIR"

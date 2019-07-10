@@ -189,8 +189,6 @@ do
       end
       x = path:match(ripatt)
       if x then x = canonicalize(instdir..x); return x,x,x end
-      x = path:match(rtpatt)
-      if x then x = canonicalize(x:gsub('^/(.)', '%1')); return x,x,x end
       local res
       for p,d in pairs(patts) do if path:find(p) then
         x = path:match(p)
@@ -200,6 +198,8 @@ do
         end
       end end
       if res then return res,res,res end
+      x = path:match(rtpatt)
+      if x then x = canonicalize(x:gsub('^/(.)', '%1')); return x,x,x end
       -- At this point all the prefixes have been tried. Must be a system thing.
       return path,path,path
     else  -- Relative path, use ref to sort it out
@@ -574,6 +574,86 @@ function realmake(makefn, targ, cwd)
     elseif cmd:find '$%(CMAKE_COMMAND%) %-E cmake_depends' then tr = CM..'(dependency scan)'
     elseif cmd:find '^@$%(CMAKE_COMMAND%) %-E touch_nocreate' then tr = CM..'(touch)'
     elseif cmd:find '^$%(CMAKE_COMMAND%) %-P %g+cmake_clean_target%.cmake' then tr = CM..'(clean)'
+    elseif cmd:find '%s%-P%s+cmake_install%.cmake' then
+      local cmds = {}
+      local parsecache,dedup = {},{}
+      local function parse(fn)
+        if parsecache[fn] then return end
+        parsecache[fn] = true
+        local data
+        do
+          local f = assert(io.open(fn))
+          data = f:read 'a'
+          f:close()
+        end
+        for inc in data:gmatch '%f[\0\n]%s*include(%b())' do
+          inc = inc:sub(2,-2):gsub('^"', ''):gsub('"$', '')
+          parse(inc)
+        end
+        for inst in data:gmatch '%f[\0\n]%s*file(%b())' do
+          inst = inst:sub(2,-2)
+          if inst:match '%g+' == 'INSTALL' then
+            local skip = {INSTALL=true, OPTIONAL=true, FILES=true}
+            local outdir, ins, ty, renm = nil, {}, nil, nil
+            for a in inst:gmatch '%g+' do
+              if outdir == false then
+                a = a:gsub('"', ''):gsub('${CMAKE_INSTALL_PREFIX}', instdir)
+                outdir = pclean(a)
+              elseif ty == false then ty = a
+              elseif renm == false then renm = a:gsub('"', '')
+              elseif a == 'DESTINATION' then outdir = false
+              elseif a == 'TYPE' then ty = false
+              elseif a == 'RENAME' then renm = false
+              elseif not skip[a] then
+                assert(a:find '"', a)
+                a = a:gsub('"', ''):gsub('${CMAKE_INSTALL_PREFIX}', instdir)
+                a = pclean(a)
+                if not a:find '%.cmake$' and not a:find '%.txt$'
+                  and not a:find '%.pdf$' then
+                  table.insert(ins, a)
+                end
+              end
+            end
+            if #ins > 0 and ty ~= 'DIRECTORY' then
+              local tyargs = {
+                SHARED_LIBRARY='', EXECUTABLE='', FILE=' -m 644',
+                STATIC_LIBRARY=' -m 644',
+              }
+              assert(tyargs[ty], 'No install args for '..ty)
+              local install = '^o Installed %o^ install'..tyargs[ty]..' '
+              if renm then
+                assert(#ins == 1)
+                if not dedup[ins[1]] then
+                  table.insert(cmds, ': '..ins[1]..' |> '..install
+                    ..'%f %o |> '..outdir..'/'..renm..' <'..group..'>')
+                  dedup[ins[1]] = true
+                end
+              else
+                local outs,ex = {},{}
+                local doit = false
+                for i,v in ipairs(ins) do
+                  if not dedup[v] then
+                    if ty == 'SHARED_LIBRARY' and not ex.so then
+                      ex[#ex+1], ex.so = '<_so>', true
+                    end
+                    outs[i] = canonicalize(outdir..'/'..v:match '[^/]+$')
+                    dedup[v] = true
+                    doit = true
+                  else ins[i],outs[i] = '','' end
+                end
+                if doit then
+                  ex = #ex > 0 and ' | '..table.concat(ex, ' ') or ''
+                  table.insert(cmds, ': '..table.concat(ins, ' ')..ex..' |> '
+                    ..install..'%f '..outdir..' |> '..table.concat(outs, ' ')
+                    ..' <'..group..'>')
+                end
+              end
+            end
+          end
+        end
+      end
+      parse(tmpdir..'cmake_install.cmake')
+      tr = table.concat(cmds, '\n')
     -- Recursive Make calls
     elseif exc:find '^make%s' then
       local fn,targs = 'Makefile',{}
@@ -715,7 +795,8 @@ function realmake(makefn, targ, cwd)
             end,
             L=li, I=li,
           })
-          c = ': '..table.concat(ins, ' ')..' |^ <_gen> |> ^o cc -o %o ...^ '..c..' |> '..out
+          c = ': '..table.concat(ins, ' ')..' |^ <_gen> |> ^o cc -o %o ...^ '
+            ..c..' |> '..out..' <_so>'
         end
         cmds[#cmds+1] = c
       end
