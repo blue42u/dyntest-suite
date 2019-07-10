@@ -568,6 +568,7 @@ function realmake(makefn, targ, cwd)
     elseif cmd:find '^@$%(CMAKE_COMMAND%) %-E cmake_echo' then tr = CM..'(progress bar)'
     elseif cmd:find '$%(CMAKE_COMMAND%) %-E cmake_depends' then tr = CM..'(dependency scan)'
     elseif cmd:find '^@$%(CMAKE_COMMAND%) %-E touch_nocreate' then tr = CM..'(touch)'
+    elseif cmd:find '^$%(CMAKE_COMMAND%) %-P %g+cmake_clean_target%.cmake' then tr = CM..'(clean)'
     -- Recursive Make calls
     elseif exc:find '^make%s' then
       local fn,targs = 'Makefile',{}
@@ -603,25 +604,27 @@ function realmake(makefn, targ, cwd)
       local amstyle = false
       local c = exc:match ';%s*(.*)'
       if c then amstyle = true else c = exc:match '&&%s*(.*)' or exc end
+      local cd = cmd:match '^%s*cd%s+(%g+)'
+      cd = cd and pclean(cd) or cwd
       -- Glitchy thing with one of the commands. The system will figure it out.
       c = c:gsub(
         unmagic(rule.expand "`test -f 'bpf_disasm.c' || echo '$(srcdir)/'`"),
         '')
       local ins,out = {},nil
       local mydeps = ''
-      local cpre = cwd:gsub('[^/]+', '..'):gsub('/?$', '/'):gsub('^/$', '')
+      local cpre = cd:gsub('[^/]+', '..'):gsub('/?$', '/'):gsub('^/$', '')
       c = gosub(c, 'D:I:std:W;f:g,O:c,o:shared,l:w,', {
         [false]=function(p)
           ins[#ins+1] = make(makefn, p, cwd)
           return cpre..ins[#ins]
         end,
         o=function(p)
-          out = pclean(p, cwd)
+          out = pclean(p, cd)
           return '-o '..cpre..out
         end,
         I=function(p)
-          if p == '.' then return '-I'..cpre..canonicalize(cwd)
-          elseif p == '..' then return '-I'..cpre..canonicalize(cwd..'/..')
+          if p == '.' then return '-I'..cpre..canonicalize(cd)
+          elseif p == '..' then return '-I'..cpre..canonicalize(cd..'/..')
           else return '-I'..cpre..pclean(p) end
         end,
         W=function(a)
@@ -649,9 +652,9 @@ function realmake(makefn, targ, cwd)
           mydeps = mydeps..' libdw/libdw.so.1'
         end
       end
-      local cd = #cwd > 0 and 'cd '..cwd..' && ' or ''
+      local cdcd = #cd > 0 and 'cd '..cd..' && ' or ''
       tr = ': '..table.concat(ins, ' ')..' |^ <_gen> '..mydeps..'|> ^o cc -o %o ...^ '
-        ..cd..c..' |> '..out
+        ..cdcd..c..' |> '..out
     -- Simple archiving (AR) calls
     elseif cmd:find '$%(RANLIB%)' then tr = ''  -- Skip ranlib
     elseif cmd:find '$%([%w_]+AR%)' then
@@ -672,19 +675,50 @@ function realmake(makefn, targ, cwd)
           local ar = c:match '^%g+'
           local ins,out = {},nil
           for w in c:match '%sqc%s+(.+)':gmatch '%g+' do
-
+            w = pclean(w, cd)
+            if not out then out = w else table.insert(ins, w) end
           end
-          c = ':  '..ar..' scr '
+          c = ': '..table.concat(ins, ' ')..' |> ^o ar %o ...^ '..ar..' scr %o %f |> '..out
         elseif c:find '^%g+%s+%g+$' then  -- Probably a ranlib, we skip it.
           c = nil
         else  -- Assume its a cc-style command
+          local ins,out = {},nil
+          local function li(p, pre)
+            if p == '.' then return pre..pclean(p, cd)
+            elseif p == '..' then return pre..pclean(p, cd)
+            else return pre..pclean(p, cd) end
+          end
+          c = gosub(c, 'f:W;O:g,shared,o:l:std:L:I:', {
+            [false]=function(p)
+              p = pclean(p, cd)
+              if not exists(p) and p:sub(1,1) ~= '/' then table.insert(ins, p) end
+              return p
+            end,
+            o=function(p) out = pclean(p, cd); return '-o %o' end,
+            W=function(x)
+              if not x then return '-W' end
+              local rp = x:match 'l,%-rpath,(.*)'
+              if rp then
+                return '-Wl,-rpath,'..rp:gsub('[^:]+', pclean)
+              end
+              if x:find 'deepthought' then error(x) end
+              return '-W'..x
+            end,
+            l=function(x)
+              assert(not x:find '/', x)
+            end,
+            L=li, I=li,
+          })
+          -- Hack for dyninst
+          c = c..' -ldl -lboost_filesystem -lboost_thread -ltbb'
+          c = ': '..table.concat(ins, ' ')..' |^ <_gen> |> ^o cc -o %o ...^ '..c..' |> '..out
         end
         cmds[#cmds+1] = c
       end
       f:close()
 
       assert(#cmds == 1, "Too many commands!")
-      tr = '# '..table.concat(cmds, '; ')
+      tr = cmds[1]
     -- Generation expressions: gawk, sed, m4 and ./i386_gendis
     elseif exc:find '^gawk' then
       local ins,out = {},nil
@@ -747,11 +781,24 @@ function realmake(makefn, targ, cwd)
       for w in exc:gmatch '%f[%g][^-]%g+' do args[#args+1] = w end
       assert(#args == 3, '{'..table.concat(args, ', ')..'}')
       if isinst(args[3]) then
-        tr = ': |> ln -s '..args[2]..' %o |> '..pclean(args[3], cwd)
+        tr = ': |> ln -s '..args[2]..' %o |> '..pclean(args[3], cwd)..' <'..group..'>'
       else
         local src,dst = pclean(args[2],cwd), pclean(args[3],cwd)
         tr = ': '..src..' |> ln -s %f %o |> '..dst
       end
+    elseif cmd:find '$%(CMAKE_COMMAND%)%s+%-E%s+cmake_symlink_library' then
+      local cd = cmd:match '^%s*cd%s+(%g+)'
+      cd = cd and pclean(cd) or cwd
+      local src,dsts = nil,{}
+      for w in cmd:match 'cmake_symlink_library%s+(.*)':gmatch '%g+' do
+        if not src then src = w else table.insert(dsts, w) end
+      end
+      local cmds = {}
+      for i,v in ipairs(dsts) do
+        dsts[i] = pclean(v, cd)
+        cmds[i] = 'ln -s '..src..' '..dsts[i]
+      end
+      tr = ': |> '..table.concat(cmds, ' && ')..' |> '..table.concat(dsts, ' ')..' <'..group..'>'
     -- Elfutils does a check that TEXTREL doesn't appear in the output .so.
     elseif cmd == '@$(textrel_check)' then
       assert(trules[idx-1], "textrel_check can't fold behind!")
