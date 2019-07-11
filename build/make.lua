@@ -766,8 +766,9 @@ function realmake(makefn, targ, cwd)
       end
       c = gosub(c, 'D:I:std:W;f:g,O:c,o:shared,l:w,L:', {
         [false]=function(p)
-          ins[#ins+1] = make(makefn, p, cwd)
-          return cpre..ins[#ins]
+          p = make(makefn, p, cwd)
+          if not exists(p) and p:sub(1,1) ~= '/' then table.insert(ins, p) end
+          return cpre..p
         end,
         o=function(p)
           out = pclean(p, cd)

@@ -14,3 +14,18 @@ include findxerces.lua
 ifeq (y,$(BUILD_XERCES))
 : |> ^o Built Xerces^ ./xerces.sh |> $(XERCES_FILES) <xerces>
 endif
+
+include finddwarf.lua
+ifeq (y,$(BUILD_DWARF))
+: |> ^o Built libDwarf^ ./dwarf.sh |> $(DWARF_FILES) <dwarf>
+endif
+
+include findbinutils.lua
+ifeq (y,$(BUILD_BINUTILS))
+: |> ^o Built Binutils^ ./binutils.sh |> $(BINUTILS_FILES) <binutils>
+endif
+
+include findzlib.lua
+ifeq (y,$(BUILD_ZLIB))
+: |> ^o Built Zlib^ ./zlib.sh |> $(ZLIB_FILES) <zlib>
+endif
