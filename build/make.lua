@@ -511,6 +511,7 @@ fi; test -z "$$fail"]]):gsub('\\\n', '')
 
 local commands = {}
 local firstylwrap = true
+local libtoollibs = {}
 
 -- This is the actual recursive make call. We assume that the Makefiles are
 -- written to actually work and aren't naturally recursive.
@@ -532,6 +533,11 @@ function realmake(makefn, targ, cwd)
   if targ == 'elfutils.pot-update' or targ == 'stamp-po'
     or targ:match '[^/]+$' == 'Makefile.in' then
     return targ
+  end
+
+  -- Hack to skip a target that fails miserably
+  if pclean(targ, cwd) == 'src/tool/hpcrun/libhpcrun.o' then
+    return pclean(targ, cwd)
   end
 
   local name, rule = makerule(makefn, targ, cwd)
@@ -745,12 +751,13 @@ function realmake(makefn, targ, cwd)
       or cmd:find '$%(C_FLAGS%)' or cmd:find '$%(CXX_FLAGS%)'
       or cmd:find '$%(CCAS%)' then
       local amstyle,delibtoolize = false,false
-      local c
+      local c,linkargs
       if cmd:find '$%(LIBTOOL%)' or exc:find '/libtool' then
         delibtoolize,c = exc:match '^.-%-%-mode=(%g+)%s+(.*)'
         assert(delibtoolize and c, exc)
         assert(delibtoolize == 'compile' or delibtoolize == 'link')
         amstyle = true
+        linkargs = {}
       else
         c = exc:match ';%s*(.*)'
         if c then amstyle = true else c = exc:match '&&%s*(.*)' or exc end
@@ -765,9 +772,9 @@ function realmake(makefn, targ, cwd)
       local ins,out = {},nil
       local mydeps = ''
       local cpre = cd:gsub('[^/]+', '..'):gsub('/?$', '/'):gsub('^/$', '')
-      local function li(p, pre)
-        if p:sub(1,1) == '/' then return pre..cpre..pclean(p)
-        else return pre..pclean(p) end
+      local function li(p)
+        if p:sub(1,1) == '/' then return cpre..pclean(p)
+        else return pclean(p) end
       end
       c = gosub(c, 'D:I:std:W;f:g,O:c,o:shared,l:w,L:rpath:', {
         [false]=function(p)
@@ -779,10 +786,22 @@ function realmake(makefn, targ, cwd)
           out = pclean(p, cd)
           return '-o '..cpre..out
         end,
-        I=li, L=li,
+        I=function(a, pre) return pre..li(a) end,
+        L=function(a, pre)
+          a = li(a)
+          if linkargs then table.insert(linkargs, pre..a) end
+          return pre..a..' -Wl,--rpath,`realpath '..a..'`'
+        end,
+        l=function(a,pre)
+          a = pre..a
+          if linkargs then table.insert(linkargs, a) end
+          return a
+        end,
         rpath=function(p)
           assert(delibtoolize == 'link')
-          return '-Wl,-rpath,'..p:gsub('[^:]+', pclean)
+          p = '-Wl,--rpath,`realpath '..p:gsub('[^:]+', pclean)..'`'
+          table.insert(linkargs, p)
+          return p
         end,
         W=function(a)
           if not a then return '-W' end
@@ -792,6 +811,13 @@ function realmake(makefn, targ, cwd)
             f = pclean(f)
             if not f:find '^%.%./' then mydeps = mydeps..' '..f end
             return '-Wl,--version-script,'..cpre..f..e
+          end
+          vs = a:match '^l,%-%-rpath,(.*)'
+          if vs then
+            a = 'l,--rpath,'..vs:gsub('[^:]+', function(x)
+              return '`realpath '..pclean(x)..'`'
+            end)
+            if linkargs then table.insert(linkargs, '-W'..a) end
           end
           return '-W'..a
         end,
@@ -810,10 +836,29 @@ function realmake(makefn, targ, cwd)
         end
       end
       local cdcd = #cd > 0 and 'cd '..cd..' && ' or ''
-      if delibtoolize == 'link' and out:find '%.la$' then
-        -- Libtool uses commands that look like normal liking for making .la.
-        -- While clever and convient, we just make it to a normal ar command.
-        cdcd,c = '','ar scr %o %f'
+      if delibtoolize then
+        -- Tack on the arguments needed for the linked .la files.
+        for _,i in ipairs(ins) do
+          if i:find '%.la$' or i:find '%.lo$' then
+            assert(libtoollibs[i], i)
+            table.insert(linkargs, libtoollibs[i])
+          end
+        end
+        if out:find '%.la$' or out:find '%.lo' then
+          assert(not libtoollibs[out])
+          libtoollibs[out] = table.concat(linkargs, ' ')
+        end
+        if out:find '%.la$' then
+          -- Libtool uses commands that look like normal linking for making .la.
+          -- While clever and convenient, we just make it a normal ar command.
+          cdcd,c = '','ar scr %o %f'
+        else c = c .. ' ' .. table.concat(linkargs, ' ') end
+        -- Hack to handle an oddity in HPCToolkit
+        -- if out == 'src/tool/hpcrun/libhpcrun.o' then
+        --   make(makefn, 'libhpcrun.la', cwd)
+        --   c = c..' -Wl,--rpath,'..c:match '%f[%S]%-L(%g+/papi/lib)%s'
+        --     ..' '..libtoollibs['src/tool/hpcrun/libhpcrun.la']..' -ldl'
+        -- end
       end
       tr = ': '..table.concat(ins, ' ')..' |^ <_gen> '..mydeps..'|> ^o cc -o %o ...^ '
         ..cdcd..c..' |> '..out
@@ -861,7 +906,9 @@ function realmake(makefn, targ, cwd)
               if not x then return '-W' end
               local rp = x:match 'l,%-rpath,(.*)'
               if rp then
-                return '-Wl,-rpath,'..rp:gsub('[^:]+', pclean)
+                return '-Wl,-rpath,'..rp:gsub('[^:]+', function(z)
+                  return '`realpath '..pclean(z)..'`'
+                end)
               end
               return '-W'..x
             end,
