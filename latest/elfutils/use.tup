@@ -1,0 +1,4 @@
+ELFUTILS_REAL_DIR = $(TUP_CWD)/install
+ELFUTILS_DUMMY_DIR = `realpath $(TUP_CWD)/dummy`
+ELFUTILS_EX_DEP = $(TUP_CWD)/<elfutils>
+preload dummy dummy/lib

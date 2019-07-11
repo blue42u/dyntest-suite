@@ -1,5 +1,10 @@
 include_rules
 
+include ../elfutils/use.tup
+include ../dyninst/use.tup
+
+EXTRA_CFG_FLAGS = --enable-openmp
+
 include ../../build/hasbuildtup.lua
 ifeq (y,$(HAS_BUILD_TUP))
 include build.tup

@@ -1,10 +1,12 @@
 # Include this file wherever you want Elfutils built.
 # Installation prefix is under ./install.
 
+CFG_FLAGS = --enable-maintainer-mode
+CFG_FLAGS += $(EXTRA_CFG_FLAGS)
+
 preload elfutils elfutils/m4 elfutils/backends elfutils/config elfutils/lib
 preload elfutils/libasm elfutils/libcpu elfutils/libcpu/defs elfutils/libdw
 preload elfutils/libdwelf elfutils/libdwfl elfutils/libebl elfutils/libelf
 preload elfutils/src elfutils/tests elfutils/po elfutils/lib/valgrind
 run $(TUP_CWD)/../build/automake.sh src/elfutils $(TUP_CWD)/elfutils install/ \
-  elfutils '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external \
-  --enable-maintainer-mode $(CFG_FLAGS)
+  elfutils '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(CFG_FLAGS)

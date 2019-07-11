@@ -1,5 +1,7 @@
 include_rules
 
+include ../elfutils/use.tup
+
 include ../../build/hasbuildtup.lua
 ifeq (y,$(HAS_BUILD_TUP))
 include build.tup

@@ -1,21 +1,16 @@
 # Include this file wherever you want Dyninst built.
 # Installation prefix is under ./install.
 
-EX_DEPS =
-TRANSFORMS =
-
 BOOST_PREFIX = -DBoost_ROOT_DIR=
 include ../external/boost/use.tup
 
 TBB_PREFIX = -DTBB_ROOT_DIR=
 include ../external/tbb/use.tup
 
-# Connection and overrides for our compiled Elfutils
-EX_DEPS += $(TUP_CWD)/../latest/elfutils/<elfutils>
-CFG_FLAGS += -DElfUtils_ROOT_DIR=`realpath $(TUP_CWD)/../dummy/elfutils`
-TRANSFORMS += `realpath $(TUP_CWD)/../dummy/elfutils`=$(TUP_CWD)/../latest/elfutils/install
-preload ../dummy/elfutils
-preload ../dummy/elfutils/lib
+ELFUTILS_PREFIX = -DElfUtils_ROOT_DIR=
+include ../build/elfutils.tup
+
+CFG_FLAGS += $(EXTRA_CFG_FLAGS)
 
 D = dyninst
 preload $(D)

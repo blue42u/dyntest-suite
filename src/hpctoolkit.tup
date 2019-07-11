@@ -1,9 +1,6 @@
 # Include this file wherever you want HPCToolkit built.
 # Installation prefix is under ./install.
 
-EX_DEPS =
-TRANSFORMS =
-
 BOOST_PREFIX = --with-boost=
 include ../external/boost/use.tup
 
@@ -37,17 +34,13 @@ include ../external/papi/use.tup
 MONITOR_PREFIX = --with-libmonitor=
 include ../external/monitor/use.tup
 
-# Connection and overrides for our compiled Elfutils
-EX_DEPS += $(TUP_CWD)/../latest/elfutils/<elfutils>
-CFG_FLAGS += --with-elfutils=`realpath $(TUP_CWD)/../dummy/elfutils`
-TRANSFORMS += `realpath $(TUP_CWD)/../dummy/elfutils`=$(TUP_CWD)/../latest/elfutils/install
+ELFUTILS_PREFIX = --with-elfutils=
+include ../build/elfutils.tup
 
-# Connection and overrides for our compiled Dyninst
-EX_DEPS += $(TUP_CWD)/../latest/dyninst/<dyninst>
-CFG_FLAGS += --with-dyninst=`realpath $(TUP_CWD)/../dummy/dyninst`
-TRANSFORMS += `realpath $(TUP_CWD)/../dummy/dyninst`=$(TUP_CWD)/../latest/dyninst/install
+DYNINST_PREFIX = --with-dyninst=
+include ../build/dyninst.tup
 
-CFG_FLAGS += --enable-openmp
+CFG_FLAGS += $(EXTRA_CFG_FLAGS)
 
 preload hpctoolkit hpctoolkit/config hpctoolkit/src hpctoolkit/src/lib
 preload hpctoolkit/src/lib/prof-lean hpctoolkit/src/lib/prof-lean/lush
@@ -79,10 +72,10 @@ preload hpctoolkit/src/tool/hpcrun/unwind/common
 preload hpctoolkit/src/tool/hpcrun/unwind/x86-family
 preload hpctoolkit/src/tool/hpcrun/unwind/x86-family/manual-intervals
 
-
 preload hpctoolkit/doc hpctoolkit/doc/www hpctoolkit/doc/www/fig
 preload hpctoolkit/doc/www/style hpctoolkit/doc/man hpctoolkit/doc/manual
 preload hpctoolkit/lib hpctoolkit/lib/dtd hpctoolkit/lib/dtd/mathml
 
-run $(TUP_CWD)/../build/automake.sh src/hpctoolkit $(TUP_CWD)/hpctoolkit install/ \
-  hpctoolkit '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(CFG_FLAGS)
+run $(TUP_CWD)/../build/automake.sh src/hpctoolkit $(TUP_CWD)/hpctoolkit \
+  install/ hpctoolkit '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external \
+  $(CFG_FLAGS)

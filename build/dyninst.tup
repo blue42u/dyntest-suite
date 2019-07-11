@@ -1,0 +1,11 @@
+ifeq ($(DYNINST_PREFIX),)
+error DYNINST_PREFIX needs to be defined!
+endif
+
+ifeq ($(DYNINST_REAL_DIR),)
+error Dyninst/use.tup should have been included before this!
+endif
+
+EX_DEPS += $(DYNINST_EX_DEP)
+CFG_FLAGS += $(DYNINST_PREFIX)$(DYNINST_DUMMY_DIR)
+TRANSFORMS += $(DYNINST_DUMMY_DIR)=$(DYNINST_REAL_DIR)
