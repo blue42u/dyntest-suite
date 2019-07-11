@@ -1,0 +1,80 @@
+# Include this file wherever you want Dyninst built.
+# Installation prefix is under ./install.
+
+EX_DEPS =
+TRANSFORMS =
+
+# Connection and overrides for our compiled Boost
+include ../external/findboost.lua
+ifeq (y,$(BUILD_BOOST))
+EX_DEPS += $(TUP_CWD)/../external/<boost>
+CFG_FLAGS += -DBoost_ROOT_DIR=`realpath $(TUP_CWD)/../dummy/boost`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/boost`=$(TUP_CWD)/../external/boost
+preload ../dummy/boost/lib
+endif
+
+# Connection and overrides for our compiled TBB
+include ../external/findtbb.lua
+ifeq (y,$(BUILD_TBB))
+EX_DEPS += $(TUP_CWD)/../external/<tbb>
+CFG_FLAGS += -DTBB_ROOT_DIR=`realpath $(TUP_CWD)/../dummy/tbb`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/tbb`=$(TUP_CWD)/../external/tbb
+preload ../dummy/tbb/lib
+preload ../dummy/tbb
+endif
+
+# Connection and overrides for our compiled Elfutils
+EX_DEPS += $(TUP_CWD)/../latest/elfutils/<elfutils>
+CFG_FLAGS += -DElfUtils_ROOT_DIR=`realpath $(TUP_CWD)/../dummy/elfutils`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/elfutils`=$(TUP_CWD)/../latest/elfutils/install
+preload ../dummy/elfutils
+preload ../dummy/elfutils/lib
+
+D = dyninst
+preload $(D)
+preload $(D)/cmake/CheckCXX11Features
+preload $(D)/dynC_API/h $(D)/dynC_API/doc $(D)/dynC_API/src
+preload $(D)/dyninstAPI_RT $(D)/dyninstAPI_RT/h $(D)/dyninstAPI_RT/src
+
+preload $(D)/dyninstAPI $(D)/dyninstAPI/h $(D)/dyninstAPI/src
+preload $(D)/dyninstAPI/src/Relocation $(D)/dyninstAPI/src/Relocation/CFG
+preload $(D)/dyninstAPI/src/Relocation/Widgets
+preload $(D)/dyninstAPI/src/Relocation/Transformers
+preload $(D)/dyninstAPI/src/StackMod
+
+preload $(D)/common $(D)/common/h $(D)/common/src $(D)/common/doc
+
+preload $(D)/dataflowAPI/h $(D)/dataflowAPI/src $(D)/dataflowAPI/doc
+preload $(D)/dataflowAPI/rose $(D)/dataflowAPI/rose/util
+preload $(D)/dataflowAPI/rose/semantics
+
+preload $(D)/instructionAPI $(D)/instructionAPI/h $(D)/instructionAPI/src
+preload $(D)/instructionAPI/doc $(D)/instructionAPI/doc/API
+preload $(D)/instructionAPI/doc/examples $(D)/instructionAPI/doc/fig
+
+preload $(D)/parseAPI $(D)/parseAPI/h $(D)/parseAPI/src
+preload $(D)/parseAPI/doc $(D)/parseAPI/doc/API
+
+preload $(D)/patchAPI $(D)/patchAPI/h $(D)/patchAPI/src
+preload $(D)/patchAPI/doc $(D)/patchAPI/doc/section $(D)/patchAPI/doc/figure
+preload $(D)/patchAPI/doc/figure/abstraction $(D)/patchAPI/doc/figure/command
+
+preload $(D)/symtabAPI $(D)/symtabAPI/h $(D)/symtabAPI/src
+preload $(D)/symtabAPI/doc $(D)/symtabAPI/doc/API
+preload $(D)/symtabAPI/doc/API/LineInfo $(D)/symtabAPI/doc/API/Symtab
+preload $(D)/symtabAPI/doc/API/Types
+
+preload $(D)/stackwalk $(D)/stackwalk/h $(D)/stackwalk/src
+preload $(D)/stackwalk/doc $(D)/stackwalk/doc/API $(D)/stackwalk/doc/fig
+
+preload $(D)/proccontrol $(D)/proccontrol/h $(D)/proccontrol/src
+preload $(D)/proccontrol/src/loadLibrary
+
+preload $(D)/elf $(D)/elf/src $(D)/elf/h $(D)/dwarf $(D)/dwarf/src $(D)/dwarf/h
+preload $(D)/symlite/h $(D)/symlite/src
+
+preload $(D)/parseThat/src $(D)/examples/codeCoverage.dir
+preload $(D)/examples/unstrip.dir
+
+run $(TUP_CWD)/../build/cmake.sh src/dyninst $(TUP_CWD)/dyninst install/ \
+  dyninst '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(CFG_FLAGS)

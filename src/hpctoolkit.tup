@@ -1,0 +1,142 @@
+# Include this file wherever you want HPCToolkit built.
+# Installation prefix is under ./install.
+
+EX_DEPS =
+TRANSFORMS =
+
+# Connection and overrides for our compiled Boost
+include ../external/findboost.lua
+ifeq (y,$(BUILD_BOOST))
+EX_DEPS += $(TUP_CWD)/../external/<boost>
+CFG_FLAGS += --with-boost=`realpath $(TUP_CWD)/../dummy/boost`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/boost`=$(TUP_CWD)/../external/boost
+preload ../dummy/boost/lib
+endif
+
+# Connection and overrides for our compiled TBB
+include ../external/findtbb.lua
+ifeq (y,$(BUILD_TBB))
+EX_DEPS += $(TUP_CWD)/../external/<tbb>
+CFG_FLAGS += --with-tbb=`realpath $(TUP_CWD)/../dummy/tbb`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/tbb`=$(TUP_CWD)/../external/tbb
+preload ../dummy/tbb/lib
+endif
+
+# Connection and overrides for our compiled Xerces
+include ../external/findxerces.lua
+ifeq (y,$(BUILD_XERCES))
+EX_DEPS += $(TUP_CWD)/../external/<xerces>
+CFG_FLAGS += --with-xerces=`realpath $(TUP_CWD)/../dummy/xerces`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/xerces`=$(TUP_CWD)/../external/xerces
+endif
+
+# Connection and overrides for our compiled libdwarf
+include ../external/finddwarf.lua
+ifeq (y,$(BUILD_DWARF))
+EX_DEPS += $(TUP_CWD)/../external/<dwarf>
+CFG_FLAGS += --with-libdwarf=`realpath $(TUP_CWD)/../dummy/dwarf`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/dwarf`=$(TUP_CWD)/../external/dwarf
+endif
+
+# Connection and overrides for our compiled binutils
+include ../external/findbinutils.lua
+ifeq (y,$(BUILD_BINUTILS))
+EX_DEPS += $(TUP_CWD)/../external/<binutils>
+CFG_FLAGS += --with-binutils=`realpath $(TUP_CWD)/../dummy/binutils`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/binutils`=$(TUP_CWD)/../external/binutils
+endif
+
+# Connection and overrides for our compiled zlib
+include ../external/findzlib.lua
+ifeq (y,$(BUILD_ZLIB))
+EX_DEPS += $(TUP_CWD)/../external/<zlib>
+CFG_FLAGS += --with-zlib=`realpath $(TUP_CWD)/../dummy/zlib`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/zlib`=$(TUP_CWD)/../external/zlib
+endif
+
+# Connection and overrides for our compiled lzma
+include ../external/findlzma.lua
+ifeq (y,$(BUILD_LZMA))
+EX_DEPS += $(TUP_CWD)/../external/<lzma>
+CFG_FLAGS += --with-lzma=`realpath $(TUP_CWD)/../dummy/lzma`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/lzma`=$(TUP_CWD)/../external/lzma
+endif
+
+# Connection and overrides for our compiled xed
+include ../external/findxed.lua
+ifeq (y,$(BUILD_XED))
+EX_DEPS += $(TUP_CWD)/../external/<xed>
+CFG_FLAGS += --with-xed=`realpath $(TUP_CWD)/../dummy/xed`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/xed`=$(TUP_CWD)/../external/xed
+endif
+
+# Connection and overrides for our compiled libunwind
+include ../external/findunwind.lua
+ifeq (y,$(BUILD_UNWIND))
+EX_DEPS += $(TUP_CWD)/../external/<unwind>
+CFG_FLAGS += --with-libunwind=`realpath $(TUP_CWD)/../dummy/unwind`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/unwind`=$(TUP_CWD)/../external/unwind
+endif
+
+# Connection and overrides for our compiled PAPI
+include ../external/findpapi.lua
+ifeq (y,$(BUILD_PAPI))
+EX_DEPS += $(TUP_CWD)/../external/<papi>
+CFG_FLAGS += --with-papi=`realpath $(TUP_CWD)/../dummy/papi`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/papi`=$(TUP_CWD)/../external/papi
+endif
+
+# Connection and overrides for our compiled libmonitor
+EX_DEPS += $(TUP_CWD)/../external/<monitor>
+CFG_FLAGS += --with-libmonitor=`realpath $(TUP_CWD)/../dummy/monitor`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/monitor`=$(TUP_CWD)/../external/monitor
+
+# Connection and overrides for our compiled Elfutils
+EX_DEPS += $(TUP_CWD)/../latest/elfutils/<elfutils>
+CFG_FLAGS += --with-elfutils=`realpath $(TUP_CWD)/../dummy/elfutils`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/elfutils`=$(TUP_CWD)/../latest/elfutils/install
+
+# Connection and overrides for our compiled Dyninst
+EX_DEPS += $(TUP_CWD)/../latest/dyninst/<dyninst>
+CFG_FLAGS += --with-dyninst=`realpath $(TUP_CWD)/../dummy/dyninst`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/dyninst`=$(TUP_CWD)/../latest/dyninst/install
+
+CFG_FLAGS += --enable-openmp
+
+preload hpctoolkit hpctoolkit/config hpctoolkit/src hpctoolkit/src/lib
+preload hpctoolkit/src/lib/prof-lean hpctoolkit/src/lib/prof-lean/lush
+preload hpctoolkit/src/lib/support-lean hpctoolkit/src/lib/analysis
+preload hpctoolkit/src/lib/banal hpctoolkit/src/lib/binutils
+preload hpctoolkit/src/lib/isa hpctoolkit/src/lib/prof
+preload hpctoolkit/src/lib/profxml hpctoolkit/src/lib/xml
+preload hpctoolkit/src/lib/support hpctoolkit/src/lib/stubs-gcc_s
+
+preload hpctoolkit/src/tool hpctoolkit/src/tool/hpcstruct
+preload hpctoolkit/src/tool/hpcprof hpctoolkit/src/tool/hpcproftt
+preload hpctoolkit/src/tool/hpclump hpctoolkit/src/tool/hpctracedump
+preload hpctoolkit/src/tool/hpcfnbounds
+
+preload hpctoolkit/src/tool/hpcrun hpctoolkit/src/tool/hpcrun/monitor-exts
+preload hpctoolkit/src/tool/hpcrun/sample-sources
+preload hpctoolkit/src/tool/hpcrun/sample-sources/perf
+preload hpctoolkit/src/tool/hpcrun/sample-sources/blame-shift
+preload hpctoolkit/src/tool/hpcrun/cct hpctoolkit/src/tool/hpcrun/lush
+preload hpctoolkit/src/tool/hpcrun/fnbounds hpctoolkit/src/tool/hpcrun/memory
+preload hpctoolkit/src/tool/hpcrun/messages hpctoolkit/src/tool/hpcrun/os/linux
+preload hpctoolkit/src/tool/hpcrun/trampoline/common
+preload hpctoolkit/src/tool/hpcrun/trampoline/x86-family
+preload hpctoolkit/src/tool/hpcrun/utilities
+preload hpctoolkit/src/tool/hpcrun/utilities/arch/x86-family
+preload hpctoolkit/src/tool/hpcrun/scripts
+
+preload hpctoolkit/src/tool/hpcrun/unwind/common
+preload hpctoolkit/src/tool/hpcrun/unwind/x86-family
+preload hpctoolkit/src/tool/hpcrun/unwind/x86-family/manual-intervals
+
+
+preload hpctoolkit/doc hpctoolkit/doc/www hpctoolkit/doc/www/fig
+preload hpctoolkit/doc/www/style hpctoolkit/doc/man hpctoolkit/doc/manual
+preload hpctoolkit/lib hpctoolkit/lib/dtd hpctoolkit/lib/dtd/mathml
+
+run $(TUP_CWD)/../build/automake.sh src/hpctoolkit $(TUP_CWD)/hpctoolkit install/ \
+  hpctoolkit '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(CFG_FLAGS)
