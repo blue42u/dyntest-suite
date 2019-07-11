@@ -62,6 +62,22 @@ CFG_FLAGS += --with-lzma=`realpath $(TUP_CWD)/../dummy/lzma`
 TRANSFORMS += `realpath $(TUP_CWD)/../dummy/lzma`=$(TUP_CWD)/../external/lzma
 endif
 
+# Connection and overrides for our compiled xed
+include ../external/findxed.lua
+ifeq (y,$(BUILD_XED))
+EX_DEPS += $(TUP_CWD)/../external/<xed>
+CFG_FLAGS += --with-xed=`realpath $(TUP_CWD)/../dummy/xed`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/xed`=$(TUP_CWD)/../external/xed
+endif
+
+# Connection and overrides for our compiled libunwind
+include ../external/findunwind.lua
+ifeq (y,$(BUILD_UNWIND))
+EX_DEPS += $(TUP_CWD)/../external/<unwind>
+CFG_FLAGS += --with-libunwind=`realpath $(TUP_CWD)/../dummy/unwind`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/unwind`=$(TUP_CWD)/../external/unwind
+endif
+
 # Connection and overrides for our compiled Elfutils
 EX_DEPS += $(TUP_CWD)/../latest/elfutils/<elfutils>
 CFG_FLAGS += --with-elfutils=`realpath $(TUP_CWD)/../dummy/elfutils`
@@ -71,6 +87,8 @@ TRANSFORMS += `realpath $(TUP_CWD)/../dummy/elfutils`=$(TUP_CWD)/../latest/elfut
 EX_DEPS += $(TUP_CWD)/../latest/dyninst/<dyninst>
 CFG_FLAGS += --with-dyninst=`realpath $(TUP_CWD)/../dummy/dyninst`
 TRANSFORMS += `realpath $(TUP_CWD)/../dummy/dyninst`=$(TUP_CWD)/../latest/dyninst/install
+
+CFG_FLAGS += --enable-openmp
 
 preload hpctoolkit hpctoolkit/config hpctoolkit/src hpctoolkit/src/lib
 preload hpctoolkit/src/lib/prof-lean hpctoolkit/src/lib/prof-lean/lush

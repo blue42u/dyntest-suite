@@ -34,3 +34,13 @@ include findlzma.lua
 ifeq (y,$(BUILD_LZMA))
 : |> ^o Built LZMA^ ./lzma.sh |> $(LZMA_FILES) <lzma>
 endif
+
+include findxed.lua
+ifeq (y,$(BUILD_XED))
+: |> ^o Built Xed^ ./xed.sh |> $(XED_FILES) <xed>
+endif
+
+include findunwind.lua
+ifeq (y,$(BUILD_UNWIND))
+: |> ^o Built libUnwind^ ./unwind.sh |> $(UNWIND_FILES) <unwind>
+endif
