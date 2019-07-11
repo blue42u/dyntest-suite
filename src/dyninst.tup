@@ -1,11 +1,14 @@
 # Include this file wherever you want Dyninst built.
 # Installation prefix is under ./install.
 
+EX_DEPS =
+TRANSFORMS =
+
 # Connection and overrides for our compiled Boost
 include ../external/findboost.lua
 ifeq (y,$(BUILD_BOOST))
 EX_DEPS += $(TUP_CWD)/../external/<boost>
-CM_FLAGS += -DBoost_ROOT_DIR=`realpath $(TUP_CWD)/../dummy/boost`
+CFG_FLAGS += -DBoost_ROOT_DIR=`realpath $(TUP_CWD)/../dummy/boost`
 TRANSFORMS += `realpath $(TUP_CWD)/../dummy/boost`=$(TUP_CWD)/../external/boost
 preload ../dummy/boost/lib
 endif
@@ -14,7 +17,7 @@ endif
 include ../external/findtbb.lua
 ifeq (y,$(BUILD_TBB))
 EX_DEPS += $(TUP_CWD)/../external/<tbb>
-CM_FLAGS += -DTBB_ROOT_DIR=`realpath $(TUP_CWD)/../dummy/tbb`
+CFG_FLAGS += -DTBB_ROOT_DIR=`realpath $(TUP_CWD)/../dummy/tbb`
 TRANSFORMS += `realpath $(TUP_CWD)/../dummy/tbb`=$(TUP_CWD)/../external/tbb
 preload ../dummy/tbb/lib
 preload ../dummy/tbb
@@ -22,7 +25,7 @@ endif
 
 # Connection and overrides for our compiled Elfutils
 EX_DEPS += $(TUP_CWD)/../latest/elfutils/<elfutils>
-CM_FLAGS += -DElfUtils_ROOT_DIR=`realpath $(TUP_CWD)/../dummy/elfutils`
+CFG_FLAGS += -DElfUtils_ROOT_DIR=`realpath $(TUP_CWD)/../dummy/elfutils`
 TRANSFORMS += `realpath $(TUP_CWD)/../dummy/elfutils`=$(TUP_CWD)/../latest/elfutils/install
 preload ../dummy/elfutils
 preload ../dummy/elfutils/lib
@@ -74,4 +77,4 @@ preload $(D)/parseThat/src $(D)/examples/codeCoverage.dir
 preload $(D)/examples/unstrip.dir
 
 run $(TUP_CWD)/../build/cmake.sh src/dyninst $(TUP_CWD)/dyninst install/ \
-  dyninst '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(CM_FLAGS)
+  dyninst '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(CFG_FLAGS)

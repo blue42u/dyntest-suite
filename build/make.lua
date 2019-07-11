@@ -546,7 +546,9 @@ function realmake(makefn, targ, cwd)
     local tr = nil
     local AM,CM = '# Automake configure ', '# CMake configure '
     if not cmd:find '%g' then tr = ' '
-    elseif exc == ':' then tr = ' '
+    elseif exc == ':' or exc:find '^:%s+>%s+' then tr = ' '
+    elseif exc:find '^@$%(MKDIR_P%)' then tr = AM..'(mkdir)'
+    elseif exc:find '^!;@.*@;!$' then tr = ''
     -- Automake-generated rules and commands.
     elseif cmd:find '$%(ACLOCAL%)' then tr = AM..'(aclocal)'
     elseif cmd:find '$%(AUTOHEADER%)' then tr = AM..'(autoheader)'
@@ -737,12 +739,12 @@ function realmake(makefn, targ, cwd)
     elseif cmd:find '$%(COMPILE%)' or cmd:find '$%(COMPILE.os%)'
       or cmd:find '$%([^)]*LINK%)' or cmd:find '$%(CC%)' or cmd:find '$%(CXX%)'
       or cmd:find '$%(C_FLAGS%)' or cmd:find '$%(CXX_FLAGS%)' then
-      local amstyle = false
-      local lbpre,lbpost,c = '',''
+      local amstyle,delibtoolize = false,false
+      local c
       if cmd:find '$%(LIBTOOL%)' or exc:find '/libtool' then
-        lbpre,c = exc:match '^(.-%-%-mode=%g+%s+)(.*)'
-        lbpost = ' && rm -r .libs'
-        assert(lbpre and c, exc)
+        delibtoolize,c = exc:match '^.-%-%-mode=(%g+)%s+(.*)'
+        assert(delibtoolize and c, exc)
+        assert(delibtoolize == 'compile' or delibtoolize == 'link')
         amstyle = true
       else
         c = exc:match ';%s*(.*)'
@@ -798,8 +800,13 @@ function realmake(makefn, targ, cwd)
         end
       end
       local cdcd = #cd > 0 and 'cd '..cd..' && ' or ''
+      if delibtoolize == 'link' and out:find '%.la$' then
+        -- Libtool uses commands that look like normal liking for making .la.
+        -- While clever and convient, we just make it to a normal ar command.
+        cdcd,c = '','ar scr %o %f'
+      end
       tr = ': '..table.concat(ins, ' ')..' |^ <_gen> '..mydeps..'|> ^o cc -o %o ...^ '
-        ..cdcd..lbpre..c..lbpost..' |> '..out
+        ..cdcd..c..' |> '..out
     -- Simple archiving (AR) calls
     elseif cmd:find '$%(RANLIB%)' then tr = ''  -- Skip ranlib
     elseif cmd:find '$%([%w_]+AR%)' then
