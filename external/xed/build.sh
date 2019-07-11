@@ -1,0 +1,35 @@
+#!/bin/sh
+
+INSTALL="`pwd`"
+set -e
+
+# Make a temporary directory where we'll stick stuff
+TMP="`mktemp -d`"
+trap "rm -rf $TMP" EXIT
+cd "$TMP"
+
+echo "Downloading Xed..."
+git clone -q https://github.com/intelxed/xed.git xed
+
+echo "Downloading Mbuild..."
+git clone -q https://github.com/intelxed/mbuild.git mbuild
+
+mkdir build
+cd build
+
+echo "Building..."
+../xed/mfile.py > /dev/null
+
+echo "Installing..."
+../xed/mfile.py install > /dev/null
+mv kits/* ../install
+
+echo "Cleaning up oddities and arranging for HPCToolkit..."
+cd ../install
+rmdir bin
+mv include/xed/* include/
+rmdir include/xed
+
+echo "Copying results..."
+cd "$INSTALL"
+cp -r "$TMP"/install/* .

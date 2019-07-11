@@ -1,0 +1,8 @@
+include find.lua
+
+ifeq (y,$(BUILD_BOOST))
+EX_DEPS += $(TUP_CWD)/<build>
+CFG_FLAGS += $(BOOST_PREFIX)`realpath $(TUP_CWD)/dummy`
+TRANSFORMS += `realpath $(TUP_CWD)/dummy`=$(TUP_CWD)
+preload dummy/lib
+endif

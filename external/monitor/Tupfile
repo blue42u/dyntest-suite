@@ -1,0 +1,12 @@
+include_rules
+
+FILES += bin/monitor-link
+FILES += bin/monitor-run
+FILES += include/monitor.h
+FILES += lib/libmonitor.la
+FILES += lib/libmonitor.so
+FILES += lib/libmonitor.so.0
+FILES += lib/libmonitor.so.0.0.0
+FILES += lib/libmonitor_wrap.a
+
+: |> ^o Built Monitor^ ./build.sh |> $(FILES) <build>

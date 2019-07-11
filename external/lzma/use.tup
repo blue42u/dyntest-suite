@@ -1,0 +1,7 @@
+include find.lua
+
+ifeq (y,$(BUILD_LZMA))
+EX_DEPS += $(TUP_CWD)/<build>
+CFG_FLAGS += $(LZMA_PREFIX)`realpath $(TUP_CWD)/dummy`
+TRANSFORMS += `realpath $(TUP_CWD)/dummy`=$(TUP_CWD)
+endif

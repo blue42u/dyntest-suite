@@ -1,0 +1,46 @@
+include_rules
+
+FILES += include/libunwind-common.h
+FILES += include/libunwind-coredump.h
+FILES += include/libunwind-dynamic.h
+FILES += include/libunwind.h
+FILES += include/libunwind-ptrace.h
+FILES += include/libunwind-x86_64.h
+FILES += include/unwind.h
+FILES += lib/libunwind.a
+FILES += lib/libunwind-coredump.a
+FILES += lib/libunwind-coredump.la
+FILES += lib/libunwind-coredump.so
+FILES += lib/libunwind-coredump.so.0
+FILES += lib/libunwind-coredump.so.0.0.0
+FILES += lib/libunwind-generic.a
+FILES += lib/libunwind-generic.so
+FILES += lib/libunwind.la
+FILES += lib/libunwind-ptrace.a
+FILES += lib/libunwind-ptrace.la
+FILES += lib/libunwind-ptrace.so
+FILES += lib/libunwind-ptrace.so.0
+FILES += lib/libunwind-ptrace.so.0.0.0
+FILES += lib/libunwind-setjmp.a
+FILES += lib/libunwind-setjmp.la
+FILES += lib/libunwind-setjmp.so
+FILES += lib/libunwind-setjmp.so.0
+FILES += lib/libunwind-setjmp.so.0.0.0
+FILES += lib/libunwind.so
+FILES += lib/libunwind.so.8
+FILES += lib/libunwind.so.8.0.1
+FILES += lib/libunwind-x86_64.a
+FILES += lib/libunwind-x86_64.la
+FILES += lib/libunwind-x86_64.so
+FILES += lib/libunwind-x86_64.so.8
+FILES += lib/libunwind-x86_64.so.8.0.1
+FILES += lib/pkgconfig/libunwind-coredump.pc
+FILES += lib/pkgconfig/libunwind-generic.pc
+FILES += lib/pkgconfig/libunwind.pc
+FILES += lib/pkgconfig/libunwind-ptrace.pc
+FILES += lib/pkgconfig/libunwind-setjmp.pc
+
+include find.lua
+ifeq (y,$(BUILD_UNWIND))
+: |> ^o Built libUnwind^ ./build.sh |> $(FILES) <build>
+endif

@@ -4,24 +4,11 @@
 EX_DEPS =
 TRANSFORMS =
 
-# Connection and overrides for our compiled Boost
-include ../external/findboost.lua
-ifeq (y,$(BUILD_BOOST))
-EX_DEPS += $(TUP_CWD)/../external/<boost>
-CFG_FLAGS += -DBoost_ROOT_DIR=`realpath $(TUP_CWD)/../dummy/boost`
-TRANSFORMS += `realpath $(TUP_CWD)/../dummy/boost`=$(TUP_CWD)/../external/boost
-preload ../dummy/boost/lib
-endif
+BOOST_PREFIX = -DBoost_ROOT_DIR=
+include ../external/boost/use.tup
 
-# Connection and overrides for our compiled TBB
-include ../external/findtbb.lua
-ifeq (y,$(BUILD_TBB))
-EX_DEPS += $(TUP_CWD)/../external/<tbb>
-CFG_FLAGS += -DTBB_ROOT_DIR=`realpath $(TUP_CWD)/../dummy/tbb`
-TRANSFORMS += `realpath $(TUP_CWD)/../dummy/tbb`=$(TUP_CWD)/../external/tbb
-preload ../dummy/tbb/lib
-preload ../dummy/tbb
-endif
+TBB_PREFIX = -DTBB_ROOT_DIR=
+include ../external/tbb/use.tup
 
 # Connection and overrides for our compiled Elfutils
 EX_DEPS += $(TUP_CWD)/../latest/elfutils/<elfutils>

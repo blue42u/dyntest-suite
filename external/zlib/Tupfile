@@ -1,0 +1,15 @@
+include_rules
+
+FILES += include/zconf.h
+FILES += include/zlib.h
+FILES += lib/libz.a
+FILES += lib/libz.so
+FILES += lib/libz.so.1
+FILES += lib/libz.so.1.2.11
+FILES += lib/pkgconfig/zlib.pc
+FILES += share/man/man3/zlib.3
+
+include find.lua
+ifeq (y,$(BUILD_ZLIB))
+: |> ^o Built ZLib^ ./build.sh |> $(FILES) <build>
+endif
