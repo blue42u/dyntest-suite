@@ -31,10 +31,14 @@ local refelf = cwd..'../reference/elfutils/<elfutils>'
 local refdyn = cwd..'../reference/dyninst/<dyninst>'
 local refhpc = cwd..'../reference/hpctoolkit/<hpctoolkit>'
 
+local refllp = cwd..'../reference/elfutils/install/lib:'..cwd..'../reference/dyninst/install/lib'
+local llp = cwd..'../latest/elfutils/install/lib:'..cwd..'../latest/dyninst/install/lib'
+
 -- List of tests to test with
 tests = {
   hpcstruct = {
-    env = 'OMP_NUM_THREADS=%T',
+    env = 'OMP_NUM_THREADS=%T LD_LIBRARY_PATH='..llp,
+    refenv = 'OMP_NUM_THREADS=%T LD_LIBRARY_PATH='..refllp,
     fn = cwd..'../latest/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
     reffn = cwd..'../reference/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
     args = '-j%T --jobs-symtab %T -o %o %f',
@@ -53,13 +57,13 @@ function forall(harness)
       local repl = {
         T = ('%d'):format(h.threads or 1),
       }
-      local env = (t.env or ''):gsub('%%(.)', repl)
+      local tfn,tdeps,env = t.fn, t.deps, t.env or ''
+      if h.reference then tfn,tdeps,env = t.reffn, t.refdeps, t.refenv or env end
+
+      env = env:gsub('%%(.)', repl)
       local args = (t.args or ''):gsub('%%(.)', repl)
       if h.redirect then args = args:gsub('%%o', h.redirect) end
       if i.deps then args = args:gsub('%%f', i.fn) end
-
-      local tfn,tdeps = t.fn, t.deps
-      if h.reference then tfn,tdeps = t.reffn, t.refdeps end
 
       local flock = 'flock '..cwd
       if not h.noparallel then flock = 'flock -u '..cwd end

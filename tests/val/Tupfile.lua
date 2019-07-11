@@ -24,16 +24,16 @@ tup.rule(forall(function(i)
   }
 end), '^o Concat %o^ cat %f > %o', '../helgrind.log')
 
-tup.rule(forall(function(i)
-  if i.size > 1 then return end
-  return {
-    id = 'DRD',
-    threads = 32,
-    cmd = com..' --tool=drd %C',
-    redirect = '/dev/null',
-    output = 'drd/%t.%i.log',
-  }
-end), '^o Concat %o^ cat %f > %o', '../drd.log')
+-- tup.rule(forall(function(i)
+--   if i.size > 1 then return end
+--   return {
+--     id = 'DRD',
+--     threads = 32,
+--     cmd = com..' --tool=drd %C',
+--     redirect = '/dev/null',
+--     output = 'drd/%t.%i.log',
+--   }
+-- end), '^o Concat %o^ cat %f > %o', '../drd.log')
 
 for _,f in ipairs(forall(function(i)
   if i.size > 2 then return end

@@ -895,7 +895,7 @@ function realmake(makefn, targ, cwd)
             elseif p == '..' then return pre..pclean(p, cd)
             else return pre..pclean(p, cd) end
           end
-          c = gosub(c, 'f:W;O:g,shared,o:l:std:L:I:', {
+          c = gosub(c, 'D:f:W;O:g,shared,o:l:std:L:I:', {
             [false]=function(p)
               p = pclean(p, cd)
               if not exists(p) and p:sub(1,1) ~= '/' then table.insert(ins, p) end
