@@ -4,9 +4,15 @@
 CFG_FLAGS = --enable-maintainer-mode
 CFG_FLAGS += $(EXTRA_CFG_FLAGS)
 
-preload elfutils elfutils/m4 elfutils/backends elfutils/config elfutils/lib
-preload elfutils/libasm elfutils/libcpu elfutils/libcpu/defs elfutils/libdw
-preload elfutils/libdwelf elfutils/libdwfl elfutils/libebl elfutils/libelf
-preload elfutils/src elfutils/tests elfutils/po elfutils/lib/valgrind
-run $(TUP_CWD)/../build/automake.sh src/elfutils $(TUP_CWD)/elfutils install/ \
-  elfutils '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(CFG_FLAGS)
+E = $(REF)elfutils
+preload $(E) $(E)/m4 $(E)/backends $(E)/config $(E)/lib
+preload $(E)/libasm $(E)/libcpu $(E)/libcpu/defs $(E)/libdw
+preload $(E)/libdwelf $(E)/libdwfl $(E)/libebl $(E)/libelf
+preload $(E)/src $(E)/tests $(E)/po
+
+ifeq ($(REF),)
+preload $(E)/lib/valgrind
+endif
+
+run $(TUP_CWD)/../build/automake.sh src/$(REF)elfutils $(TUP_CWD)/$(REF)elfutils \
+  install/ elfutils '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(CFG_FLAGS)

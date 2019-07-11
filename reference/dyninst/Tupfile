@@ -1,0 +1,13 @@
+include_rules
+
+include ../elfutils/use.tup
+
+EXTRA_CFG_FLAGS = -DUSE_OpenMP=OFF
+REF = ref-
+
+include ../../build/hasbuildtup.lua
+ifeq (y,$(HAS_BUILD_TUP))
+include build.tup
+else
+include ../../src/dyninst.tup
+endif

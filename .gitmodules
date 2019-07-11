@@ -16,3 +16,9 @@
 [submodule "refsrc/elfutils"]
 	path = refsrc/elfutils
 	url = https://github.com/blue42u/elfutils.git
+[submodule "src/ref-dyninst"]
+	path = src/ref-dyninst
+	url = https://github.com/dyninst/dyninst.git
+[submodule "src/ref-elfutils"]
+	path = src/ref-elfutils
+	url = git://sourceware.org/git/elfutils.git

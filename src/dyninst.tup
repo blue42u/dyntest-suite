@@ -12,7 +12,7 @@ include ../build/elfutils.tup
 
 CFG_FLAGS += $(EXTRA_CFG_FLAGS)
 
-D = dyninst
+D = $(REF)dyninst
 preload $(D)
 preload $(D)/cmake/CheckCXX11Features
 preload $(D)/dynC_API/h $(D)/dynC_API/doc $(D)/dynC_API/src
@@ -58,5 +58,5 @@ preload $(D)/symlite/h $(D)/symlite/src
 preload $(D)/parseThat/src $(D)/examples/codeCoverage.dir
 preload $(D)/examples/unstrip.dir
 
-run $(TUP_CWD)/../build/cmake.sh src/dyninst $(TUP_CWD)/dyninst install/ \
-  dyninst '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(CFG_FLAGS)
+run $(TUP_CWD)/../build/cmake.sh src/$(REF)dyninst $(TUP_CWD)/$(REF)dyninst \
+  install/ dyninst '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(CFG_FLAGS)
