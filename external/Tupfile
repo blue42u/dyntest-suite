@@ -44,3 +44,8 @@ include findunwind.lua
 ifeq (y,$(BUILD_UNWIND))
 : |> ^o Built libUnwind^ ./unwind.sh |> $(UNWIND_FILES) <unwind>
 endif
+
+include findpapi.lua
+ifeq (y,$(BUILD_PAPI))
+: |> ^o Built PAPI^ ./papi.sh |> $(PAPI_FILES) <papi>
+endif
