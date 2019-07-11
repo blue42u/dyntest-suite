@@ -1,0 +1,86 @@
+{
+  libtbb
+  Helgrind:Race
+  obj:*libtbb*
+}
+{
+  libtbb
+  drd:ConflictingAccess
+  obj:*libtbb*
+}
+
+{
+  libtbb (inlined)
+  Helgrind:Race
+  ...
+  fun:*tbb*8internal*
+}
+{
+  libtbb (inlined)
+  drd:ConflictingAccess
+  ...
+  fun:*tbb*8internal*
+}
+
+{
+  libtbb (inlined)
+  Helgrind:Race
+  ...
+  fun:*tbb10interface5*
+}
+{
+  libtbb (inlined)
+  drd:ConflictingAccess
+  ...
+  fun:*tbb10interface5*
+}
+
+{
+  libtbb (inlined)
+  Helgrind:Race
+  ...
+  fun:*tbb*concurrent*
+}
+{
+  libtbb (inlined)
+  drd:ConflictingAccess
+  ...
+  fun:*tbb*concurrent*
+}
+
+{
+  libgomp
+  Helgrind:Race
+  obj:*libgomp.so*
+}
+{
+  libgomp
+  drd:ConflictingAccess
+  obj:*libgomp.so*
+}
+
+{
+  libgomp
+  Helgrind:Race
+  ...
+  fun:pthread_mutex_destroy
+  obj:*libgomp.so*
+}
+{
+  libgomp
+  drd:ConflictingAccess
+  ...
+  fun:pthread_mutex_destroy
+  obj:*libgomp.so*
+}
+
+{
+  boost (thread_detail)
+  Helgrind:Race
+  fun:*5boost13thread_detail*
+}
+{
+  boost (thread_detail)
+  drd:ConflictingAccess
+  fun:*5boost13thread_detail*
+}
