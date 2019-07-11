@@ -78,13 +78,18 @@ CFG_FLAGS += --with-libunwind=`realpath $(TUP_CWD)/../dummy/unwind`
 TRANSFORMS += `realpath $(TUP_CWD)/../dummy/unwind`=$(TUP_CWD)/../external/unwind
 endif
 
-# Connection and overrides for our compiled libunwind
+# Connection and overrides for our compiled PAPI
 include ../external/findpapi.lua
 ifeq (y,$(BUILD_PAPI))
 EX_DEPS += $(TUP_CWD)/../external/<papi>
 CFG_FLAGS += --with-papi=`realpath $(TUP_CWD)/../dummy/papi`
 TRANSFORMS += `realpath $(TUP_CWD)/../dummy/papi`=$(TUP_CWD)/../external/papi
 endif
+
+# Connection and overrides for our compiled libmonitor
+EX_DEPS += $(TUP_CWD)/../external/<monitor>
+CFG_FLAGS += --with-libmonitor=`realpath $(TUP_CWD)/../dummy/monitor`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/monitor`=$(TUP_CWD)/../external/monitor
 
 # Connection and overrides for our compiled Elfutils
 EX_DEPS += $(TUP_CWD)/../latest/elfutils/<elfutils>

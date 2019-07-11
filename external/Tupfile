@@ -49,3 +49,8 @@ include findpapi.lua
 ifeq (y,$(BUILD_PAPI))
 : |> ^o Built PAPI^ ./papi.sh |> $(PAPI_FILES) <papi>
 endif
+
+: |> ^o Built libMonitor^ ./monitor.sh |> monitor/bin/monitor-link \
+  monitor/bin/monitor-run monitor/include/monitor.h monitor/lib/libmonitor.la \
+  monitor/lib/libmonitor.so monitor/lib/libmonitor.so.0 \
+  monitor/lib/libmonitor.so.0.0.0 monitor/lib/libmonitor_wrap.a <monitor>
