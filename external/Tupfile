@@ -29,3 +29,8 @@ include findzlib.lua
 ifeq (y,$(BUILD_ZLIB))
 : |> ^o Built Zlib^ ./zlib.sh |> $(ZLIB_FILES) <zlib>
 endif
+
+include findlzma.lua
+ifeq (y,$(BUILD_LZMA))
+: |> ^o Built LZMA^ ./lzma.sh |> $(LZMA_FILES) <lzma>
+endif

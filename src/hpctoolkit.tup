@@ -54,6 +54,14 @@ CFG_FLAGS += --with-zlib=`realpath $(TUP_CWD)/../dummy/zlib`
 TRANSFORMS += `realpath $(TUP_CWD)/../dummy/zlib`=$(TUP_CWD)/../external/zlib
 endif
 
+# Connection and overrides for our compiled lzma
+include ../external/findlzma.lua
+ifeq (y,$(BUILD_LZMA))
+EX_DEPS += $(TUP_CWD)/../external/<lzma>
+CFG_FLAGS += --with-lzma=`realpath $(TUP_CWD)/../dummy/lzma`
+TRANSFORMS += `realpath $(TUP_CWD)/../dummy/lzma`=$(TUP_CWD)/../external/lzma
+endif
+
 # Connection and overrides for our compiled Elfutils
 EX_DEPS += $(TUP_CWD)/../latest/elfutils/<elfutils>
 CFG_FLAGS += --with-elfutils=`realpath $(TUP_CWD)/../dummy/elfutils`
