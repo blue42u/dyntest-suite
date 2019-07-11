@@ -26,7 +26,12 @@ echo "Building..."
 echo "Installing..."
 ../xed/mfile.py install > /dev/null
 mv kits/* ../install
-rmdir ../install/bin
+
+echo "Cleaning up oddities and arranging for HPCToolkit..."
+cd ../install
+rmdir bin
+mv include/xed/* include/
+rmdir include/xed
 
 echo "Copying results..."
 cd "$INSTALL"

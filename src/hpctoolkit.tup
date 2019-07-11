@@ -110,11 +110,33 @@ preload hpctoolkit/src/lib/banal hpctoolkit/src/lib/binutils
 preload hpctoolkit/src/lib/isa hpctoolkit/src/lib/prof
 preload hpctoolkit/src/lib/profxml hpctoolkit/src/lib/xml
 preload hpctoolkit/src/lib/support hpctoolkit/src/lib/stubs-gcc_s
+
 preload hpctoolkit/src/tool hpctoolkit/src/tool/hpcstruct
 preload hpctoolkit/src/tool/hpcprof hpctoolkit/src/tool/hpcproftt
 preload hpctoolkit/src/tool/hpclump hpctoolkit/src/tool/hpctracedump
+preload hpctoolkit/src/tool/hpcfnbounds
+
+preload hpctoolkit/src/tool/hpcrun hpctoolkit/src/tool/hpcrun/monitor-exts
+preload hpctoolkit/src/tool/hpcrun/sample-sources
+preload hpctoolkit/src/tool/hpcrun/sample-sources/perf
+preload hpctoolkit/src/tool/hpcrun/sample-sources/blame-shift
+preload hpctoolkit/src/tool/hpcrun/cct hpctoolkit/src/tool/hpcrun/lush
+preload hpctoolkit/src/tool/hpcrun/fnbounds hpctoolkit/src/tool/hpcrun/memory
+preload hpctoolkit/src/tool/hpcrun/messages hpctoolkit/src/tool/hpcrun/os/linux
+preload hpctoolkit/src/tool/hpcrun/trampoline/common
+preload hpctoolkit/src/tool/hpcrun/trampoline/x86-family
+preload hpctoolkit/src/tool/hpcrun/utilities
+preload hpctoolkit/src/tool/hpcrun/utilities/arch/x86-family
+preload hpctoolkit/src/tool/hpcrun/scripts
+
+preload hpctoolkit/src/tool/hpcrun/unwind/common
+preload hpctoolkit/src/tool/hpcrun/unwind/x86-family
+preload hpctoolkit/src/tool/hpcrun/unwind/x86-family/manual-intervals
+
+
 preload hpctoolkit/doc hpctoolkit/doc/www hpctoolkit/doc/www/fig
 preload hpctoolkit/doc/www/style hpctoolkit/doc/man hpctoolkit/doc/manual
 preload hpctoolkit/lib hpctoolkit/lib/dtd hpctoolkit/lib/dtd/mathml
+
 run $(TUP_CWD)/../build/automake.sh src/hpctoolkit $(TUP_CWD)/hpctoolkit install/ \
   hpctoolkit '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(CFG_FLAGS)

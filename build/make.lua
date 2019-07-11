@@ -547,8 +547,10 @@ function realmake(makefn, targ, cwd)
     local AM,CM = '# Automake configure ', '# CMake configure '
     if not cmd:find '%g' then tr = ' '
     elseif exc == ':' or exc:find '^:%s+>%s+' then tr = ' '
-    elseif exc:find '^@$%(MKDIR_P%)' then tr = AM..'(mkdir)'
-    elseif exc:find '^!;@.*@;!$' then tr = ''
+    elseif cmd:find '^@$%(MKDIR_P%)' then tr = AM..'(mkdir)'
+    elseif cmd:find '^@$%(mkinstalldirs%)' then tr = AM..'(mkdirs)'
+    elseif exc:find '!;@%g+@;!' then tr = ''
+    elseif exc:find '^echo [^;]+$' then tr = ''
     -- Automake-generated rules and commands.
     elseif cmd:find '$%(ACLOCAL%)' then tr = AM..'(aclocal)'
     elseif cmd:find '$%(AUTOHEADER%)' then tr = AM..'(autoheader)'
@@ -616,8 +618,10 @@ function realmake(makefn, targ, cwd)
           end
           c = table.concat(cs, ' && ')
         end
-        tr = ': '..table.concat(ins, ' ')..' |> ^ Installed %o^ '..c..' |> '
-          ..table.concat(outs, ' ')..' <'..group..'>'
+        if #outs > 0 then
+          tr = ': '..table.concat(ins, ' ')..' |> ^ Installed %o^ '..c..' |> '
+            ..table.concat(outs, ' ')..' <'..group..'>'
+        else tr = '# Skipping empty installation' end
       end
     elseif cmd:find '^$%(mkinstalldirs%)' then tr = AM..'(mkdir)'
     -- CMake-generated rules and commands.
@@ -738,7 +742,8 @@ function realmake(makefn, targ, cwd)
     -- Simple compilation calls
     elseif cmd:find '$%(COMPILE%)' or cmd:find '$%(COMPILE.os%)'
       or cmd:find '$%([^)]*LINK%)' or cmd:find '$%(CC%)' or cmd:find '$%(CXX%)'
-      or cmd:find '$%(C_FLAGS%)' or cmd:find '$%(CXX_FLAGS%)' then
+      or cmd:find '$%(C_FLAGS%)' or cmd:find '$%(CXX_FLAGS%)'
+      or cmd:find '$%(CCAS%)' then
       local amstyle,delibtoolize = false,false
       local c
       if cmd:find '$%(LIBTOOL%)' or exc:find '/libtool' then
@@ -764,7 +769,7 @@ function realmake(makefn, targ, cwd)
         if p:sub(1,1) == '/' then return pre..cpre..pclean(p)
         else return pre..pclean(p) end
       end
-      c = gosub(c, 'D:I:std:W;f:g,O:c,o:shared,l:w,L:', {
+      c = gosub(c, 'D:I:std:W;f:g,O:c,o:shared,l:w,L:rpath:', {
         [false]=function(p)
           p = make(makefn, p, cwd)
           if not exists(p) and p:sub(1,1) ~= '/' then table.insert(ins, p) end
@@ -775,6 +780,10 @@ function realmake(makefn, targ, cwd)
           return '-o '..cpre..out
         end,
         I=li, L=li,
+        rpath=function(p)
+          assert(delibtoolize == 'link')
+          return '-Wl,-rpath,'..p:gsub('[^:]+', pclean)
+        end,
         W=function(a)
           if not a then return '-W' end
           local vs = a:match '^l,%-%-version%-script,(.*)'
@@ -854,7 +863,6 @@ function realmake(makefn, targ, cwd)
               if rp then
                 return '-Wl,-rpath,'..rp:gsub('[^:]+', pclean)
               end
-              if x:find 'deepthought' then error(x) end
               return '-W'..x
             end,
             l=function(x)
@@ -1069,7 +1077,8 @@ for _,f in ipairs{
   'src/tool/hpcstruct/hpcstruct', 'src/tool/hpcstruct/dotgraph',
   'src/tool/hpcprof/hpcprof', 'src/tool/hpcproftt/hpcproftt',
   'src/tool/hpcprof-flat/hpcprof-flat', 'src/tool/hpcprof-mpi/hpcprof-mpi',
-  'src/tool/hpcfnbounds/hpcfnbounds',
+  'src/tool/hpcfnbounds/hpcfnbounds', 'src/tool/hpcrun/scripts/hpcrun',
+  'src/tool/hpcrun/scripts/hpclink', 'src/tool/hpcrun/scripts/hpcsummary',
   'src/include/hpctoolkit-config.h', -- HPCToolkit configuration header
 } do
   local p = ''
