@@ -8,42 +8,38 @@ local cwd = tup.getcwd():gsub('[^/]$', '%0/')
 inputs = {
   libasm = {
     fn = cwd..'../reference/elfutils/install/lib/libasm.so',
-    deps = {cwd..'../reference/elfutils/<elfutils>'},
+    deps = {cwd..'../reference/elfutils/<libs>'},
     size = 1,
   },
-  libcommon = {
-    fn = cwd..'../reference/dyninst/install/lib/libcommon.so',
-    deps = {cwd..'../reference/dyninst/<dyninst>'},
-    size = 2,
-  },
+  -- libcommon = {
+  --   fn = cwd..'../reference/dyninst/install/lib/libcommon.so',
+  --   deps = {cwd..'../reference/dyninst/<libs>'},
+  --   size = 2,
+  -- },
   -- libdyninst = {
   --   fn = cwd..'../reference/dyninst/install/lib/libdyninstAPI.so',
-  --   deps = {cwd..'../reference/dyninst/<dyninst>'},
+  --   deps = {cwd..'../reference/dyninst/<libs>'},
   --   size = 2,
   -- },
 }
 
 local lzma = cwd..'../external/lzma/<build>'
-local elf = cwd..'../latest/elfutils/<elfutils>'
-local dyn = cwd..'../latest/dyninst/<dyninst>'
-local hpc = cwd..'../latest/hpctoolkit/<hpctoolkit>'
-local refelf = cwd..'../reference/elfutils/<elfutils>'
-local refdyn = cwd..'../reference/dyninst/<dyninst>'
-local refhpc = cwd..'../reference/hpctoolkit/<hpctoolkit>'
-
-local refllp = cwd..'../reference/elfutils/install/lib:'..cwd..'../reference/dyninst/install/lib'
-local llp = cwd..'../latest/elfutils/install/lib:'..cwd..'../latest/dyninst/install/lib'
+local elf = cwd..'../latest/elfutils/'
+local dyn = cwd..'../latest/dyninst/'
+local hpc = cwd..'../latest/hpctoolkit/'
+local refelf = cwd..'../reference/elfutils/'
+local refdyn = cwd..'../reference/dyninst/'
+local refhpc = cwd..'../reference/hpctoolkit/'
 
 -- List of tests to test with
 tests = {
   hpcstruct = {
-    env = 'OMP_NUM_THREADS=%T LD_LIBRARY_PATH='..llp,
-    refenv = 'OMP_NUM_THREADS=%T LD_LIBRARY_PATH='..refllp,
+    env = 'OMP_NUM_THREADS=%T',
     fn = cwd..'../latest/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
     reffn = cwd..'../reference/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
     args = '-j%T --jobs-symtab %T -o %o %f',
-    deps = {lzma, elf, dyn, hpc},
-    refdeps = {lzma, refelf, refdyn, refhpc}
+    deps = {lzma, elf..'<libs>', dyn..'<libs>', hpc..'<bin>'},
+    refdeps = {lzma, refelf..'<libs>', refdyn..'<libs>', refhpc..'<bin>'}
   },
 }
 
@@ -53,6 +49,7 @@ local ti,tm = table.insert,tup.append_table
 function forall(harness)
   local outs = {}
   for iid,i in pairs(inputs) do for tid,t in pairs(tests) do
+    i.id,t.id = iid,tid
     for _,h in ipairs{harness(i, t)} do
       local repl = {
         T = ('%d'):format(h.threads or 1),

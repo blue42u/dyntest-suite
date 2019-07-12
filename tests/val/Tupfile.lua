@@ -11,7 +11,7 @@ tup.rule(forall(function(i)
     redirect = '/dev/null',
     output = 'mc/%t.%i.log',
   }
-end), '^o Concat %o^ cat %f > %o', '../memcheck.log')
+end), '^o Concat %o^ cat %f > %o', 'memcheck.log')
 
 tup.rule(forall(function(i)
   if i.size > 3 then return end
@@ -22,7 +22,7 @@ tup.rule(forall(function(i)
     redirect = '/dev/null',
     output = 'hg/%t.%i.log',
   }
-end), '^o Concat %o^ cat %f > %o', '../helgrind.log')
+end), '^o Concat %o^ cat %f > %o', 'helgrind.log')
 
 -- tup.rule(forall(function(i)
 --   if i.size > 1 then return end
