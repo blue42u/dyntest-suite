@@ -19,10 +19,17 @@ else
   exit 1
 fi
 
+if which shasum > /dev/null; then
 echo "Checking SHAsum..."
 shasum -qca 256 - <<'EOF'
 430ae8354789de4fd19ee52f3b1f739e1fba576f0aded0897c3c2bc00fb38778  boost.tar.bz2
 EOF
+else
+echo "Checking MD5sum..."
+md5sum -c --quiet - <<'EOF'
+242ecc63507711d6706b9b0c0d0c7d4f  boost.tar.bz2
+EOF
+fi
 
 echo "Uncompressing tarball..."
 tar xjf boost.tar.bz2 --strip-components=1

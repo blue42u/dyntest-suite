@@ -19,10 +19,17 @@ else
   exit 1
 fi
 
+if which shasum > /dev/null; then
 echo "Checking SHAsum..."
 shasum -qca 256 - <<'EOF'
 9717ae363760dedf573dad241420c5fea86256b65bc21d2cf71b2b12f0544f4b  lzma.tar.xz
 EOF
+else
+echo "Checking MD5sum..."
+md5sum -c --quiet - <<'EOF'
+003e4d0b1b1899fc6e3000b24feddf7c  lzma.tar.xz
+EOF
+fi
 
 echo "Uncompressing tarball..."
 tar xJf lzma.tar.xz --strip-components=1

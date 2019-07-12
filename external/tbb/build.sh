@@ -19,10 +19,17 @@ else
   exit 1
 fi
 
+if which shasum > /dev/null; then
 echo "Checking SHAsum..."
 shasum -qca 256 - <<'EOF'
 7b1fd8caea14be72ae4175896510bf99c809cd7031306a1917565e6de7382fba  tbb.tar.gz
 EOF
+else
+echo "Checking MD5sum..."
+md5sum -c --quiet - <<'EOF'
+7c371d0f62726154d2c568a85697a0ad  tbb.tar.gz
+EOF
+fi
 
 echo "Uncompressing tarball..."
 tar xzf tbb.tar.gz --strip-components=1

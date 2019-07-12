@@ -19,10 +19,17 @@ else
   exit 1
 fi
 
+if which shasum > /dev/null; then
 echo "Checking SHAsum..."
 shasum -qca 256 - <<'EOF'
 b414c3bff758df211d972de72df1da9f496224da3f649b950b7d7239ec69172c  dwarf.tar.gz
 EOF
+else
+echo "Checking MD5sum..."
+md5sum -c --quiet - <<'EOF'
+2601496ae97698a7cc9162059341ca7f  dwarf.tar.gz
+EOF
+fi
 
 echo "Uncompressing tarball..."
 tar xzf dwarf.tar.gz --strip-components=1

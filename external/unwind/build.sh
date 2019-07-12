@@ -19,10 +19,17 @@ else
   exit 1
 fi
 
+if which shasum > /dev/null; then
 echo "Checking SHAsum..."
 shasum -qca 256 - <<'EOF'
 43997a3939b6ccdf2f669b50fdb8a4d3205374728c2923ddc2354c65260214f8  unwind.tar.gz
 EOF
+else
+echo "Checking MD5sum..."
+md5sum -c --quiet - <<'EOF'
+a04f69d66d8e16f8bf3ab72a69112cd6  unwind.tar.gz
+EOF
+fi
 
 echo "Uncompressing tarball..."
 tar xzf unwind.tar.gz --strip-components=1

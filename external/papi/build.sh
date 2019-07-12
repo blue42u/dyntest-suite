@@ -19,10 +19,17 @@ else
   exit 1
 fi
 
+if which shasum > /dev/null; then
 echo "Checking SHAsum..."
 shasum -qca 256 - <<'EOF'
 d1a3bb848e292c805bc9f29e09c27870e2ff4cda6c2fba3b7da8b4bba6547589  papi.tar.gz
 EOF
+else
+echo "Checking MD5sum..."
+md5sum -c --quiet - <<'EOF'
+0e7468d61c279614ff6f39488ac3600d  papi.tar.gz
+EOF
+fi
 
 echo "Uncompressing tarball..."
 tar xzf papi.tar.gz --strip-components=1

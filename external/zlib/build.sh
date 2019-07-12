@@ -19,10 +19,17 @@ else
   exit 1
 fi
 
+if which shasum > /dev/null; then
 echo "Checking SHAsum..."
 shasum -qca 256 - <<'EOF'
 4ff941449631ace0d4d203e3483be9dbc9da454084111f97ea0a2114e19bf066  zlib.tar.xz
 EOF
+else
+echo "Checking MD5sum..."
+md5sum -c --quiet - <<'EOF'
+85adef240c5f370b308da8c938951a68  zlib.tar.xz
+EOF
+fi
 
 echo "Uncompressing tarball..."
 tar xJf zlib.tar.xz --strip-components=1
