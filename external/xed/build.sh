@@ -1,42 +1,26 @@
-#!/bin/sh
+#!/bin/bash
 
-INSTALL="`pwd`"
-set -e
+source ../init.sh
 
-# Hide from Tup for a bit, we know what we're doing
-REAL_LD_PRELOAD="$LD_PRELOAD"
-export LD_PRELOAD=
-
-# Make a temporary directory where we'll stick stuff
-TMP="`realpath zzztmp`"
-trap "rm -rf $TMP" EXIT
-rm -rf zzztmp
-mkdir zzztmp
-cd "$TMP"
-
-echo "Downloading Xed..."
+# Xed (and its build system) come from Git. Plop them down here.
 git clone -q https://github.com/intelxed/xed.git xed
-
-echo "Downloading Mbuild..."
 git clone -q https://github.com/intelxed/mbuild.git mbuild
 
+# Make a build directory to stash everything for now
 mkdir build
 cd build
 
-echo "Building..."
+# Build and install, and move the output directory to somewhere constant
 ../xed/mfile.py > /dev/null
-
-echo "Installing..."
 ../xed/mfile.py install > /dev/null
 mv kits/* ../install
 
-echo "Cleaning up oddities and arranging for HPCToolkit..."
+# Cleanup some oddities and arrange to match what HPCToolkit expects
+# NOTE: It feels really wrong to have to do this, someone should fix that.
 cd ../install
 rmdir bin
 mv include/xed/* include/
 rmdir include/xed
 
-echo "Copying results..."
-export LD_PRELOAD="$REAL_LD_PRELOAD"
-cd "$INSTALL"
-cp -r "$TMP"/install/* .
+# Copy the results home
+tupify cp -r * "$INSTALL"

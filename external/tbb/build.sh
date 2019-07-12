@@ -1,67 +1,26 @@
-#!/bin/sh
+#!/bin/bash
 
-INSTALL="`pwd`"
-set -e
+source ../init.sh https://github.com/intel/tbb/archive/2019_U8.tar.gz \
+  7b1fd8caea14be72ae4175896510bf99c809cd7031306a1917565e6de7382fba \
+  7c371d0f62726154d2c568a85697a0ad
 
-# Hide from Tup for a bit, we know what we're doing
-REAL_LD_PRELOAD="$LD_PRELOAD"
-export LD_PRELOAD=
+# TBB has a very weird build system. We do our best to get around it.
+make -srf build/Makefile.tbb tbb_root="$TMP" cfg=release
+make -srf build/Makefile.tbbmalloc tbb_root="$TMP" cfg=release malloc
+make -srf build/Makefile.tbbproxy tbb_root="$TMP" cfg=release tbbproxy
+make -srf build/Makefile.tbb tbb_root="$TMP" cfg=preview tbb_cpf=1
 
-# Make a temporary directory where we'll stick stuff
-TMP="`realpath zzztmp`"
-trap "rm -rf $TMP" EXIT
-rm -rf zzztmp
-mkdir zzztmp
-cd "$TMP"
+# Copy out the built .so's first
+tupify cp "$TMP"/libtbb.so.2 "$INSTALL"/lib
+tupify cp "$TMP"/libtbbmalloc.so.2 "$INSTALL"/lib
+tupify cp "$TMP"/libtbbmalloc_proxy.so.2 "$INSTALL"/lib
+tupify cp "$TMP"/libtbb_preview.so.2 "$INSTALL"/lib
 
-echo "Downloading TBB..."
-URL=https://github.com/intel/tbb/archive/2019_U8.tar.gz
-if which curl > /dev/null; then
-  curl -Lso tbb.tar.gz $URL
-elif which wget > /dev/null; then
-  wget -O tbb.tar.gz $URL
-else
-  echo "No download program available, abort!" >&2
-  exit 1
-fi
+# Copy out the headers next
+tupify cp -r "$TMP"/include/tbb "$INSTALL"/include
 
-if which shasum > /dev/null; then
-echo "Checking SHAsum..."
-shasum -qca 256 - <<'EOF'
-7b1fd8caea14be72ae4175896510bf99c809cd7031306a1917565e6de7382fba  tbb.tar.gz
-EOF
-else
-echo "Checking MD5sum..."
-md5sum -c --quiet - <<'EOF'
-7c371d0f62726154d2c568a85697a0ad  tbb.tar.gz
-EOF
-fi
-
-echo "Uncompressing tarball..."
-tar xzf tbb.tar.gz --strip-components=1
-
-echo "Building components..."
-make -C "$TMP" -rf "$TMP"/build/Makefile.tbb tbb_root="$TMP" cfg=release \
-  >/dev/null
-make -C "$TMP" -rf "$TMP"/build/Makefile.tbbmalloc tbb_root="$TMP" cfg=release \
-  malloc >/dev/null
-make -C "$TMP" -rf "$TMP"/build/Makefile.tbbproxy tbb_root="$TMP" cfg=release \
-  tbbproxy >/dev/null
-make -C "$TMP" -rf "$TMP"/build/Makefile.tbb tbb_root="$TMP" cfg=preview \
-  tbb_cpf=1 >/dev/null
-
-echo "Copying built components..."
-export LD_PRELOAD="$REAL_LD_PRELOAD"
-cp "$TMP"/libtbb.so.2 "$INSTALL"/lib
-cp "$TMP"/libtbbmalloc.so.2 "$INSTALL"/lib
-cp "$TMP"/libtbbmalloc_proxy.so.2 "$INSTALL"/lib
-cp "$TMP"/libtbb_preview.so.2 "$INSTALL"/lib
-
-echo "Copying headers..."
-cp -r "$TMP"/include/tbb "$INSTALL"/include
-
-echo "Adding library symlinks..."
-ln -s libtbb.so.2 "$INSTALL"/lib/libtbb.so
-ln -s libtbbmalloc.so.2 "$INSTALL"/lib/libtbbmalloc.so
-ln -s libtbbmalloc_proxy.so.2 "$INSTALL"/lib/libtbbmalloc_proxy.so
-ln -s libtbb_preview.so.2 "$INSTALL"/lib/libtbb_preview.so
+# Add the usual simplified symlinks to make things clean
+tupify ln -s libtbb.so.2 "$INSTALL"/lib/libtbb.so
+tupify ln -s libtbbmalloc.so.2 "$INSTALL"/lib/libtbbmalloc.so
+tupify ln -s libtbbmalloc_proxy.so.2 "$INSTALL"/lib/libtbbmalloc_proxy.so
+tupify ln -s libtbb_preview.so.2 "$INSTALL"/lib/libtbb_preview.so

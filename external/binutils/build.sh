@@ -1,63 +1,21 @@
-#!/bin/sh
+#!/bin/bash
 
-INSTALL="`pwd`"
-set -e
+source ../init.sh https://ftpmirror.gnu.org/binutils/binutils-2.32.tar.xz \
+  0ab6c55dd86a92ed561972ba15b9b70a8b9f75557f896446c82e8b36e473ee04 \
+  0d174cdaf85721c5723bf52355be41e6
 
-# Hide from Tup for a bit, we know what we're doing
-REAL_LD_PRELOAD="$LD_PRELOAD"
-export LD_PRELOAD=
+# The usual configure-make-install
+./configure --prefix="`realpath zzz`" --quiet \
+  --enable-lto --enable-install-libiberty > /dev/null
+make --quiet > /dev/null
+make --quiet install > /dev/null
 
-# Make a temporary directory where we'll stick stuff
-TMP="`realpath zzztmp`"
-trap "rm -rf $TMP" EXIT
-rm -rf zzztmp
-mkdir zzztmp
-cd "$TMP"
-
-echo "Downloading Binutils..."
-URL=https://ftpmirror.gnu.org/binutils/binutils-2.32.tar.xz
-if which curl > /dev/null; then
-  curl -Lso binutils.tar.xz $URL
-elif which wget > /dev/null; then
-  wget -O binutils.tar.xz $URL
-else
-  echo "No download program available, abort!" >&2
-  exit 1
+# Do some cleanup on the install directory, and don't use lib64.
+rm -f zzz/share/info/dir
+if test -d zzz/lib64; then
+  mv zzz/lib64/* zzz/lib
+  rmdir zzz/lib64
 fi
 
-if which shasum > /dev/null; then
-echo "Checking SHAsum..."
-shasum -qca 256 - <<'EOF'
-0ab6c55dd86a92ed561972ba15b9b70a8b9f75557f896446c82e8b36e473ee04  binutils.tar.xz
-EOF
-else
-echo "Checking MD5sum..."
-md5sum -c --quiet - <<'EOF'
-0d174cdaf85721c5723bf52355be41e6  binutils.tar.xz
-EOF
-fi
-
-echo "Uncompressing tarball..."
-tar xJf binutils.tar.xz --strip-components=1
-
-echo "Configuring..."
-./configure --prefix="$TMP"/installZZ --enable-lto --enable-install-libiberty \
-  > /dev/null
-
-echo "Building..."
-make > /dev/null
-
-echo "Installing..."
-make install > /dev/null
-
-if test -d "$TMP"/installZZ/lib64; then
-  mv "$TMP"/installZZ/lib64/* "$TMP"/installZZ/lib
-  rmdir "$TMP"/installZZ/lib64
-fi
-
-rm "$TMP"/installZZ/share/info/dir
-
-echo "Copying results..."
-export LD_PRELOAD="$REAL_LD_PRELOAD"
-cd "$INSTALL"
-cp -r "$TMP"/installZZ/* .
+# Copy the results back home
+tupify cp -r zzz/* "$INSTALL"
