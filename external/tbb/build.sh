@@ -3,9 +3,15 @@
 INSTALL="`pwd`"
 set -e
 
+# Hide from Tup for a bit, we know what we're doing
+REAL_LD_PRELOAD="$LD_PRELOAD"
+export LD_PRELOAD=
+
 # Make a temporary directory where we'll stick stuff
-TMP="`mktemp -d`"
+TMP="`realpath zzztmp`"
 trap "rm -rf $TMP" EXIT
+rm -rf zzztmp
+mkdir zzztmp
 cd "$TMP"
 
 echo "Downloading TBB..."
@@ -45,6 +51,7 @@ make -C "$TMP" -rf "$TMP"/build/Makefile.tbb tbb_root="$TMP" cfg=preview \
   tbb_cpf=1 >/dev/null
 
 echo "Copying built components..."
+export LD_PRELOAD="$REAL_LD_PRELOAD"
 cp "$TMP"/libtbb.so.2 "$INSTALL"/lib
 cp "$TMP"/libtbbmalloc.so.2 "$INSTALL"/lib
 cp "$TMP"/libtbbmalloc_proxy.so.2 "$INSTALL"/lib

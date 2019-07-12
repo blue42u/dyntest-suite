@@ -622,9 +622,10 @@ function realmake(makefn, targ, cwd)
       else
         local first = true
         c = gosub(rule.expand(c):match '/install.*', 'c,m:', {
-          [true]='install',
+          [true]='LD_PRELOAD= install',
           [false]=function() if first then first = false; return ':!;' end end,
         })
+        local post = ' && touch %o'
         if type(args) == 'string' then
           c = c:gsub(':!;', (args:gsub('%%', '%%%%')))
         else
@@ -635,7 +636,7 @@ function realmake(makefn, targ, cwd)
           c = table.concat(cs, ' && ')
         end
         if #outs > 0 then
-          tr = ': '..table.concat(ins, ' ')..' |> ^ Installed %o^ '..c..' |> '
+          tr = ': '..table.concat(ins, ' ')..' |> ^ Installed %o^ '..c..post..' |> '
             ..table.concat(outs, ' ')..' <'..g..'>'
         else tr = '# Skipping empty installation' end
       end
@@ -693,13 +694,14 @@ function realmake(makefn, targ, cwd)
                 STATIC_LIBRARY=' -m 644',
               }
               assert(tyargs[ty], 'No install args for '..ty)
-              local install = '^o Installed %o^ install'..tyargs[ty]..' '
+              local install = '^o Installed %o^ LD_PRELOAD= install '
+              local inspost = ' && touch %o'
               if renm then
                 assert(#ins == 1)
                 if not dedup[ins[1]] then
                   local g = ty:find 'LIBRARY' and 'libs' or 'bin'
                   table.insert(cmds, ': '..ins[1]..' |> '..install
-                    ..'%f %o |> '..outdir..'/'..renm..' <'..g..'>')
+                    ..'%f %o'..inspost..' |> '..outdir..'/'..renm..' <'..g..'>')
                   dedup[ins[1]] = true
                 end
               else
@@ -719,7 +721,7 @@ function realmake(makefn, targ, cwd)
                   ex = #ex > 0 and ' | '..table.concat(ex, ' ') or ''
                   local g = ty:find 'LIBRARY' and 'libs' or 'bin'
                   table.insert(cmds, ': '..table.concat(ins, ' ')..ex..' |> '
-                    ..install..'%f '..outdir..' |> '..table.concat(outs, ' ')
+                    ..install..'%f '..outdir..inspost..' |> '..table.concat(outs, ' ')
                     ..' <'..g..'>')
                 end
               end
@@ -1013,10 +1015,10 @@ function realmake(makefn, targ, cwd)
       assert(#args == 3, '{'..table.concat(args, ', ')..'}')
       if isinst(args[3]) then
         local g = args[3]:find '%.so%f[.\0]' and 'libs' or 'bin'
-        tr = ': |> ln -s '..args[2]..' %o |> '..pclean(args[3], cwd)..' <'..g..'>'
+        tr = ': |> LD_PRELOAD= ln -sf '..args[2]..' %o && touch %o |> '..pclean(args[3], cwd)..' <'..g..'>'
       else
         local src,dst = pclean(args[2],cwd), pclean(args[3],cwd)
-        tr = ': '..src..' |> ln -s %f %o |> '..dst
+        tr = ': '..src..' |> ln -sf %f %o |> '..dst
       end
     elseif cmd:find '$%(CMAKE_COMMAND%)%s+%-E%s+cmake_symlink_library' then
       local cd = cmd:match '^%s*cd%s+(%g+)'
@@ -1028,9 +1030,9 @@ function realmake(makefn, targ, cwd)
       local cmds = {}
       for i,v in ipairs(dsts) do
         dsts[i] = pclean(v, cd)
-        cmds[i] = 'ln -s '..src..' '..dsts[i]
+        cmds[i] = 'LD_PRELOAD= ln -sf '..src..' '..dsts[i]
       end
-      tr = ': |> '..table.concat(cmds, ' && ')..' |> '..table.concat(dsts, ' ')..' <bin>'
+      tr = ': |> '..table.concat(cmds, ' && ')..' && touch %o |> '..table.concat(dsts, ' ')..' <bin>'
     -- Elfutils does a check that TEXTREL doesn't appear in the output .so.
     elseif cmd == '@$(textrel_check)' then
       if not trules[idx-1] then
@@ -1090,24 +1092,25 @@ function realmake(makefn, targ, cwd)
       assert(c)
       if c == '$< $(LEX_OUTPUT_ROOT).c $@ -- $(LEXCOMPILE)' then
         local top = #cwd > 0 and cwd:gsub('[^/]+', '..')..'/' or ''
-        local ylw = top..'ylwrap'
+        local ylw = 'LD_PRELOAD= '..top..'ylwrap'
         local cd = #cwd > 0 and 'cd '..cwd..' && ' or ''
-        tr = (': %s | ylwrap |> ^o ylwrap > %%o^ %s%s %s %s.c %s -- %s |> %s <_gen>'):format(
+        tr = (': %s | ylwrap |> ^o ylwrap > %%o^ %s%s %s %s.c %s -- %s && touch %s |> %s <_gen>'):format(
           deps[1], cd, ylw, top..deps[1],
           rule.expand '$(LEX_OUTPUT_ROOT)', targ,
-          rule.expand '$(LEXCOMPILE)', realname)
+          rule.expand '$(LEXCOMPILE)', targ, realname)
       elseif c == '$< y.tab.c $@ y.tab.h `echo $@ | $(am__yacc_c2h)` y.output $*.output -- $(YACCCOMPILE)' then
         local top = #cwd > 0 and cwd:gsub('[^/]+', '..')..'/' or ''
-        local ylw = top..'ylwrap'
+        local ylw = 'LD_PRELOAD= '..top..'ylwrap'
         local cd = #cwd > 0 and 'cd '..cwd..' && ' or ''
         local function c2h(x)
           return x:gsub('cc$','hh'):gsub('cpp$','hpp'):gsub('c%+%+$','h++'):gsub('c$','h')
         end
         tr = (': %s | ylwrap |> ^o ylwrap > %%o^ %s%s %s y.tab.c %s y.tab.h'
-          ..' %s y.output %s.output -- %s |> %s %s <_gen>'):format(
+          ..' %s y.output %s.output -- %s && touch %s %s |> %s %s <_gen>'):format(
             deps[1], cd, ylw, top..deps[1],
             targ, c2h(targ), assert(rule.stem),
             rule.expand('$(YACCCOMPILE)'),
+            targ, c2h(targ),
             realname, c2h(realname))
       else error('Unhandled YLWRAP: '..cmd) end
     end

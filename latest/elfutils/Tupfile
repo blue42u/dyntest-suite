@@ -1,5 +1,8 @@
 include_rules
 
+: ../../src/elfutils/libelf/elf.h |> ^o Copied %o^ cp %f %o |> \
+  install/include/elf.h <libs>
+
 include ../../build/hasbuildtup.lua
 ifeq (y,$(HAS_BUILD_TUP))
 include build.tup
