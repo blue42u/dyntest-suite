@@ -1013,7 +1013,7 @@ function realmake(makefn, targ, cwd)
       assert(#args == 3, '{'..table.concat(args, ', ')..'}')
       if isinst(args[3]) then
         local g = args[3]:find '%.so%f[.\0]' and 'libs' or 'bin'
-        tr = ': |> ln -sr '..args[2]..' %o |> '..pclean(args[3], cwd)..' <'..g..'>'
+        tr = ': |> ln -s '..args[2]..' %o |> '..pclean(args[3], cwd)..' <'..g..'>'
       else
         local src,dst = pclean(args[2],cwd), pclean(args[3],cwd)
         tr = ': '..src..' |> ln -s %f %o |> '..dst
@@ -1028,7 +1028,7 @@ function realmake(makefn, targ, cwd)
       local cmds = {}
       for i,v in ipairs(dsts) do
         dsts[i] = pclean(v, cd)
-        cmds[i] = 'ln -sr '..src..' '..dsts[i]
+        cmds[i] = 'ln -s '..src..' '..dsts[i]
       end
       tr = ': |> '..table.concat(cmds, ' && ')..' |> '..table.concat(dsts, ' ')..' <bin>'
     -- Elfutils does a check that TEXTREL doesn't appear in the output .so.
