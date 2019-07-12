@@ -150,19 +150,19 @@ local function gosub(s, opts, repl)
   return table.concat(bits, ' ')
 end
 
-local rinstdir = exec('realpath '..instdir):gsub('%s*$', '')
+local rinstdir = exec('realpath -m '..instdir):gsub('%s*$', '')
 local exists,pclean,isinst,fullrpath
 do
-  local rspatt = '^'..unmagic(exec('realpath '..srcdir):gsub('/?%s*$', ''))..'(.*)'
+  local rspatt = '^'..unmagic(exec('realpath -m '..srcdir):gsub('/?%s*$', ''))..'(.*)'
   local ripatt = '^'..unmagic(rinstdir:gsub('/?%s*$', ''))..'(.*)'
-  local rtpatt = '^'..unmagic(exec('realpath '..tmpdir):gsub('/?%s*$', ''))..'(.*)'
+  local rtpatt = '^'..unmagic(exec('realpath -m '..tmpdir):gsub('/?%s*$', ''))..'(.*)'
   local expatt = '^'..unmagic(canonicalize(extdir))
   local patts,afters = {},{}
   local rpath = {rinstdir..'/lib'}
   for p,v in transforms:gmatch '(%g+)=(%g+)' do
     patts['^'..unmagic(p)..'(.*)'] = v
     afters['^'..unmagic(canonicalize(v))] = true
-    table.insert(rpath, (exec('realpath '..v..'/lib'):gsub('%s*$', '')))
+    table.insert(rpath, (exec('realpath -m '..v..'/lib'):gsub('%s*$', '')))
   end
   fullrpath = table.concat(rpath, ':')
   local dircache = {}
@@ -247,12 +247,16 @@ local function makeparse(makefn, cwd)
     if state == 'preamble' then
       if l == '# Variables' then state = 'vars' end
       assert(l:sub(1,1) == '#' or #l == 0, l)
+    elseif state == 'defvar' then
+      if l == 'endef' then state = 'vars' end
     elseif state == 'vars' then
       if l == '# Implicit Rules' then state = 'outsiderule' else
         if #l > 0 and l:sub(1,1) ~= '#' then
-          local k,v = l:match('^('..makevarpatt..') :?= (.*)$')
-          assert(k and v, l)
-          c.vars[k] = v
+          if l:find '^define%s' then state = 'defvar' else
+            local k,v = l:match('^('..makevarpatt..') :?= (.*)$')
+            assert(k and v, l)
+            c.vars[k] = v
+          end
         end
       end
     elseif state == 'outsiderule' then
@@ -566,8 +570,8 @@ function realmake(makefn, targ, cwd)
     elseif cmd:find '$%(AUTOCONF%)' then tr = AM..'(autoconf)'
     elseif cmd:find '$%(SHELL%) %./config%.status' then tr = AM..'(config.status)'
     elseif cmd:find '$%(MAKE%) $%(AM_MAKEFLAGS%) am%-%-refresh' then tr = AM..'(refresh)'
-    elseif exc:find '^test %-f config%.h' then
-      local c = exc:match '|| (.*)'
+    elseif exc:find '^test %-f config%.h' or exc:find '^if test ! %-f config%.h' then
+      local c = exc:match '|| (.*)' or exc:match 'then ([^;]*)'
       if c:find '^%s*make%s' then  -- Copy config.h to the final product
         tr = ": |> ^o Wrote config.h^ "..copy(tmpdir..'/config.h').." |> config.h"
         exdeps = exdeps..' config.h'
@@ -786,6 +790,9 @@ function realmake(makefn, targ, cwd)
       end
       c = gosub(c, 'D:I:std:W;f:g,O:c,o:shared,l:w,L:rpath:', {
         [false]=function(p)
+          if not out then
+            out = pclean(p:gsub('%.%g+$', '.o'), cd)
+          end
           p = make(makefn, p, cwd)
           if not exists(p) and p:sub(1,1) ~= '/' then table.insert(ins, p) end
           return cpre..p
@@ -1006,7 +1013,7 @@ function realmake(makefn, targ, cwd)
       assert(#args == 3, '{'..table.concat(args, ', ')..'}')
       if isinst(args[3]) then
         local g = args[3]:find '%.so%f[.\0]' and 'libs' or 'bin'
-        tr = ': |> ln -s '..args[2]..' %o |> '..pclean(args[3], cwd)..' <'..g..'>'
+        tr = ': |> ln -sr '..args[2]..' %o |> '..pclean(args[3], cwd)..' <'..g..'>'
       else
         local src,dst = pclean(args[2],cwd), pclean(args[3],cwd)
         tr = ': '..src..' |> ln -s %f %o |> '..dst
@@ -1021,7 +1028,7 @@ function realmake(makefn, targ, cwd)
       local cmds = {}
       for i,v in ipairs(dsts) do
         dsts[i] = pclean(v, cd)
-        cmds[i] = 'ln -s '..src..' '..dsts[i]
+        cmds[i] = 'ln -sr '..src..' '..dsts[i]
       end
       tr = ': |> '..table.concat(cmds, ' && ')..' |> '..table.concat(dsts, ' ')..' <bin>'
     -- Elfutils does a check that TEXTREL doesn't appear in the output .so.
