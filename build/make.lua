@@ -63,13 +63,13 @@ local function storefile(fn)
   pclose(p)
   return #x == 1 and x[1] or x
 end
-local function storefor(...)
-  local tmpf = tmpdir..'/ZZZluatmp'
-  local f = io.open(tmpf, 'w')
-  for l in ... do f:write(l) end
-  f:close()
-  return storefile(tmpf)
-end
+-- local function storefor(...)
+--   local tmpf = tmpdir..'/ZZZluatmp'
+--   local f = io.open(tmpf, 'w')
+--   for _,l in ... do f:write(l) end
+--   f:close()
+--   return storefile(tmpf)
+-- end
 local function dumpin(dst)
   return "base64 -d | gzip -d > "..(dst or '%o')
 end
@@ -1167,17 +1167,4 @@ local x = exdeps:find '%g' and '| '..exdeps..' ' or '|'
 for i,c in ipairs(commands) do
   io.stdout:write(c:gsub('|^', x),'\n')
   commands[i] = c..'\n'
-end
-
-local btgen = storefor(ipairs(commands))
-if type(btgen) == 'string' then
-  io.stdout:write(': |> ^o Wrote %o^',dump(btgen),' |> build.tup.gen\n')
-else
-  for i,p in ipairs(btgen) do
-    local f = 'build.tup.gen'..i
-    io.stdout:write(": |> ^o Wrote %o^ echo '",p,"' > %o |> "..f..'\n')
-    btgen[i] = f
-  end
-  io.stdout:write(': '..table.concat(btgen, ' ')..' |> ^o Concatinated %o^ '
-    ..'cat %f | '..dumpin()..' |> build.tup.gen\n')
 end

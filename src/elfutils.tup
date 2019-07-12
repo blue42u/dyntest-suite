@@ -14,5 +14,8 @@ ifeq ($(REF),)
 preload $(E)/lib/valgrind
 endif
 
-run $(TUP_CWD)/../build/automake.sh src/$(REF)elfutils $(TUP_CWD)/$(REF)elfutils \
-  install/ '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(CFG_FLAGS)
+CMD = $(TUP_CWD)/../build/automake.sh src/$(REF)elfutils \
+  $(TUP_CWD)/$(REF)elfutils install/ "$(EX_DEPS)" "$(TRANSFORMS)" \
+  $(TUP_CWD)/../external $(CFG_FLAGS)
+: |> ^o Wrote %o^ printf '$(CMD) > build.tup' > %o |> bootstrap.sh
+run $(CMD)

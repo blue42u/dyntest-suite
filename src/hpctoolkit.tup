@@ -77,5 +77,7 @@ preload $(H)/doc $(H)/doc/www $(H)/doc/www/fig
 preload $(H)/doc/www/style $(H)/doc/man $(H)/doc/manual
 preload $(H)/lib $(H)/lib/dtd $(H)/lib/dtd/mathml
 
-run $(TUP_CWD)/../build/automake.sh src/hpctoolkit $(TUP_CWD)/hpctoolkit \
-  install/ '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(CFG_FLAGS)
+CMD = $(TUP_CWD)/../build/automake.sh src/hpctoolkit $(TUP_CWD)/hpctoolkit \
+  install/ "$(EX_DEPS)" "$(TRANSFORMS)" $(TUP_CWD)/../external $(CFG_FLAGS)
+: |> ^o Wrote %o^ printf '$(CMD) > build.tup' > %o |> bootstrap.sh
+run $(CMD)

@@ -58,5 +58,7 @@ preload $(D)/symlite/h $(D)/symlite/src
 preload $(D)/parseThat/src $(D)/examples/codeCoverage.dir
 preload $(D)/examples/unstrip.dir
 
-run $(TUP_CWD)/../build/cmake.sh src/$(REF)dyninst $(TUP_CWD)/$(REF)dyninst \
-  install/ '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(CFG_FLAGS)
+CMD = $(TUP_CWD)/../build/cmake.sh src/$(REF)dyninst $(TUP_CWD)/$(REF)dyninst \
+  install/ "$(EX_DEPS)" "$(TRANSFORMS)" $(TUP_CWD)/../external $(CFG_FLAGS)
+: |> ^o Wrote %o^ printf '$(CMD) > build.tup' > %o |> bootstrap.sh
+run $(CMD)
