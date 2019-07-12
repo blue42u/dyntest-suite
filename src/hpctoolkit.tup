@@ -78,5 +78,4 @@ preload $(H)/doc/www/style $(H)/doc/man $(H)/doc/manual
 preload $(H)/lib $(H)/lib/dtd $(H)/lib/dtd/mathml
 
 run $(TUP_CWD)/../build/automake.sh src/hpctoolkit $(TUP_CWD)/hpctoolkit \
-  install/ hpctoolkit '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external \
-  $(CFG_FLAGS)
+  install/ '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(CFG_FLAGS)

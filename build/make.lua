@@ -3,7 +3,7 @@
 
 -- Somewhat automatic conversion from Makefiles to Tup rules.
 -- Usage: ./make.lua <path/to/source> <path/to/install> <path/of/tmpdir> <extra deps>
-local srcdir,instdir,group,tmpdir,exdeps,transforms,extdir = ...
+local srcdir,instdir,tmpdir,exdeps,transforms,extdir = ...
 srcdir = srcdir:gsub('/?$', '/')
 instdir = instdir:gsub('/?$', '/')
 tmpdir = tmpdir:gsub('/?$', '/')
@@ -150,18 +150,21 @@ local function gosub(s, opts, repl)
   return table.concat(bits, ' ')
 end
 
-local rinstdir = exec('realpath '..instdir)
-local exists,pclean,isinst
+local rinstdir = exec('realpath '..instdir):gsub('%s*$', '')
+local exists,pclean,isinst,fullrpath
 do
   local rspatt = '^'..unmagic(exec('realpath '..srcdir):gsub('/?%s*$', ''))..'(.*)'
   local ripatt = '^'..unmagic(rinstdir:gsub('/?%s*$', ''))..'(.*)'
   local rtpatt = '^'..unmagic(exec('realpath '..tmpdir):gsub('/?%s*$', ''))..'(.*)'
   local expatt = '^'..unmagic(canonicalize(extdir))
   local patts,afters = {},{}
+  local rpath = {rinstdir..'/lib'}
   for p,v in transforms:gmatch '(%g+)=(%g+)' do
     patts['^'..unmagic(p)..'(.*)'] = v
     afters['^'..unmagic(canonicalize(v))] = true
+    table.insert(rpath, (exec('realpath '..v..'/lib'):gsub('%s*$', '')))
   end
+  fullrpath = table.concat(rpath, ':')
   local dircache = {}
   -- We often will need to check for files in the filesystem to know whether a
   -- file is a source file or not (implicit rules). This does the actual check.
@@ -580,12 +583,14 @@ function realmake(makefn, targ, cwd)
       assert(c, cmd)
       c = c:gsub('%s*$', ''):gsub('$$dir', '')
       local ins,outs,args = {},{},nil
+      local g = 'bin'
       if list then
         assert(({files=true, list2=true, xfiles=true})[c:match '%s$$(%g+)'], c)
         c:gsub('$$x?files', '%%f'):gsub('$$list2', '%%f')
         local dir = pclean((rule.expand(c:match '%g+$'):gsub('"', '')))
         local fs = {}
         for w in rule.expand(list):gmatch '%g+' do
+          if w:find '%.so%f[.\0]' then g = 'libs' end
           local d = w:match '(.-)[^/]+$'
           if not fs[d] then fs[d] = {} end
           table.insert(outs, dir..'/'..w)
@@ -603,6 +608,7 @@ function realmake(makefn, targ, cwd)
       else
         local s,d = c:match '%f[%g]([^$]%g+)%s+(%g+)'
         if s then
+          if d:find '%.so%f[.\0]' then g = 'libs' end
           s,d = make(makefn, s, cwd),pclean(rule.expand(d))
           ins,outs,args = {s},{d},'%f %o'
         end
@@ -626,7 +632,7 @@ function realmake(makefn, targ, cwd)
         end
         if #outs > 0 then
           tr = ': '..table.concat(ins, ' ')..' |> ^ Installed %o^ '..c..' |> '
-            ..table.concat(outs, ' ')..' <'..group..'>'
+            ..table.concat(outs, ' ')..' <'..g..'>'
         else tr = '# Skipping empty installation' end
       end
     elseif cmd:find '^$%(mkinstalldirs%)' then tr = AM..'(mkdir)'
@@ -687,8 +693,9 @@ function realmake(makefn, targ, cwd)
               if renm then
                 assert(#ins == 1)
                 if not dedup[ins[1]] then
+                  local g = ty:find 'LIBRARY' and 'libs' or 'bin'
                   table.insert(cmds, ': '..ins[1]..' |> '..install
-                    ..'%f %o |> '..outdir..'/'..renm..' <'..group..'>')
+                    ..'%f %o |> '..outdir..'/'..renm..' <'..g..'>')
                   dedup[ins[1]] = true
                 end
               else
@@ -706,9 +713,10 @@ function realmake(makefn, targ, cwd)
                 end
                 if doit then
                   ex = #ex > 0 and ' | '..table.concat(ex, ' ') or ''
+                  local g = ty:find 'LIBRARY' and 'libs' or 'bin'
                   table.insert(cmds, ': '..table.concat(ins, ' ')..ex..' |> '
                     ..install..'%f '..outdir..' |> '..table.concat(outs, ' ')
-                    ..' <'..group..'>')
+                    ..' <'..g..'>')
                 end
               end
             end
@@ -751,7 +759,7 @@ function realmake(makefn, targ, cwd)
       or cmd:find '$%(C_FLAGS%)' or cmd:find '$%(CXX_FLAGS%)'
       or cmd:find '$%(CCAS%)' then
       local amstyle,delibtoolize = false,false
-      local c,linkargs
+      local c,linkargs,compilation
       if cmd:find '$%(LIBTOOL%)' or exc:find '/libtool' then
         delibtoolize,c = exc:match '^.-%-%-mode=(%g+)%s+(.*)'
         assert(delibtoolize and c, exc)
@@ -790,7 +798,7 @@ function realmake(makefn, targ, cwd)
         L=function(a, pre)
           a = li(a)
           if linkargs then table.insert(linkargs, pre..a) end
-          return pre..a..' -Wl,--rpath,`realpath '..a..'`'
+          return pre..a --..' -Wl,--rpath,`realpath '..a..'`'
         end,
         l=function(a,pre)
           a = pre..a
@@ -821,6 +829,7 @@ function realmake(makefn, targ, cwd)
           end
           return '-W'..a
         end,
+        c=function() compilation = true; return '-c' end,
       })
       assert(not c:find '%%o', c)
       -- Hacks for handling oddities in Elfutils
@@ -834,6 +843,11 @@ function realmake(makefn, targ, cwd)
         if out == 'src/objdump' then
           mydeps = mydeps..' libdw/libdw.so.1'
         end
+      end
+      -- Hacks to make sure all the RUNPATHs are sorted
+      if not compilation then
+        c = c..' -Wl,--rpath,'..fullrpath
+        if not out:find '%.so' then mydeps = mydeps..' <libs>' end
       end
       local cdcd = #cd > 0 and 'cd '..cd..' && ' or ''
       if delibtoolize then
@@ -853,15 +867,9 @@ function realmake(makefn, targ, cwd)
           -- While clever and convenient, we just make it a normal ar command.
           cdcd,c = '','ar scr %o %f'
         else c = c .. ' ' .. table.concat(linkargs, ' ') end
-        -- Hack to handle an oddity in HPCToolkit
-        -- if out == 'src/tool/hpcrun/libhpcrun.o' then
-        --   make(makefn, 'libhpcrun.la', cwd)
-        --   c = c..' -Wl,--rpath,'..c:match '%f[%S]%-L(%g+/papi/lib)%s'
-        --     ..' '..libtoollibs['src/tool/hpcrun/libhpcrun.la']..' -ldl'
-        -- end
       end
-      tr = ': '..table.concat(ins, ' ')..' |^ <_gen> '..mydeps..'|> ^o cc -o %o ...^ '
-        ..cdcd..c..' |> '..out
+      tr = ': '..table.concat(ins, ' ')..' |^ <_gen> '..mydeps..'|> ^o '
+        ..(compilation and 'cc' or 'ld')..' -o %o ...^ '..cdcd..c..' |> '..out
     -- Simple archiving (AR) calls
     elseif cmd:find '$%(RANLIB%)' then tr = ''  -- Skip ranlib
     elseif cmd:find '$%([%w_]+AR%)' then
@@ -918,8 +926,9 @@ function realmake(makefn, targ, cwd)
             end,
             L=li, I=li,
           })
-          c = ': '..table.concat(ins, ' ')..' |^ <_gen> |> ^o cc -o %o ...^ '
-            ..c..' |> '..out..' <_so>'
+          -- Hack to make sure all the RUNPATHs are sorted
+          c = ': '..table.concat(ins, ' ')..' |^ <_gen> |> ^o ld -o %o ...^ '
+            ..c..' -Wl,--rpath,'..fullrpath..' |> '..out..' <_so>'
         end
         cmds[#cmds+1] = c
       end
@@ -996,7 +1005,8 @@ function realmake(makefn, targ, cwd)
       for w in exc:gmatch '%f[%g][^-]%g+' do args[#args+1] = w end
       assert(#args == 3, '{'..table.concat(args, ', ')..'}')
       if isinst(args[3]) then
-        tr = ': |> ln -s '..args[2]..' %o |> '..pclean(args[3], cwd)..' <'..group..'>'
+        local g = args[3]:find '%.so%f[.\0]' and 'libs' or 'bin'
+        tr = ': |> ln -s '..args[2]..' %o |> '..pclean(args[3], cwd)..' <'..g..'>'
       else
         local src,dst = pclean(args[2],cwd), pclean(args[3],cwd)
         tr = ': '..src..' |> ln -s %f %o |> '..dst
@@ -1013,7 +1023,7 @@ function realmake(makefn, targ, cwd)
         dsts[i] = pclean(v, cd)
         cmds[i] = 'ln -s '..src..' '..dsts[i]
       end
-      tr = ': |> '..table.concat(cmds, ' && ')..' |> '..table.concat(dsts, ' ')..' <'..group..'>'
+      tr = ': |> '..table.concat(cmds, ' && ')..' |> '..table.concat(dsts, ' ')..' <bin>'
     -- Elfutils does a check that TEXTREL doesn't appear in the output .so.
     elseif cmd == '@$(textrel_check)' then
       if not trules[idx-1] then

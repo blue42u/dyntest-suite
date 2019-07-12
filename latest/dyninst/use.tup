@@ -1,5 +1,5 @@
 DYNINST_REAL_DIR = $(TUP_CWD)/install
 DYNINST_DUMMY_DIR = `realpath $(TUP_CWD)/dummy`
-DYNINST_EX_DEP = $(TUP_CWD)/<dyninst>
+DYNINST_EX_DEP = $(TUP_CWD)/<libs> $(TUP_CWD)/<bin>
 
 preload dummy dummy/lib

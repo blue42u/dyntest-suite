@@ -59,4 +59,4 @@ preload $(D)/parseThat/src $(D)/examples/codeCoverage.dir
 preload $(D)/examples/unstrip.dir
 
 run $(TUP_CWD)/../build/cmake.sh src/$(REF)dyninst $(TUP_CWD)/$(REF)dyninst \
-  install/ dyninst '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(CFG_FLAGS)
+  install/ '$(EX_DEPS)' "$(TRANSFORMS)" $(TUP_CWD)/../external $(CFG_FLAGS)

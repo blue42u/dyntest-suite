@@ -8,11 +8,10 @@ BUILD="`dirname "$0"`"
 SRC="$BUILD"/../"$1"
 RELSRC="$2"
 INS="$3"
-GROUP="$4"
-EXDEPS="$5"
-TRANSFORMS="$6"
-EXTDIR="$7"
-shift 7
+EXDEPS="$4"
+TRANSFORMS="$5"
+EXTDIR="$6"
+shift 6
 
 set -e  # Make sure to exit if anything funny happens
 
@@ -27,5 +26,5 @@ cmake -DCMAKE_INSTALL_PREFIX="$TMP/install-x" -DCMAKE_MODULE_PATH="$BUILD" \
   "$@" -S "$SRC" -B "$TMP" > /dev/null
 
 # Call our version of make to "build" everything.
-"$BUILD"/make.lua "$RELSRC" "$INS" "$GROUP" "$TMP" "$EXDEPS" \
+"$BUILD"/make.lua "$RELSRC" "$INS" "$TMP" "$EXDEPS" \
   "$TRANSFORMS $TMP/install-x=`realpath $INS`" "$EXTDIR"
