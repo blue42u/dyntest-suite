@@ -75,8 +75,10 @@ function forall(harness)
       local ins = {extra_inputs={}}
       if i.deps then tm(ins.extra_inputs, i.deps) else ti(ins, i.fn) end
       if tdeps then tm(ins.extra_inputs, tdeps) else ti(ins, tfn) end
+      local fakeaccess = ' stat '..i.fn..' '..tfn
+        ..' >/dev/null && touch %o && LD_PRELOAD= '
 
-      tup.rule(ins, name..cmd, {out})
+      tup.rule(ins, name..fakeaccess..cmd, {out})
       table.insert(outs, out)
     end
   end end

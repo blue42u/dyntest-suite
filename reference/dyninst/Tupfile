@@ -4,10 +4,11 @@ include ../elfutils/use.tup
 
 EXTRA_CFG_FLAGS = -DUSE_OpenMP=OFF
 REF = ref-
+include ../../src/dyninst.tup
 
+ifeq (y,@(LIMITED_MODE))
 include ../../build/hasbuildtup.lua
 ifeq (y,$(HAS_BUILD_TUP))
 include build.tup
-else
-include ../../src/dyninst.tup
+endif
 endif

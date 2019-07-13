@@ -60,5 +60,8 @@ preload $(D)/examples/unstrip.dir
 
 CMD = $(TUP_CWD)/../build/cmake.sh src/$(REF)dyninst $(TUP_CWD)/$(REF)dyninst \
   install/ "$(EX_DEPS)" "$(TRANSFORMS)" $(TUP_CWD)/../external $(CFG_FLAGS)
+ifeq (y,@(LIMITED_MODE))
 : |> ^o Wrote %o^ printf '$(CMD) > build.tup' > %o |> bootstrap.sh
+else
 run $(CMD)
+endif

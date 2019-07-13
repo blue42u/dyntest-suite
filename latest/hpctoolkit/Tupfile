@@ -4,10 +4,11 @@ include ../elfutils/use.tup
 include ../dyninst/use.tup
 
 EXTRA_CFG_FLAGS = --enable-openmp
+include ../../src/hpctoolkit.tup
 
+ifeq (y,@(LIMITED_MODE))
 include ../../build/hasbuildtup.lua
 ifeq (y,$(HAS_BUILD_TUP))
 include build.tup
-else
-include ../../src/hpctoolkit.tup
+endif
 endif
