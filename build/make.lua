@@ -1015,7 +1015,7 @@ function realmake(makefn, targ, cwd)
       assert(#args == 3, '{'..table.concat(args, ', ')..'}')
       if isinst(args[3]) then
         local g = args[3]:find '%.so%f[.\0]' and 'libs' or 'bin'
-        tr = ': |> LD_PRELOAD= ln -sf '..args[2]..' %o && touch %o |> '..pclean(args[3], cwd)..' <'..g..'>'
+        tr = ': |> touch %o && LD_PRELOAD= ln -sf '..args[2]..' %o |> '..pclean(args[3], cwd)..' <'..g..'>'
       else
         local src,dst = pclean(args[2],cwd), pclean(args[3],cwd)
         tr = ': '..src..' |> ln -sf %f %o |> '..dst
@@ -1032,7 +1032,7 @@ function realmake(makefn, targ, cwd)
         dsts[i] = pclean(v, cd)
         cmds[i] = 'LD_PRELOAD= ln -sf '..src..' '..dsts[i]
       end
-      tr = ': |> '..table.concat(cmds, ' && ')..' && touch %o |> '..table.concat(dsts, ' ')..' <bin>'
+      tr = ': |> touch %o && '..table.concat(cmds, ' && ')..' |> '..table.concat(dsts, ' ')..' <bin>'
     -- Elfutils does a check that TEXTREL doesn't appear in the output .so.
     elseif cmd == '@$(textrel_check)' then
       if not trules[idx-1] then

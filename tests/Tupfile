@@ -1,6 +1,6 @@
 include_rules
 
-VAL = val/memcheck.log val/helgrind.log
-: foreach $(VAL) |> ^o Compressed Valgrind outputs^ xz -9ec %f > %o |> %B.xz {ball}
+VAL = val/memcheck.log val/helgrind.log val/massif.dump
+: foreach $(VAL) |> ^o Compressed %f^ xz -9ec %f > %o |> %B.xz {v}
 
-: {ball} |> ^o Tar'd final output bundle^ tar cf %o %f |> all.tar
+: {v} |> ^o Tar'd final output bundle^ tar cf %o %f |> all.tar

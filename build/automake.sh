@@ -41,3 +41,7 @@ cd "$HERE"
 
 # Call our version of make to "build" everything.
 "$BUILD"/make.lua "$RELSRC" "$INS" "$TMP" "$EXDEPS" "$TRANSFORMS" "$EXDIR"
+
+# Cleanup the source directory, we don't want to leave anything behind.
+cd "$SRC"
+git clean -fxd
