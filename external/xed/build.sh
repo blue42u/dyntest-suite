@@ -11,8 +11,8 @@ mkdir build
 cd build
 
 # Build and install, and move the output directory to somewhere constant
-../xed/mfile.py > /dev/null
-../xed/mfile.py install > /dev/null
+../xed/mfile.py --extra-flags=-fPIC > /dev/null
+../xed/mfile.py --extra-flags=-fPIC install > /dev/null
 mv kits/* ../install
 
 # Cleanup some oddities and arrange to match what HPCToolkit expects

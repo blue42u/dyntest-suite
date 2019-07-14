@@ -542,11 +542,6 @@ function realmake(makefn, targ, cwd)
     return targ
   end
 
-  -- Hack to skip a target that fails miserably
-  if pclean(targ, cwd) == 'src/tool/hpcrun/libhpcrun.o' then
-    return pclean(targ, cwd)
-  end
-
   local name, rule = makerule(makefn, targ, cwd)
   if not rule then return name end  -- Source file, don't do anything
   local realname = pclean(name, cwd)
@@ -562,7 +557,6 @@ function realmake(makefn, targ, cwd)
     elseif exc == ':' or exc:find '^:%s+>%s+' then tr = ' '
     elseif cmd:find '^@$%(MKDIR_P%)' then tr = AM..'(mkdir)'
     elseif cmd:find '^@$%(mkinstalldirs%)' then tr = AM..'(mkdirs)'
-    elseif exc:find '!;@%g+@;!' then tr = ''
     elseif exc:find '^echo [^;]+$' then tr = ''
     -- Automake-generated rules and commands.
     elseif cmd:find '$%(ACLOCAL%)' then tr = AM..'(aclocal)'

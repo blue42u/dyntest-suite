@@ -29,6 +29,7 @@ UNWIND_PREFIX = --with-libunwind=
 include ../external/unwind/use.tup
 
 PAPI_PREFIX = --with-papi=
+PERFMON_PREFIX = --with-perfmon=
 include ../external/papi/use.tup
 
 MONITOR_PREFIX = --with-libmonitor=
@@ -40,7 +41,7 @@ include ../build/elfutils.tup
 DYNINST_PREFIX = --with-dyninst=
 include ../build/dyninst.tup
 
-CFG_FLAGS += $(EXTRA_CFG_FLAGS)
+CFG_FLAGS += $(EXTRA_CFG_FLAGS) --disable-hpcrun-static
 
 H = $(REF)hpctoolkit
 preload $(H) $(H)/config $(H)/src $(H)/src/lib
