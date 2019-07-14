@@ -38,7 +38,8 @@ local function unmagic(s)
 end
 
 -- Get a canonical path for the given path
-local function canonicalize(p)
+-- If cwd is given, use it as a base for handling ^../
+local function canonicalize(p, cwd)
   local abs = p:sub(1,1) == '/'
   local pre,real = {},{}
   for b in p:gmatch '[^/]+' do
@@ -47,6 +48,14 @@ local function canonicalize(p)
     elseif b ~= '.' then table.insert(real, b) end
   end
   if abs and #pre > 0 then abs = false end  -- Fake abs path
+  if type(cwd) == 'string' then  -- Try to remove matching bits of the suffix
+    for b in cwd:gmatch '[^/]+' do
+      if real[1] == b and pre[1] == '..' then
+        table.remove(real, 1)
+        table.remove(pre, 1)
+      else break end
+    end
+  end
   table.move(real, 1,#real, #pre+1, pre)
   if not abs and #pre == 0 then return '.' end
   return (abs and '/' or '')..table.concat(pre, '/')
@@ -183,7 +192,7 @@ do
     for l in p:lines() do c[l:match '[^/]+$'] = true end
     p:close()
     dircache[d] = c
-    return c[f]
+    return not not c[f]
   end
   function isinst(p) return not not p:find(ripatt) end
   -- Paths sometimes will reference the source directories. This cleans a
@@ -342,7 +351,7 @@ local function makerule(makefn, targ, cwd)
         local ok,ds = true,{}
         for d in ir.depstring:gsub('%%', s):gmatch '%g+' do
           if not d:find '^%.%./' then
-            ok = ok and pcall(makerule, makefn, d, cwd)
+            ok = ok and makerule(makefn, d, cwd)
             ds[#ds+1] = d
           end
         end
@@ -366,10 +375,10 @@ local function makerule(makefn, targ, cwd)
     end
 
     -- Hack for Elfutils, it doesn't really work in parallel. Tup will sort it.
-    if euhacks[targ] then return fn end
+    -- if euhacks[targ] then return fn end
 
     -- If it doesn't match, we'll just pretend its a pseudo-phony and move on.
-    assert(r, cwd..':'..makefn..' '..targ)
+    if not r then return end
   end
   if r.postprocessed then return targ,r end
   r.postprocessed = true
@@ -525,7 +534,7 @@ local libtoollibs = {}
 local makecache2 = {}
 local realmake
 local function make(f, t, cwd)
-  f,t = canonicalize(f),canonicalize(t)
+  f,t = canonicalize(f),canonicalize(t, cwd)
   local c1 = makecache2[cwd]
   if not c1 then c1 = {}; makecache2[cwd] = c1 end
   local c2 = c1[f]
@@ -543,6 +552,16 @@ function realmake(makefn, targ, cwd)
   end
 
   local name, rule = makerule(makefn, targ, cwd)
+  if not name then  -- Failed to process, try a few more things
+    -- Hack for Automake, if it doesn't appear to be here and starts with ..
+    if targ:find '^%.%./' then  -- Try to build it with a makefile it that dir
+      local d,f = targ:match '^(.-)([^/]+)$'
+      local cd = canonicalize(cwd..'/'..d)
+      return make('Makefile', f, cd)
+    end
+    error(cwd..'|'..makefn..': failed on '..targ)
+  end
+
   if not rule then return name end  -- Source file, don't do anything
   local realname = pclean(name, cwd)
   local printout,trules = false,{}
@@ -588,10 +607,10 @@ function realmake(makefn, targ, cwd)
         local dir = pclean((rule.expand(c:match '%g+$'):gsub('"', '')))
         local fs = {}
         for w in rule.expand(list):gmatch '%g+' do
-          if w:find '%.so%f[.\0]' then g = 'libs' end
+          if w:find '%.so%f[.\0]' or w:find '%.a%f[.\0]' then g = 'libs' end
           local d = w:match '(.-)[^/]+$'
           if not fs[d] then fs[d] = {} end
-          table.insert(outs, dir..'/'..w)
+          table.insert(outs, dir..'/'..w:gsub('%.la$', '.a'))
           w = make(makefn, w, cwd)
           table.insert(fs[d], w)
           table.insert(ins, w)
@@ -865,10 +884,23 @@ function realmake(makefn, targ, cwd)
           assert(not libtoollibs[out])
           libtoollibs[out] = table.concat(linkargs, ' ')
         end
-        if out:find '%.la$' then
+        if out:find '%.lo$' then
+          assert(delibtoolize == 'compile')
+          -- Libtool actually compiles two versions: one for libraries and one
+          -- for static use. To handle this we stitch together two duplicate
+          -- commands that pair up to make the result, and then change our
+          -- "realname" to match wit the -fPIC'd version.
+          c = c:gsub('%-o%s+(%g+)%.lo', '-o %1.os')
+            ..' && '..c:gsub('%-o%s+(%g+)%.lo', '-o %1.o')..' -fPIC -DPIC'
+          realname = realname:gsub('%.lo$', '.os')
+          out = out:gsub('%.lo$', '.os')..' '..out:gsub('%.lo$', '.o')
+        elseif out:find '%.la$' then
+          assert(delibtoolize == 'link')
           -- Libtool uses commands that look like normal linking for making .la.
           -- While clever and convenient, we just make it a normal ar command.
           cdcd,c = '','ar scr %o %f'
+          realname = realname:gsub('%.la$', '.a')
+          out = out:gsub('%.la$', '.a')
         else c = c .. ' ' .. table.concat(linkargs, ' ') end
       end
       tr = ': '..table.concat(ins, ' ')..' |^ <_gen> '..mydeps..'|> ^o '
