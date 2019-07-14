@@ -1,6 +1,7 @@
 -- luacheck: std lua53, no global (Tup-Lua)
 
 local com = 'valgrind --log-file=%o --suppressions=system.supp'
+  ..' --suppressions=toreport.supp'
 
 tup.rule(forall(function(i)
   if i.size > 2 then return end
@@ -14,7 +15,7 @@ tup.rule(forall(function(i)
 end), '^o Concat %o^ cat %f > %o', 'memcheck.log')
 
 tup.rule(forall(function(i)
-  if i.size > 2 then return end
+  if i.size > 1 then return end
   return {
     id = 'Helgrind',
     threads = 32,
@@ -24,16 +25,16 @@ tup.rule(forall(function(i)
   }
 end), '^o Concat %o^ cat %f > %o', 'helgrind.log')
 
-tup.rule(forall(function(i)
-  if i.size > 1 then return end
-  return {
-    id = 'DRD',
-    threads = 32,
-    cmd = com..' --tool=drd %C',
-    redirect = '/dev/null',
-    output = 'drd/%t.%i.log',
-  }
-end), '^o Concat %o^ cat %f > %o', '../drd.log')
+-- tup.rule(forall(function(i)
+--   if i.size > 1 then return end
+--   return {
+--     id = 'DRD',
+--     threads = 32,
+--     cmd = com..' --tool=drd %C',
+--     redirect = '/dev/null',
+--     output = 'drd/%t.%i.log',
+--   }
+-- end), '^o Concat %o^ cat %f > %o', '../drd.log')
 
 local big,bigsize
 local massif = forall(function(i, t)

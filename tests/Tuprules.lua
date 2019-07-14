@@ -20,11 +20,11 @@ inputs = {
     deps = {lzma, tbb, boost, cwd..'../reference/dyninst/<libs>'},
     size = 2,
   },
-  libdyninst = {
-    fn = cwd..'../reference/dyninst/install/lib/libdyninstAPI.so',
-    deps = {lzma, tbb, boost, cwd..'../reference/dyninst/<libs>'},
-    size = 3,
-  },
+  -- libdyninst = {
+  --   fn = cwd..'../reference/dyninst/install/lib/libdyninstAPI.so',
+  --   deps = {lzma, tbb, boost, cwd..'../reference/dyninst/<libs>'},
+  --   size = 3,
+  -- },
 }
 
 local elf = cwd..'../latest/elfutils/'
@@ -82,10 +82,10 @@ function forall(harness, post)
       if h.deps then tm(ins.extra_inputs, h.deps) end
 
       local outs = {out}
-      if h.noparallel then
-        ti(ins.extra_inputs, lastsg and ('<s_%d>'):format(lastsg) or '<s_init>')
+      if h.serialize then
+        ti(ins.extra_inputs, lastsg and cwd..('<s_%d>'):format(lastsg) or cwd..'<s_init>')
         lastsg = (lastsg or 0) + 1
-        ti(outs, ('<s_%d>'):format(lastsg))
+        ti(outs, cwd..('<s_%d>'):format(lastsg))
       else ti(outs, cwd..'<s_init>') end
 
       local fakeaccess = ' stat '..i.fn..' '..tfn
