@@ -72,13 +72,6 @@ local function storefile(fn)
   pclose(p)
   return #x == 1 and x[1] or x
 end
--- local function storefor(...)
---   local tmpf = tmpdir..'/ZZZluatmp'
---   local f = io.open(tmpf, 'w')
---   for _,l in ... do f:write(l) end
---   f:close()
---   return storefile(tmpf)
--- end
 local function dumpin(dst)
   return "base64 -d | gzip -d > "..(dst or '%o')
 end
@@ -316,15 +309,6 @@ local function makeparse(makefn, cwd)
   return c
 end
 
--- List of "hack" targets that AM doesn't handle very well.
-local euhacks = {
-  ['../libelf/libelf.so'] = true,
-  ['../libdw/libdw.so'] = true,
-  ['../lib/libeu.so'] = true,
-  ['../lib/libeu.a'] = true,
-  ['../../../libtool'] = true,
-}
-
 -- After a rule is parsed above, there is a lot of postprocessing that can be
 -- done (variable expansion and implicit rule search), but there is a lot of
 -- Make that is far more complex than we want to handle. So we only do such
@@ -373,9 +357,6 @@ local function makerule(makefn, targ, cwd)
       rs[targ] = r
       table.move(match, 1,#match, 1, r)
     end
-
-    -- Hack for Elfutils, it doesn't really work in parallel. Tup will sort it.
-    -- if euhacks[targ] then return fn end
 
     -- If it doesn't match, we'll just pretend its a pseudo-phony and move on.
     if not r then return end
@@ -606,14 +587,22 @@ function realmake(makefn, targ, cwd)
         c:gsub('$$x?files', '%%f'):gsub('$$list2', '%%f')
         local dir = pclean((rule.expand(c:match '%g+$'):gsub('"', '')))
         local fs = {}
-        for w in rule.expand(list):gmatch '%g+' do
-          if w:find '%.so%f[.\0]' or w:find '%.a%f[.\0]' then g = 'libs' end
-          local d = w:match '(.-)[^/]+$'
+        for ww in rule.expand(list):gmatch '%g+' do
+          local d = ww:match '(.-)[^/]+$'
           if not fs[d] then fs[d] = {} end
-          table.insert(outs, dir..'/'..w:gsub('%.la$', '.a'))
-          w = make(makefn, w, cwd)
-          table.insert(fs[d], w)
-          table.insert(ins, w)
+
+          local ws = {[ww]=make(makefn, ww, cwd)}
+          if ww:find '%.la$' then
+            ws[ww:gsub('%.la$', '.so')] = ws[ww]:gsub('%.a$', '.so')
+            ws[ww],ws[ww:gsub('%.la$', '.a')] = nil,ws[ww]
+            g = 'libs'
+          elseif ww:find '%.so%f[.\0]' then g = 'libs' end
+
+          for o,w in pairs(ws) do
+            table.insert(outs, dir..'/'..o)
+            table.insert(fs[d], w)
+            table.insert(ins, w)
+          end
         end
         args = {}
         for d,ws in pairs(fs) do
@@ -869,38 +858,37 @@ function realmake(makefn, targ, cwd)
       -- Hacks to make sure all the RUNPATHs are sorted
       if not compilation then
         c = c..' -Wl,--rpath,'..fullrpath
-        if not out:find '%.so' then mydeps = mydeps..' <libs>' end
+        if not out:find '%.so' and not out:find '%.la$' then mydeps = mydeps..' <libs>' end
       end
       local cdcd = #cd > 0 and 'cd '..cd..' && ' or ''
       if delibtoolize then
         -- Tack on the arguments needed for the linked .la files.
         for _,i in ipairs(ins) do
-          if i:find '%.la$' or i:find '%.lo$' then
-            assert(libtoollibs[i], i)
+          if libtoollibs[i] then
             table.insert(linkargs, libtoollibs[i])
           end
         end
         if out:find '%.la$' or out:find '%.lo' then
-          assert(not libtoollibs[out])
-          libtoollibs[out] = table.concat(linkargs, ' ')
+          local x = out:gsub('%.l(.)$', '.%1')
+          assert(not libtoollibs[x])
+          libtoollibs[x] = table.concat(linkargs, ' ')
         end
+        -- Libtool actually compiles two versions: one for libraries and one
+        -- for static use. To handle this we stitch together two duplicate
+        -- commands that pair up to make the result, and then change our
+        -- "realname" to match with the -fPIC'd version.
         if out:find '%.lo$' then
           assert(delibtoolize == 'compile')
-          -- Libtool actually compiles two versions: one for libraries and one
-          -- for static use. To handle this we stitch together two duplicate
-          -- commands that pair up to make the result, and then change our
-          -- "realname" to match wit the -fPIC'd version.
           c = c:gsub('%-o%s+(%g+)%.lo', '-o %1.os')
             ..' && '..c:gsub('%-o%s+(%g+)%.lo', '-o %1.o')..' -fPIC -DPIC'
-          realname = realname:gsub('%.lo$', '.os')
+          realname = realname:gsub('%.lo$', '.o')
           out = out:gsub('%.lo$', '.os')..' '..out:gsub('%.lo$', '.o')
         elseif out:find '%.la$' then
           assert(delibtoolize == 'link')
-          -- Libtool uses commands that look like normal linking for making .la.
-          -- While clever and convenient, we just make it a normal ar command.
-          cdcd,c = '','ar scr %o %f'
+          cdcd = 'ar scr '..out:gsub('%.la$', '.a')..' %f && '..cdcd
+          c = c:gsub('%-o%s+(%g+)%.la', '-o %1.so')..' -shared'
           realname = realname:gsub('%.la$', '.a')
-          out = out:gsub('%.la$', '.a')
+          out = out:gsub('%.la$', '.a')..' '..out:gsub('%.la$', '.so')
         else c = c .. ' ' .. table.concat(linkargs, ' ') end
       end
       tr = ': '..table.concat(ins, ' ')..' |^ <_gen> '..mydeps..'|> ^o '
