@@ -4,8 +4,6 @@ source ../init.sh https://ftpmirror.gnu.org/binutils/binutils-2.32.tar.xz \
   0ab6c55dd86a92ed561972ba15b9b70a8b9f75557f896446c82e8b36e473ee04 \
   0d174cdaf85721c5723bf52355be41e6
 
-export CPPFLAGS='-g'
-
 # The usual configure-make-install
 ./configure --prefix="`realpath zzz`" --quiet \
   --enable-lto --enable-install-libiberty > /dev/null
