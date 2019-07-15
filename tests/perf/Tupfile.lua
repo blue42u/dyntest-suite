@@ -10,15 +10,23 @@ tup.rule('../../reference/hpctoolkit/<bin>', '^o Generated %o^ sed'
   ..[['`realpath ../../external/dwarf/lib`'"]]
   ..' ../../reference/hpctoolkit/install/bin/scripts/hpcrun > %o && chmod +x %o', 'hpcrun')
 
-forall(function()
+for _,f in ipairs(forall(function()
   return {
     id = 'Perf', threads = 8,
     deps = {
-      'hpcrun', '../../external/monitor/<build>',
+      'hpcrun', '../../external/monitor/<build>', '../../external/dwarf/<build>',
       '../../external/unwind/<build>', '../../external/papi/<build>',
       '../../reference/hpctoolkit/<libs>'
     },
-    cmd = './hpcrun -o %o.tmp %C && tar -C %o.tmp -cf %o . && LD_PRELOAD= rm -rf %o.tmp',
-    output = '%t.%i.run.8.tar', serialize = true, redirect = '/dev/null',
+    cmd = './hpcrun -t -o %o.tmp %C && tar -C %o.tmp -cJf %o . && LD_PRELOAD= rm -rf %o.tmp',
+    output = '%t.%i.measurements.txz', serialize = true, redirect = '/dev/null',
   }
-end)
+end)) do
+  local untar = 'tar xJf %f --one-top-level=%o.tmpa'
+  local prof = '../../reference/hpctoolkit/install/bin/hpcprof -o %o.tmpb %o.tmpa'
+  local retar = 'tar -C %o.tmpb -cJf %o .'
+  local clean = 'rm -rf %o.tmpa %o.tmpb'
+  tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<bin>'}},
+    table.concat({untar, prof, retar, clean}, ' && '),
+    f:gsub('measurements%.', ''))
+end

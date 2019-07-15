@@ -5,7 +5,7 @@ source ../init.sh https://www.prevanders.net/libdwarf-20190529.tar.gz \
   2601496ae97698a7cc9162059341ca7f
 
 # The usual configure-make-install
-./configure --prefix="`realpath zzz`" --quiet > /dev/null
+./configure --prefix="`realpath zzz`" --quiet --enable-shared > /dev/null
 make --quiet > /dev/null
 make --quiet install > /dev/null
 

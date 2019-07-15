@@ -1,13 +1,16 @@
 include_rules
 
 FILES += bin/dwarfdump
-FILES += lib/libdwarf.la
-FILES += lib/libdwarf.a
-FILES += include/libdwarf.h
 FILES += include/dwarf.h
+FILES += include/libdwarf.h
+FILES += lib/libdwarf.a
+FILES += lib/libdwarf.la
+FILES += lib/libdwarf.so
+FILES += lib/libdwarf.so.1
+FILES += lib/libdwarf.so.1.0.0
 FILES += share/dwarfdump/dwarfdump.conf
-FILES += share/libdwarf/libdwarf-devel/libdwarf2p.1.pdf
 FILES += share/libdwarf/libdwarf-devel/libdwarf2.1.pdf
+FILES += share/libdwarf/libdwarf-devel/libdwarf2p.1.pdf
 FILES += share/man/man1/dwarfdump.1
 
 include find.lua

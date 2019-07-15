@@ -31,7 +31,7 @@ HERE="`pwd`"
 RSRC="`realpath "$SRC"`"
 RINS="`realpath "$INS"`"
 TMP="`mktemp -d`"
-trap "rm -rf $TMP" EXIT  # Make sure to clean up before exiting.
+trap "rm -rf $TMP; cd '$SRC' && git clean -fxd" EXIT  # Make sure to clean up before exiting.
 cd "$TMP"
 
 # Construct the makefiles that will make up everything.
@@ -42,7 +42,3 @@ cd "$HERE"
 
 # Call our version of make to "build" everything.
 "$BUILD"/make.lua "$RELSRC" "$INS" "$TMP" "$EXDEPS" "$TRANSFORMS" "$EXDIR"
-
-# Cleanup the source directory, we don't want to leave anything behind.
-cd "$SRC"
-git clean -fxd
