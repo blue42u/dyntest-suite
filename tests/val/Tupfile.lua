@@ -1,5 +1,7 @@
 -- luacheck: std lua53, no global (Tup-Lua)
 
+local llp = 'LD_LIBRARY_PATH=../../external/gcc/lib '
+local lds = '../../external/gcc/<build>'
 local com = 'valgrind --log-file=%o --suppressions=system.supp'
   ..' --suppressions=toreport.supp'
 
@@ -19,9 +21,10 @@ tup.rule(forall(function(i)
   return {
     id = 'Helgrind',
     threads = 32,
-    cmd = com..' --tool=helgrind %C',
+    cmd = llp..com..' --tool=helgrind %C',
     redirect = '/dev/null',
     output = 'hg/%t.%i.log',
+    deps = {lds},
   }
 end), '^o Concat %o^ cat %f > %o', 'helgrind.log')
 
@@ -30,9 +33,10 @@ end), '^o Concat %o^ cat %f > %o', 'helgrind.log')
 --   return {
 --     id = 'DRD',
 --     threads = 32,
---     cmd = com..' --tool=drd %C',
+--     cmd = llp..com..' --tool=drd %C',
 --     redirect = '/dev/null',
 --     output = 'drd/%t.%i.log',
+--     deps = {lds},
 --   }
 -- end), '^o Concat %o^ cat %f > %o', '../drd.log')
 
@@ -42,7 +46,7 @@ local massif = forall(function(i, t)
   local o = {
     id = 'Massif',
     threads = 32,
-    cmd = 'valgrind --log-file=/dev/null --massif-out-file=%o --tool=massif %C',
+    cmd = 'valgrind -q --massif-out-file=%o --tool=massif %C',
     redirect = '/dev/null',
     output = 'massif/%t.%i.out',
   }

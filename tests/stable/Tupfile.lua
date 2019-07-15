@@ -20,6 +20,7 @@ end, function(ins, i, t)
       ins[idx] = o
     end
   end
+  ins[1] = ins[2]
   local o = t.id..'.'..i.id..'.out'
   tup.rule(ins, '^o Generated %o^ ./diffout.sh '..i.id..' '..t.id..' %f > %o', o)
   return {o}

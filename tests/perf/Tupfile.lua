@@ -1,5 +1,8 @@
 -- luacheck: std lua53, no global (Tup-Lua)
 
+local llp = 'LD_LIBRARY_PATH=../../external/gcc/lib '
+local lds = '../../external/gcc/<build>'
+
 tup.rule('../../reference/hpctoolkit/<bin>', '^o Generated %o^ sed'
   ..[[ -e "/^libmonitor_dir/clibmonitor_dir='`realpath ../../external/monitor/lib`'"]]
   ..[[ -e "/^libunwind_dir/clibunwind_dir='`realpath ../../external/unwind/lib`'"]]
@@ -16,9 +19,9 @@ for _,f in ipairs(forall(function()
     deps = {
       'hpcrun', '../../external/monitor/<build>', '../../external/dwarf/<build>',
       '../../external/unwind/<build>', '../../external/papi/<build>',
-      '../../reference/hpctoolkit/<libs>'
+      '../../reference/hpctoolkit/<libs>', lds,
     },
-    cmd = './hpcrun -e REALTIME@1000 -t -o %o.tmp %C && '
+    cmd = llp..'./hpcrun -e REALTIME@1000 -t -o %o.tmp %C && '
       ..'tar -C %o.tmp -cJf %o . && LD_PRELOAD= rm -rf %o.tmp',
     output = '%t.%i.measurements.txz', serialize = true, redirect = '/dev/null',
   }
