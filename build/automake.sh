@@ -22,7 +22,8 @@ autoreconf -is "$SRC" >&2 2> /dev/null
 fi
 
 # HPCToolkit likes to use git. Tup doesn't, so this handles that little issue.
-export PATH="$BUILD"/bin:"$PATH"
+export REAL_LDD="`which ldd`"
+export PATH="`realpath $BUILD`"/bin:"$PATH"
 
 # Configure trys some things that Tup really doesn't like. So we configure in a
 # temporary directory and copy the important parts back to "here".

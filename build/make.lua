@@ -873,6 +873,7 @@ function realmake(makefn, targ, cwd)
           assert(not libtoollibs[x])
           libtoollibs[x] = table.concat(linkargs, ' ')
         end
+        c = c .. ' ' .. table.concat(linkargs, ' ')
         -- Libtool actually compiles two versions: one for libraries and one
         -- for static use. To handle this we stitch together two duplicate
         -- commands that pair up to make the result, and then change our
@@ -889,7 +890,7 @@ function realmake(makefn, targ, cwd)
           c = c:gsub('%-o%s+(%g+)%.la', '-o %1.so')..' -shared'
           realname = realname:gsub('%.la$', '.a')
           out = out:gsub('%.la$', '.a')..' '..out:gsub('%.la$', '.so')
-        else c = c .. ' ' .. table.concat(linkargs, ' ') end
+        end
       end
       tr = ': '..table.concat(ins, ' ')..' |^ <_gen> '..mydeps..'|> ^o '
         ..(compilation and 'cc' or 'ld')..' -o %o ...^ '..cdcd..c..' |> '..out

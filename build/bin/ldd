@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# If the argument is libdynDwarf.so, fool HPCToolkit's configure scripts
+if [[ "$1" =~ libdynDwarf\.so$ ]]; then
+  echo libdw.so
+  exit 0
+elif [[ "$1" =~ libparseAPI\.so$ ]]; then
+  echo libgomp
+  exit 0
+fi
+
+# Otherwise, use the real LDD
+exec "$REAL_LDD" "$@"
