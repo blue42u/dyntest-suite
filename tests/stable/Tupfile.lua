@@ -5,7 +5,7 @@ tup.rule(forall(function()
   for idx,c in ipairs{1,2,4,8,16,32} do
     runs[idx] = {
       id = 'Stable ('..c..')', threads = c, cmd = '%C',
-      output = '%t.%i/run.'..c, serialize = true,
+      output = '%t.%i/run.'..c, --serialize = true,
     }
   end
   return {

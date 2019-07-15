@@ -20,11 +20,16 @@ inputs = {
     deps = {lzma, tbb, boost, cwd..'../reference/dyninst/<libs>'},
     size = 2,
   },
-  -- libdyninst = {
-  --   fn = cwd..'../reference/dyninst/install/lib/libdyninstAPI.so',
-  --   deps = {lzma, tbb, boost, cwd..'../reference/dyninst/<libs>'},
-  --   size = 3,
-  -- },
+  libdyninst = {
+    fn = cwd..'../reference/dyninst/install/lib/libdyninstAPI.so',
+    deps = {lzma, tbb, boost, cwd..'../reference/dyninst/<libs>'},
+    size = 3,
+  },
+  hpcstruct = {
+    fn = cwd..'../reference/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
+    deps = {lzma, tbb, boost, cwd..'../reference/hpctoolkit/<bin>'},
+    size = 3,
+  },
 }
 
 local elf = cwd..'../latest/elfutils/'

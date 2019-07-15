@@ -18,7 +18,8 @@ for _,f in ipairs(forall(function()
       '../../external/unwind/<build>', '../../external/papi/<build>',
       '../../reference/hpctoolkit/<libs>'
     },
-    cmd = './hpcrun -t -o %o.tmp %C && tar -C %o.tmp -cJf %o . && LD_PRELOAD= rm -rf %o.tmp',
+    cmd = './hpcrun -e REALTIME@1000 -t -o %o.tmp %C && '
+      ..'tar -C %o.tmp -cJf %o . && LD_PRELOAD= rm -rf %o.tmp',
     output = '%t.%i.measurements.txz', serialize = true, redirect = '/dev/null',
   }
 end)) do
