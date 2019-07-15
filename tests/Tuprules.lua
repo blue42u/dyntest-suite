@@ -10,24 +10,29 @@ local boost = cwd..'../external/boost/<build>'
 
 -- List of inputs to test against
 inputs = {
-  libasm = {
-    fn = cwd..'../reference/elfutils/install/lib/libasm.so',
-    deps = {lzma, cwd..'../reference/elfutils/<libs>'},
+  { id = 'libasm',
+    fn = cwd..'../latest/elfutils/install/lib/libasm.so',
+    deps = {lzma, cwd..'../latest/elfutils/<libs>'},
     size = 1,
   },
-  libcommon = {
-    fn = cwd..'../reference/dyninst/install/lib/libcommon.so',
-    deps = {lzma, tbb, boost, cwd..'../reference/dyninst/<libs>'},
+  { id = 'libdw',
+    fn = cwd..'../latest/elfutils/install/lib/libdw.so',
+    deps = {lzma, cwd..'../latest/elfutils/<libs>'},
+    size = 1,
+  },
+  { id = 'libcommon',
+    fn = cwd..'../latest/dyninst/install/lib/libcommon.so',
+    deps = {lzma, tbb, boost, cwd..'../latest/dyninst/<libs>'},
     size = 2,
   },
-  libdyninst = {
-    fn = cwd..'../reference/dyninst/install/lib/libdyninstAPI.so',
-    deps = {lzma, tbb, boost, cwd..'../reference/dyninst/<libs>'},
+  { id = 'libdyninst',
+    fn = cwd..'../latest/dyninst/install/lib/libdyninstAPI.so',
+    deps = {lzma, tbb, boost, cwd..'../latest/dyninst/<libs>'},
     size = 3,
   },
-  hpcstruct = {
-    fn = cwd..'../reference/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
-    deps = {lzma, tbb, boost, cwd..'../reference/hpctoolkit/<bin>'},
+  { id = 'hpcstruct',
+    fn = cwd..'../latest/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
+    deps = {lzma, tbb, boost, cwd..'../latest/hpctoolkit/<bin>'},
     size = 3,
   },
 }
@@ -41,7 +46,7 @@ local refhpc = cwd..'../reference/hpctoolkit/'
 
 -- List of tests to test with
 tests = {
-  hpcstruct = {
+  { id = 'hpcstruct',
     size = 3,
     env = 'OMP_NUM_THREADS=%T',
     fn = cwd..'../latest/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
@@ -51,6 +56,15 @@ tests = {
     refdeps = {tbb, boost, refelf..'<libs>', refdyn..'<libs>', refhpc..'<bin>'},
     outclean = [=[sed -e 's/i="[[:digit:]]\+"/i="NNNNN"/g' %f > %o]=],
   },
+  { id = 'unstrip',
+    size = 2,
+    env = 'OMP_NUM_THREADS=%T',
+    fn = cwd..'../latest/dyninst/install/bin/unstrip',
+    reffn = cwd..'../reference/dyninst/install/bin/unstrip',
+    args = '-f %f -o %o',
+    deps = {tbb, boost, elf..'<libs>', dyn..'<bin>'},
+    refdeps = {tbb, boost, refelf..'<libs>', refdyn..'<bin>'},
+  },
 }
 
 local ti,tm = table.insert,tup.append_table
@@ -59,9 +73,9 @@ local ti,tm = table.insert,tup.append_table
 local lastsg
 function forall(harness, post)
   local allouts = {}
-  for iid,i in pairs(inputs) do for tid,t in pairs(tests) do
+  for _,i in ipairs(inputs) do for _,t in ipairs(tests) do
+    if t.id ~= 'unstrip' or i.id ~= 'libasm' and i.id ~= 'libdw' then
     local single = {}
-    i.id,t.id = iid,tid
     for _,h in ipairs{harness(i, t)} do
       local repl = {
         T = ('%d'):format(h.threads or 1),
@@ -74,12 +88,12 @@ function forall(harness, post)
       if h.redirect then args = args:gsub('%%o', h.redirect) end
       if i.deps then args = args:gsub('%%f', i.fn) end
 
-      local out = h.output:gsub('%%(.)', { t = tid, i = iid })
+      local out = h.output:gsub('%%(.)', { t = t.id, i = i.id })
       local cmd = env..' '..h.cmd:gsub('%%(.)', {
         T=tfn, A=args, C=tfn..' '..args,
       })
       local name = '^'..(h.rebuild and '' or 'o')..' '
-        ..h.id..' '..tid..' '..iid..' ^'
+        ..h.id..' '..t.id..' '..i.id..' ^'
 
       local ins = {extra_inputs={}}
       if i.deps then tm(ins.extra_inputs, i.deps) else ti(ins, i.fn) end
@@ -103,6 +117,7 @@ function forall(harness, post)
       end
     end
     if post then tm(allouts, post(single, i, t) or {}) end
+    end
   end end
   return allouts
 end
