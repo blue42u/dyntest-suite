@@ -19,6 +19,7 @@ for _,f in ipairs(forall(function()
     deps = {
       'hpcrun', '../../external/monitor/<build>', '../../external/dwarf/<build>',
       '../../external/unwind/<build>', '../../external/papi/<build>',
+      '../../reference/dyninst/<libs>',
       '../../reference/hpctoolkit/<libs>', lds,
     },
     cmd = llp..'./hpcrun -e REALTIME@100 -t -o %o.tmp %C && '

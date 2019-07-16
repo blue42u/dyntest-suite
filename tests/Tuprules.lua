@@ -65,6 +65,14 @@ tests = {
     deps = {tbb, boost, elf..'<libs>', dyn..'<bin>'},
     refdeps = {tbb, boost, refelf..'<libs>', refdyn..'<bin>'},
   },
+  { id = 'micro-symtab',
+    size = 0,
+    env = 'OMP_NUM_THREADS=%T',
+    fn = cwd..'src/micro-symtab', reffn = cwd..'src/micro-symtab-ref',
+    args = '%f > %o',
+    deps = {tbb, boost, elf..'<libs>', dyn..'<bin>', cwd..'src/micro-symtab'},
+    refdeps = {tbb, boost, refelf..'<libs>', refdyn..'<bin>', cwd..'src/micro-symtab-ref'},
+  },
 }
 
 local ti,tm = table.insert,tup.append_table

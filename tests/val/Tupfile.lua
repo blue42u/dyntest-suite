@@ -17,7 +17,7 @@ tup.rule(forall(function(i)
 end), '^o Concat %o^ cat %f > %o', 'memcheck.log')
 
 tup.rule(forall(function(i)
-  if i.size > 2 then return end
+  if i.size > 1 then return end
   return {
     id = 'Helgrind',
     threads = 32,
