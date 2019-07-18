@@ -16,8 +16,9 @@ tup.rule(forall(function(i)
   }
 end), '^o Concat %o^ cat %f > %o', 'memcheck.log')
 
-tup.rule(forall(function(i)
+tup.rule(forall(function(i, t)
   if i.size > 1 then return end
+  if t.id == 'hpcstruct' and i.id == 'libdw' then return end
   return {
     id = 'Helgrind',
     threads = 32,

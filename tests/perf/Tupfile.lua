@@ -13,7 +13,9 @@ tup.rule('../../reference/hpctoolkit/<bin>', '^o Generated %o^ sed'
   ..[['`realpath ../../external/dwarf/lib`'"]]
   ..' ../../reference/hpctoolkit/install/bin/scripts/hpcrun > %o && chmod +x %o', 'hpcrun')
 
-for _,f in ipairs(forall(function()
+for _,f in ipairs(forall(function(i, t)
+  if i.size < 3 then return end
+  if i.id == 'nwchem' and (t.id ~= 'micro-symtab' and t.id ~= 'hpcstruct') then return end
   return {
     id = 'Perf', threads = 8,
     deps = {
@@ -25,6 +27,17 @@ for _,f in ipairs(forall(function()
     cmd = llp..'./hpcrun -e REALTIME@100 -t -o %o.tmp %C && '
       ..'tar -C %o.tmp -cJf %o . && LD_PRELOAD= rm -rf %o.tmp',
     output = '%t.%i.measurements.txz', serialize = true, redirect = '/dev/null',
+  }, {
+    id = 'Perf (singlethreaded)', threads = 1,
+    deps = {
+      'hpcrun', '../../external/monitor/<build>', '../../external/dwarf/<build>',
+      '../../external/unwind/<build>', '../../external/papi/<build>',
+      '../../reference/dyninst/<libs>',
+      '../../reference/hpctoolkit/<libs>', lds,
+    },
+    cmd = llp..'./hpcrun -e REALTIME@100 -t -o %o.tmp %C && '
+      ..'tar -C %o.tmp -cJf %o . && LD_PRELOAD= rm -rf %o.tmp',
+    output = '%t.%i.1.measurements.txz', serialize = true, redirect = '/dev/null',
   }
 end)) do
   local untar = 'tar xJf %f --one-top-level=%o.tmpa'

@@ -1,6 +1,7 @@
 -- luacheck: std lua53, no global (Tup-Lua)
 
-tup.rule(forall(function()
+tup.rule(forall(function(i)
+  if i.size > 2 then return end
   local runs = {}
   for idx,c in ipairs{1,2,4,8,16,32} do
     runs[idx] = {
@@ -13,6 +14,7 @@ tup.rule(forall(function()
     output = '%t.%i/ref',
   }, table.unpack(runs)
 end, function(ins, i, t)
+  if #ins == 0 then return end
   if t.outclean then
     for idx, f in ipairs(ins) do
       local o = f..'.clean'

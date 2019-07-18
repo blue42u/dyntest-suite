@@ -11,7 +11,6 @@ int main(int argc, const char** argv) {
     std::cerr << "Not enough arguments!\n";
     return 2;
   }
-  std::cout << "Starting parsing of " << argv[1] << "...\n";
 
   Symtab* symtab = NULL;
   if(!Symtab::openFile(symtab, argv[1])) {
@@ -26,10 +25,5 @@ int main(int argc, const char** argv) {
   }
 
   symtab->parseTypesNow();
-  std::vector<Symbol*> syms;
-  symtab->getAllSymbols(syms);
-
-  std::cout << "All done, cleaning up...\n";
-  delete symtab;
   return 0;
 }
