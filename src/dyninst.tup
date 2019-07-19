@@ -63,5 +63,8 @@ CMD = $(TUP_CWD)/../build/cmake.sh src/$(REF)dyninst $(TUP_CWD)/$(REF)dyninst \
 ifeq (y,@(LIMITED_MODE))
 : |> ^o Wrote %o^ printf '$(CMD) > build.tup' > %o |> bootstrap.sh
 else
-run $(CMD)
+#run $(CMD)
 endif
+
+SRCDIR = src/dyninst
+include ../build/build.lua

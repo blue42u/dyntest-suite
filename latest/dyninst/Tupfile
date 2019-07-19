@@ -1,9 +1,9 @@
 include_rules
 
-#include ../elfutils/use.tup
+include ../elfutils/use.tup
 
 EXTRA_CFG_FLAGS = -DCMAKE_CXX_FLAGS='-DENABLE_VG_ANNOTATIONS'
-#include ../../src/dyninst.tup
+include ../../src/dyninst.tup
 
 ifeq (y,@(LIMITED_MODE))
 include ../../build/hasbuildtup.lua
