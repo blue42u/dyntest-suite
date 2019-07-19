@@ -1,10 +1,10 @@
 include_rules
 
-: ../../src/elfutils/libelf/elf.h |> ^o Copied %o^ cp %f %o |> \
-  install/include/elf.h <libs>
+#: ../../src/elfutils/libelf/elf.h |> ^o Copied %o^ cp %f %o |> \
+#  install/include/elf.h <libs>
 
 REF = ref-
-include ../../src/elfutils.tup
+#include ../../src/elfutils.tup
 
 ifeq (y,@(LIMITED_MODE))
 include ../../build/hasbuildtup.lua

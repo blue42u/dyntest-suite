@@ -1,10 +1,10 @@
 include_rules
 
-include ../elfutils/use.tup
+#include ../elfutils/use.tup
 
 EXTRA_CFG_FLAGS = -DUSE_OpenMP=OFF
 REF = ref-
-include ../../src/dyninst.tup
+#include ../../src/dyninst.tup
 
 ifeq (y,@(LIMITED_MODE))
 include ../../build/hasbuildtup.lua

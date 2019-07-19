@@ -35,10 +35,10 @@ inputs = {
     deps = {lzma, tbb, boost, cwd..'../latest/hpctoolkit/<bin>'},
     size = 3,
   },
-  { id = 'nwchem',
-    fn = cwd..'../nwchem',
-    size = 10,
-  },
+--  { id = 'nwchem',
+--    fn = cwd..'../nwchem',
+--    size = 10,
+--  },
 }
 
 local elf = cwd..'../latest/elfutils/'

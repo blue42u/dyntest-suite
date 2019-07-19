@@ -1,10 +1,10 @@
 include_rules
 
-include ../elfutils/use.tup
-include ../dyninst/use.tup
+#include ../elfutils/use.tup
+#include ../dyninst/use.tup
 
 EXTRA_CFG_FLAGS = --enable-openmp
-include ../../src/hpctoolkit.tup
+#include ../../src/hpctoolkit.tup
 
 ifeq (y,@(LIMITED_MODE))
 include ../../build/hasbuildtup.lua
