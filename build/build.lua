@@ -33,6 +33,60 @@ local function testexec(cmd)
   return not not p:close()
 end
 
+-- Simple command line constructing functions
+local function shell(...)
+  local function shellw(w)
+    if type(w) == 'table' then
+      local x = {}
+      for i,v in ipairs(w) do x[i] = shellw(v) end
+      return table.concat(x, ' ')
+    end
+    -- We don't handle subshells, so error if we see one.
+    assert(not w:find '`', "Subprocess in shell argument "..w)
+    return '"'..w:gsub('[%s$"\\]', '\\%0')..'"'
+  end
+  local function pre(c)
+    local prefix = ''
+    if c.env then
+      local ord = {}
+      for k,v in pairs(c.env) do
+        assert(k:find '^[%w_]+$', k)
+        ord[k] = k..'='..shellw(v):gsub('?', '$'..k)
+        table.insert(ord, k)
+      end
+      table.sort(ord)
+      for i,k in ipairs(ord) do ord[i] = ord[k] end
+      prefix = prefix..table.concat(ord, ' ')..' '
+    end
+    return prefix
+  end
+  local function post(c)
+    local postfix = ''
+    if c.onlyout then postfix = postfix..' 2>&1' end
+    return postfix
+  end
+  local cmd = {}
+  for i,pl in ipairs{...} do
+    local plx = {}
+    if type(pl[1]) == 'string' then  -- Non-pipeline command
+      for ii,w in ipairs(pl) do plx[ii] = shellw(w) end
+      cmd[i] = pre(pl)..table.concat(plx, ' ')..post(pl)
+    else  -- Pipeline command
+      for ii,c in ipairs(pl) do
+        local cx = {}
+        for iii,w in ipairs(c) do cx[iii] = shellw(w) end
+        plx[ii] = pre(c)..table.concat(cx, ' ')..post(c)
+      end
+      cmd[i] = table.concat(plx, ' | ')
+    end
+  end
+  return table.concat(cmd, ' && ')
+end
+local function sexec(...) return exec(shell(...)) end
+local function slexec(...) return lexec(shell(...)) end
+local function stestexec(...) return testexec(shell(...)) end
+local function slines(...) return plines(shell(...)) end
+
 -- Simple path munching function, takes a path and resolves any ../
 local function canonicalize(p, cwd)
   local cbits,ccur = {},1
@@ -67,8 +121,9 @@ local fullbuilddir = dir(opts.builddir)
 local realbuilddir = topdir..fullbuilddir
 
 local exdeps,exhandled,transforms = {},{},{}
-local cfgflags = opts.cfgflags:gsub('%s*\n%s*', ' '):gsub('^%s*', '')
-  :gsub('%s*$', ''):gsub('@([^@]+)@', function(ed)
+local cfgflags = {}
+for f in opts.cfgflags:gmatch '%g+' do
+  f = f:gsub('@([^@]+)@', function(ed)
     local path = ed:sub(1,1) ~= '/' and dir(ed)
       or dir(canonicalize(topcwd..'..'..ed))
     local rpath = ed:sub(1,1) == '/' and dir(topdir..ed:sub(2))
@@ -81,6 +136,8 @@ local cfgflags = opts.cfgflags:gsub('%s*\n%s*', ' '):gsub('^%s*', '')
     end
     return rpath..'dummy'
   end)
+  table.insert(cfgflags, f)
+end
 
 -- We're going to use a temporary directory, this xpcall ensures we delete it.
 local tmpdir, docleansrcdir, finalerror
@@ -110,18 +167,21 @@ end
 -- Step 1: Figure out the build system in use and let it do its thing.
 if glob(srcdir..'configure.ac') then  -- Its an automake thing
   docleansrcdir = true
-  local env = 'PATH="'..topdir..'"/build/bin:"$PATH" '
-  env = env.. 'AUTOM4TE="'..topdir..'"/build/autom4te-no-cache '
-  for l in plines(env..'autoreconf -fis '..fullsrcdir..' 2>&1') do
+  local env = {
+    PATH = topdir..'/build/bin:?',
+    AUTOM4TE = topdir..'/build/autom4te-no-cache',
+    REALLDD = lexec 'which ldd',
+  }
+  for l in slines({'autoreconf', '-fis', fullsrcdir, onlyout=true, env=env}) do
     if cfgbool 'DEBUG_CONFIGURE' then print(l) end
   end
   -- Run configure too while everything is arranged accordingly
-  for l in plines("cd '"..tmpdir.."' && "..env.."'"..realsrcdir.."/configure'"
-    ..' --disable-dependency-tracking '..cfgflags..' 2>&1') do
+  for l in slines({'cd', tmpdir}, {env=env, realsrcdir..'configure',
+    '--disable-dependency-tracking', cfgflags, onlyout=true}) do
     if cfgbool 'DEBUG_CONFIGURE' then print(l) end
   end
 elseif glob(srcdir..'CMakeLists.txt') then  -- Negligably nicer CMake thing
-  for l in plines("cmake -S '"..fullsrcdir.."' -B '"..tmpdir.."' "..cfgflags) do
+  for l in slines({'cmake', '-S', fullsrcdir, '-B', tmpdir, cfgflags}) do
     if cfgbool 'DEBUG_CONFIGURE' then print(l) end
   end
 else error("Unable to determine build system!") end
@@ -139,7 +199,7 @@ local function parsemakefile(fn, cwd)
 end
 
 -- Step N: Fire it off!
-parsemakefile('Makefile', '.')
+parsemakefile 'Makefile'
 
 -- Error with a magic value to ensure the thing gets finalized
 error(finalize)
