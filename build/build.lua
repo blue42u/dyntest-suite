@@ -66,7 +66,7 @@ local realsrcdir = topdir..fullsrcdir
 local fullbuilddir = dir(opts.builddir)
 local realbuilddir = topdir..fullbuilddir
 
-local exdeps,exhandled = {},{}
+local exdeps,exhandled,transforms = {},{},{}
 local cfgflags = opts.cfgflags:gsub('%s*\n%s*', ' '):gsub('^%s*', '')
   :gsub('%s*$', ''):gsub('@([^@]+)@', function(ed)
     local path = ed:sub(1,1) ~= '/' and dir(ed)
@@ -75,14 +75,19 @@ local cfgflags = opts.cfgflags:gsub('%s*\n%s*', ' '):gsub('^%s*', '')
       or dir(canonicalize(realbuilddir..ed))
     if not exhandled[path] then
       table.insert(exdeps, path..'<build>')
+      transforms[path..'dummy'] = path
+      transforms[rpath..'dummy'] = path
       exhandled[path] = true
     end
     return rpath..'dummy'
   end)
 
 -- We're going to use a temporary directory, this xpcall ensures we delete it.
-local tmpdir, finalerror
-local function finalize() if tmpdir then exec('rm -rf '..tmpdir) end end
+local tmpdir, docleansrcdir, finalerror
+local function finalize()
+  if tmpdir then exec('rm -rf '..tmpdir) end
+  if docleansrcdir then exec("cd '"..realsrcdir.."' && git clean -fX") end
+end
 xpcall(function()
 tmpdir = lexec 'mktemp -d':gsub('([^/])/*$', '%1/')
 
@@ -104,46 +109,20 @@ end
 
 -- Step 1: Figure out the build system in use and let it do its thing.
 if glob(srcdir..'configure.ac') then  -- Its an automake thing
-  -- Autoreconf works in the source directory, but since we're not actually in
-  -- the FUSE box we can't prevent it from messing stuff up. So we check the
-  -- output and move anything it makes into the tmpdir for later processing.
-  local tomv = {}
-  for l in plines('autoreconf -fis '..fullsrcdir..' 2>&1') do
-    tomv[#tomv+1] = l:match "installing '(.*)'"
+  docleansrcdir = true
+  local env = 'PATH="'..topdir..'"/build/bin:"$PATH" '
+  env = env.. 'AUTOM4TE="'..topdir..'"/build/autom4te-no-cache '
+  for l in plines(env..'autoreconf -fis '..fullsrcdir..' 2>&1') do
     if cfgbool 'DEBUG_CONFIGURE' then print(l) end
   end
   -- Run configure too while everything is arranged accordingly
-  for l in plines("cd '"..tmpdir.."' && '"..realsrcdir.."/configure'"
+  for l in plines("cd '"..tmpdir.."' && "..env.."'"..realsrcdir.."/configure'"
     ..' --disable-dependency-tracking '..cfgflags..' 2>&1') do
     if cfgbool 'DEBUG_CONFIGURE' then print(l) end
   end
-
-  -- Now move everything that we touched out and into the tmpdir.
-  for _,f in ipairs(tomv) do
-    local d = f:match '^(.-)[^/]+$'
-    exec("mkdir -p '"..tmpdir..d.."'")
-    exec("mv '"..fullsrcdir..f.."' '"..tmpdir..d.."'")
-  end
-
-  -- Autoreconf also makes a bunch of junk otherwise. Move that over too.
-  for _,f in ipairs{'aclocal.m4', 'config.h.in', 'configure'} do
-    print('mv', f)
-    exec("mv '"..fullsrcdir..f.."' '"..tmpdir.."'")
-  end
-  exec('rm -rf \''..fullsrcdir..'autom4te.cache\'')
-
-  -- The Makefile.in's are trickier, we use a subprocess instead of the glob.
-  for _,d in ipairs{
-    '.', 'backends', 'config', 'lib', 'libasm', 'libcpu', 'libdw', 'libdwelf',
-    'libdwfl', 'libebl', 'libelf', 'm4', 'src', 'tests',
-  } do
-    if testexec("stat '"..fullsrcdir..d.."/Makefile.am' 2>&1") then
-      exec("mv '"..fullsrcdir..d.."/Makefile.in' '"..tmpdir..d.."'")
-    end
-  end
 elseif glob(srcdir..'CMakeLists.txt') then  -- Negligably nicer CMake thing
   for l in plines("cmake -S '"..fullsrcdir.."' -B '"..tmpdir.."' "..cfgflags) do
-    print(l)
+    if cfgbool 'DEBUG_CONFIGURE' then print(l) end
   end
 else error("Unable to determine build system!") end
 
@@ -158,7 +137,6 @@ local function parsemakefile(fn, cwd)
   end
   print(cnt)
 end
-
 
 -- Step N: Fire it off!
 parsemakefile('Makefile', '.')
