@@ -27,11 +27,11 @@ local function plines(cmd, fmt)
     return x
   end, s, v
 end
-local function testexec(cmd)
-  local p = io.popen(cmd, 'r')
-  for _ in p:lines(1024) do end
-  return not not p:close()
-end
+-- local function testexec(cmd)
+--   local p = io.popen(cmd, 'r')
+--   for _ in p:lines(1024) do end
+--   return not not p:close()
+-- end
 
 -- Simple command line constructing functions
 local function shell(...)
@@ -43,7 +43,9 @@ local function shell(...)
     end
     -- We don't handle subshells, so error if we see one.
     assert(not w:find '`', "Subprocess in shell argument "..w)
-    return '"'..w:gsub('[%s$"\\]', '\\%0')..'"'
+    local cnt
+    w,cnt = w:gsub('[\n$"]', '\\%0')
+    return cnt == 0 and not w:find '[\\%s]' and w or '"'..w..'"'
   end
   local function pre(c)
     local prefix = ''
@@ -65,26 +67,35 @@ local function shell(...)
     if c.onlyout then postfix = postfix..' 2>&1' end
     return postfix
   end
-  local cmd = {}
-  for i,pl in ipairs{...} do
-    local plx = {}
-    if type(pl[1]) == 'string' then  -- Non-pipeline command
-      for ii,w in ipairs(pl) do plx[ii] = shellw(w) end
-      cmd[i] = pre(pl)..table.concat(plx, ' ')..post(pl)
-    else  -- Pipeline command
-      for ii,c in ipairs(pl) do
-        local cx = {}
-        for iii,w in ipairs(c) do cx[iii] = shellw(w) end
-        plx[ii] = pre(c)..table.concat(cx, ' ')..post(c)
-      end
-      cmd[i] = table.concat(plx, ' | ')
-    end
+
+  local function command(c)
+    local x = {}
+    for i,w in ipairs(c) do x[i] = shellw(w) end
+    return pre(c)..table.concat(x, ' ')..post(c)
   end
-  return table.concat(cmd, ' && ')
+  local pipeline, sequence
+  function pipeline(cs)
+    if type(cs[1]) == 'string' then return command(cs), true end
+    local x = {}
+    for i,c in ipairs(cs) do
+      local cmd
+      x[i],cmd = sequence(c)
+      if not cmd then x[i] = '('..x[i]..')' end
+    end
+    return table.concat(x, ' | ')
+  end
+  function sequence(cs)
+    if type(cs[1]) == 'string' then return command(cs), true end
+    local x = {}
+    for i,c in ipairs(cs) do x[i] = pipeline(c) end
+    return table.concat(x, ' && ')
+  end
+
+  return sequence{...}
 end
-local function sexec(...) return exec(shell(...)) end
-local function slexec(...) return lexec(shell(...)) end
-local function stestexec(...) return testexec(shell(...)) end
+-- local function sexec(...) return exec(shell(...)) end
+-- local function slexec(...) return lexec(shell(...)) end
+-- local function stestexec(...) return testexec(shell(...)) end
 local function slines(...) return plines(shell(...)) end
 
 -- Simple path munching function, takes a path and resolves any ../
@@ -130,13 +141,40 @@ for f in opts.cfgflags:gmatch '%g+' do
       or dir(canonicalize(realbuilddir..ed))
     if not exhandled[path] then
       table.insert(exdeps, path..'<build>')
-      transforms[path..'dummy'] = path
       transforms[rpath..'dummy'] = path
       exhandled[path] = true
     end
     return rpath..'dummy'
   end)
   table.insert(cfgflags, f)
+end
+transforms[realsrcdir] = srcdir
+transforms[realbuilddir] = ''
+
+-- Helper for interpreting tup.glob output, at least for what we do.
+local function glob(s)
+  local ok, x = pcall(tup.glob, s)
+  return ok and #x > 0 and x
+end
+
+-- We're going to be dealing with lots of paths, this function extracts all the
+-- info you ever wanted about a path, and a number of translations into
+-- absolute or relative versions.
+local function path(p, cwd)
+  if p:sub(1,1) ~= '/' then  -- Path relative to builddir/cwd, make absolute.
+    p = canonicalize(realbuilddir..dir(cwd or '')..p)
+  end
+  local o = {absolute = p}
+  for from,to in pairs(transforms) do  -- Try to transform it.
+    if p:sub(1,#from) == from then
+      if o.root then error(o.root..' & '..to..' match '..p) end
+      o.root,o.stem = to,p:sub(#from+1)
+      o.path = o.root..o.stem
+      if to == srcdir then o.source = true end
+      if to == '' then o.build = true end
+    end
+  end
+  return o
 end
 
 -- We're going to use a temporary directory, this xpcall ensures we delete it.
@@ -147,12 +185,7 @@ local function finalize()
 end
 xpcall(function()
 tmpdir = lexec 'mktemp -d':gsub('([^/])/*$', '%1/')
-
--- Helper for interpreting tup.glob output, at least for what we do.
-local function glob(s)
-  local x = tup.glob(s)
-  return #x > 0 and x
-end
+transforms[tmpdir] = ''  -- tmpdir acts as the build directory too
 
 -- Helper for handling boolean config values
 local function cfgbool(n, d)
@@ -181,25 +214,129 @@ if glob(srcdir..'configure.ac') then  -- Its an automake thing
     if cfgbool 'DEBUG_CONFIGURE' then print(l) end
   end
 elseif glob(srcdir..'CMakeLists.txt') then  -- Negligably nicer CMake thing
-  for l in slines({'cmake', '-S', fullsrcdir, '-B', tmpdir, cfgflags}) do
+  for l in slines({'cmake', '-G', 'Unix Makefiles', cfgflags,
+    '-S', fullsrcdir, '-B', tmpdir}) do
     if cfgbool 'DEBUG_CONFIGURE' then print(l) end
   end
 else error("Unable to determine build system!") end
 
--- Step 2: Have GNU make cough up its own database with all the rules
--- Parse the output and generate a table with all the bits.
+-- Step 2: Have GNU make cough up its own database with all the rules, and
+-- construct a global view of the world with all the bits.
+local parsemakecache = {}
+local ruleset = {templates={}, normal={}}
 local function parsemakefile(fn, cwd)
-  fn,cwd = tmpdir..fn, tmpdir..(cwd or '')
-  local cmd = "(cat '"..fn.."'; printf 'dummyZXZ:\\n\\n') | "
-    .."make -C '"..cwd.."' -pqsrRf- dummyZXZ"
-  local cnt = 0
-  for l in plines(cmd) do cnt = cnt + 1
+  cwd = dir(cwd or ''); assert(not fn:find '/')
+  if parsemakecache[cwd..fn] then return end
+  parsemakecache[cwd..fn] = true
+
+  -- A simple single-state machine for parsing.
+  local makevarpatt = '[%w_<>@.?%%^*+-]+'
+  local state = 'preamble'
+  local vars,cur = {},nil
+  for l in slines{
+    {{'cat', tmpdir..cwd..fn}, {'printf', 'dummyZXZ:\\n\\n'}},
+    {'env','-i', 'make', '-C', tmpdir..cwd, '-pqsrRf-', 'dummyZXZ'}
+  } do
+    if state == 'preamble' then
+      if l:find '^#%s*Variables$' then state = 'vars' end
+      assert(l:sub(1,1) == '#' or #l == 0, l)
+    elseif state == 'vars' then
+      if l:find '^#%s*Implicit Rules' then state = 'outsiderule' else
+        if #l > 0 and l:sub(1,1) ~= '#' then
+          local k,v = l:match('^('..makevarpatt..')%s*:?=%s*(.*)$')
+          assert(k and v, l)
+          vars[k] = v
+        end
+      end
+    elseif state == 'outsiderule' then
+      if l:find '^[^#%s].*:' then
+        state = 'rulepreamble'
+        cur = {vars = vars}
+        cur.outs, cur.deps = l:match '^(.-):%s*(.*)$'
+        assert(not cur.outs:find '%$' and not cur.deps:find '%$', l)
+        local x = {}
+        for p in cur.outs:gmatch '%g+' do
+          p = path(p, cwd).path
+          if not p then x = false; break end
+          if p:find '%%' then cur.implicit = true end
+          table.insert(x, p)
+        end
+        if not x then cur = nil else
+          cur.outs = x
+          local y = {}
+          for p in cur.deps:gmatch '%g+' do
+            p = path(p, cwd).path
+            if p then table.insert(y, p) end
+          end
+          cur.deps = y
+        end
+      else assert(#l == 0 or l:sub(1,1) == '#', l) end
+    elseif state == 'rulepreamble' then
+      if l:sub(1,1) ~= '#' then state = 'rule' end
+    end
+    if state == 'rule' then
+      if #l == 0 then state = 'outsiderule' end
+      if cur then
+        if #l == 0 then  -- Rule end
+          if cur.implicit then  -- Implicit rule
+            local rs = ruleset.templates
+            for _,p in ipairs(cur.outs) do
+              if not rs[p] then rs[p] = {} end
+              rs[p][cur] = true
+            end
+          else  -- Normal rule, file output (in theory)
+            local rs = ruleset.normal
+            for _,p in ipairs(cur.outs) do
+              if rs[p] then  -- Another rule already placed down.
+                if #rs[p] == 0 then  -- Other rule is dep-only. Overwrite.
+                  assert(#rs[p].deps == 0, p)
+                  rs[p] = cur
+                elseif #cur == 0 then  -- I'm dep-only, don't overwrite
+                  assert(#cur.deps == 0, p)
+                else  -- Two recipes for the same file, error.
+                  if not cur[1]:find '$%(MAKE%)' then  -- Handle autotools bits
+                    print(table.unpack(rs[p].outs))
+                    print(table.unpack(rs[p]))
+                    print(table.unpack(cur.outs))
+                    print(table.unpack(cur))
+                    error(cwd..'| '..p)
+                  end
+                end
+              else rs[p] = cur end
+            end
+          end
+        elseif l:find '%g' then  -- Recipe line
+          table.insert(cur, l:sub(2))
+        end
+      end
+    end
   end
-  print(cnt)
+end
+
+-- Step 3: Hunt down the files that we need to generate, and find or construct
+-- a rule to generate them. Also do some post-processing for expanding vars.
+local function findrule(fn)
+  if type(fn) == 'string' then fn = path(fn) end
+  local r = ruleset.normal[fn.path]
+  if not r then
+    -- First check if the file actually exists already.
+    if glob(fn.path) or glob(fn.stem) then
+      print('File '..fn.path..' already exists!')
+      return
+    end
+
+    -- If we haven't found anything by now, error.
+    assert(r, fn.path)
+  end
+
+  print(table.unpack(r.outs))
+  print(table.unpack(r.deps))
+  print(table.unpack(r))
 end
 
 -- Step N: Fire it off!
 parsemakefile 'Makefile'
+findrule 'all'
 
 -- Error with a magic value to ensure the thing gets finalized
 error(finalize)
