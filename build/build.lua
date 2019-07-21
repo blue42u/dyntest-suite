@@ -33,6 +33,11 @@ end
 --   return not not p:close()
 -- end
 
+-- Unmagic the magic characters within s, for stitching together patterns.
+local function unmagic(s)
+  return (s:gsub('[]^$()%%.[*+?-]', '%%%0'))
+end
+
 -- Simple command line constructing functions
 local function shell(...)
   local function shellw(w)
@@ -97,6 +102,89 @@ end
 -- local function slexec(...) return lexec(shell(...)) end
 -- local function stestexec(...) return testexec(shell(...)) end
 local function slines(...) return plines(shell(...)) end
+
+-- Command line argument parser, similar to getopt but better. Option string:
+--  ( <short flag (1-char)>[/<long flag>] | <long flag> ) [,:;]
+-- Where , means no argument, : means argument, and ; "optional" argument.
+-- Handlers are indexed by long or short flag, and treated like gsub with
+-- capture 1 being the argument and capture 2 the prefix (flag with matching space).
+-- Special keys [true] and [false] are for the command word and positional args.
+local function getopt(str, opts, handlers)
+  -- First parse out what flags are available.
+  local flags,types = {},{}
+  for s,sep,l,t in opts:gmatch '(.)(/?)(.-)([,:;])' do
+    if sep == '' then
+      if l == '' then l = nil else s,l = nil,s..l end
+    end
+    assert(not l or #l > 1, 'Too short a long option!')
+    assert(s or l, 'Bad optstring!')
+    assert(s ~= '-', 'Bad short option!')
+    assert(not l or l:sub(1,1) ~= '-', 'Bad long option!')
+    if s then flags[s] = l or s end
+    if l then flags[l] = l or s end
+    types[l or s] = t
+  end
+
+  -- Next iteratively fold any string-like structures into magic characters.
+  local substrs = {}
+  repeat local cnt
+    str,cnt = str:gsub('([`"\'])(.*)', function(d, all)
+      local s,o = all:match('^(.-)'..d..'(.*)')
+      substrs[#substrs+1] = s
+      local id = ('\0%d\0'):format(#substrs)
+      substrs[id] = s
+      return id..o
+    end)
+  until cnt == 0
+
+  -- Function to handle arguments and construct bits.
+  local bits = {}
+  local function handle(flag, pre, arg)
+    local h = handlers[flag]
+    if h == nil or h == true then bits[#bits+1] = pre..arg  -- Pass through with no fuss
+    elseif h == false then return  -- Skip argument
+    elseif type(h) == 'string' then bits[#bits+1] = (h:gsub('%%(%d)',{['0']=pre,['1']=arg}))
+    elseif type(h) == 'function' then
+      local x = h(arg, pre)
+      if x == nil then bits[#bits+1] = pre..arg
+      elseif x == false then return
+      else assert(type(x) == 'string'); bits[#bits+1] = x end
+    else error('Unable to handle handler '..tostring(h)) end
+  end
+
+  -- Now work through each word and decide what to do with it.
+  local cur,cpre,first = nil,nil,true
+  for w in str:gmatch '[%g\0]+' do
+    repeat local cnt
+      w,cnt = w:gsub('\0%d+\0', substrs)
+    until cnt == 0
+    w = w:gsub('^["\']', ''):gsub('["\']$', '')
+    if w:sub(1,1) == '-' then  -- Option argument
+      if flags[w:sub(2,2)] then  -- Short option
+        local f = flags[w:sub(2,2)]
+        if #w > 2 and types[f] == ',' then error('Argument given to non-argument flag: '..w) end
+        if #w == 2 and types[f] == ':' then  -- Argument in next word
+          cur,cpre = f, '-'..f..' '
+        else  -- Argument (if present) in this word
+          handle(f, w:sub(1,2), w:sub(3))
+        end
+      else  -- Must be a long option
+        local p,f,e,a = w:match '^(%-%-?)([^=]+)(=?)(.*)'
+        f = assert(flags[f], 'Invalid option '..f)
+        if e == '=' or types[f] ~= ':' then  -- Argument given in this word
+          if types[f] == ',' and e ~= '' then
+            error('Argument given to non-argument flag: '..w)
+          end
+          handle(f, p..f, a)
+        else cur,cpre = f,p..f..' ' end -- Argument in next word
+      end
+    else  -- Non-option argument
+      if cur then handle(cur, cpre, w); cur = nil  -- Argument to a flag
+      else handle(first, '', w); first = false end  -- Positional arg
+    end
+  end
+  return table.concat(bits, ' ')
+end
 
 -- Simple path munching function, takes a path and resolves any ../
 local function canonicalize(p, cwd)
@@ -222,15 +310,18 @@ else error("Unable to determine build system!") end
 
 -- Step 2: Have GNU make cough up its own database with all the rules, and
 -- construct a global view of the world with all the bits.
+local makevarpatt = '[%w_<>@.?%%^*+-]+'
 local parsemakecache = {}
 local ruleset = {templates={}, normal={}}
 local function parsemakefile(fn, cwd)
-  cwd = dir(cwd or ''); assert(not fn:find '/')
-  if parsemakecache[cwd..fn] then return end
-  parsemakecache[cwd..fn] = true
+  cwd = dir(cwd or '')
+  if parsemakecache[cwd..fn] then
+    assert(parsemakecache[cwd..fn] == cwd, 'Makefile '..cwd..fn..' parsed under different working dirs!')
+    return
+  end
+  parsemakecache[cwd..fn] = cwd
 
   -- A simple single-state machine for parsing.
-  local makevarpatt = '[%w_<>@.?%%^*+-]+'
   local state = 'preamble'
   local vars,cur = {},nil
   for l in slines{
@@ -256,6 +347,7 @@ local function parsemakefile(fn, cwd)
         assert(not cur.outs:find '%$' and not cur.deps:find '%$', l)
         local x = {}
         for p in cur.outs:gmatch '%g+' do
+          if not cur.target then cur.target = p end
           p = path(p, cwd).path
           if not p then x = false; break end
           if p:find '%%' then cur.implicit = true end
@@ -288,13 +380,16 @@ local function parsemakefile(fn, cwd)
             local rs = ruleset.normal
             for _,p in ipairs(cur.outs) do
               if rs[p] then  -- Another rule already placed down.
-                if #rs[p] == 0 then  -- Other rule is dep-only. Overwrite.
-                  assert(#rs[p].deps == 0, p)
+                if #rs[p] == 0 then  -- Other rule is dep-only. Take its deps.
+                  table.move(rs[p].deps, 1,#rs[p].deps, #cur.deps+1, cur.deps)
                   rs[p] = cur
-                elseif #cur == 0 then  -- I'm dep-only, don't overwrite
-                  assert(#cur.deps == 0, p)
+                elseif #cur == 0 then  -- I'm dep-only, append my new deps
+                  table.move(cur.deps, 1,#cur.deps, #rs[p].deps+1, rs[p].deps)
                 else  -- Two recipes for the same file, error.
-                  if not cur[1]:find '$%(MAKE%)' then  -- Handle autotools bits
+                  if not cur[1]:find '$%(MAKE%)'  -- For autotools
+                    and not cur[1]:find '%-%-check%-build%-system'  -- For CMake
+                    and not rs[p][1]:find '$%(MAKE%)'  -- For CMake too
+                  then
                     print(table.unpack(rs[p].outs))
                     print(table.unpack(rs[p]))
                     print(table.unpack(cur.outs))
@@ -331,6 +426,131 @@ local function findrule(fn)
     -- If we haven't found anything by now, error.
     assert(r, 'No rule to generate '..fn.path..'!')
   end
+  if r.found then return r end  -- Don't duplicate work if possible.
+  r.found = true
+
+  -- Expansion is tricky, the magic character is $, but () and {} can group.
+  -- So we take an approach that is simple although not quite correct.
+  local funcs = {}
+  local function expand(s, vs)
+    assert(s and vs, s)
+    local bits,init = {},1
+    repeat
+      local i = s:find('%$', init)
+      if i then
+        table.insert(bits, s:sub(init, i-1))
+        local q = s:sub(i+1,i+1)
+        if q == '$' then  -- Escape for $
+          table.insert(bits, '$')
+          init = i+2
+        elseif q == '(' then  -- Start of $(...)
+          local c
+          c,init = s:match('^(%b())()', i+1)
+          assert(c)
+          c = c:sub(2,-2)  -- Strip ()
+          if c:find '^[%w-]+%s' then  -- Function-style
+            local f,a = c:match '^([%w-]+)%s+(.*)'
+            local as,it = {}, 1
+            repeat
+              local x,e,ii
+              as[#as+1] = ''
+              repeat
+                x,e,ii = a:match('^([^,(]*)(.?)()', it)
+                as[#as] = as[#as]..x
+                if e == '(' then
+                  x,ii = a:match('^(%b())()', ii-1)
+                  as[#as] = as[#as]..x
+                end
+                it = ii
+              until e == ',' or e == ''
+            until e == ''
+            if not funcs[f] then
+              for k,v in ipairs(as) do as[k] = ('%q'):format(v) end
+              error('Unhandled function expansion: '..f..'('..table.concat(as, ', ')..')')
+            end
+            table.insert(bits, funcs[f](vs, table.unpack(as)))
+          elseif c:find ':' then  -- Substitution style
+            local v,a,b = c:match '([^:]+):(.*)=(.*)'
+            assert(v and not a:find '%%', c)
+            v = expand(v, vs)
+            assert(v:find '^'..makevarpatt..'$', v)
+            table.insert(bits, (expand(vs[v] or '', vs)
+              :gsub('(%g+)'..unmagic(a), '%1'..b:gsub('%%', '%%%%'))))
+          else  -- Variable style
+            c = expand(c, vs)
+            assert(c:find '^'..makevarpatt..'$', c)
+            table.insert(bits, expand(vs[c] or '', vs))
+          end
+        elseif q == '{' then  -- Start of ${}
+          local v
+          v,init = s:match('^{([^}]+)}()', i+1)
+          assert(v)
+          table.insert(bits, expand(vs[v] or '', vs))
+        else  -- Start of automatic variable
+          local v
+          v,init = s:match('^([@<*^?])()', i+1)
+          assert(v, '"'..s..'" @'..(i+1))
+          table.insert(bits, expand(vs[v] or '', vs))
+        end
+      else table.insert(bits, s:sub(init)) end
+    until not i
+    return table.concat(bits)
+  end
+
+  -- Function expansions
+  funcs['if'] = function(vs, cond, ifstr, elsestr)
+    return expand(expand(cond, vs):find '%g' and ifstr or elsestr or '', vs)
+  end
+  function funcs.notdir(vs, str) return expand(str, vs):match '[^/]+$' end
+  funcs['filter-out'] = function(vs, ws, str)
+    ws,str = expand(ws,vs), expand(str,vs)
+    assert(not ws:find '%%')
+    local words = {}
+    for w in ws:gmatch '%g+' do words[w] = '' end
+    return (str:gsub('%g+', words))
+  end
+  function funcs.addprefix(vs, pre, str)
+    return (expand(str, vs):gsub('%g+', pre:gsub('%%','%%%%')..'%0'))
+  end
+  function funcs.patsubst(vs, patt, repl, str)
+    if patt:find '%%' then
+      patt,repl = unmagic(patt:gsub('%%', '(.*)')), repl:gsub('%%', '%%1')
+    else
+      patt,repl = '(%g+)'..unmagic(patt), '%1'..repl:gsub('%%', '%%%%')
+    end
+    return (expand(str, vs):gsub(patt, repl))
+  end
+  function funcs.shell(vs, cmd)  -- By far the hairiest and most sensitive, hack
+    if cmd == 'cd $(srcdir);pwd' then return expand('$(srcdir)', vs)
+    elseif cmd == 'pwd' then return './'..r.cwd
+    elseif cmd == '$(AR) t ../libdwfl/libdwfl.a' then
+      return 'XXXlibdwfl.a'  -- luacheck: no max line length
+    elseif cmd == '$(AR) t ../libdwelf/libdwelf.a' then
+      return 'XXXlibdwelf.a'
+    else error('Unhandled shell: '..cmd) end
+  end
+  function funcs.call(_, cmd)
+    if cmd == 'HPC_moveIfStaticallyLinked' then
+      -- Expand to a magic that will be handled down below somewhere
+      return '!;@MISL@;!'
+    elseif cmd == 'copy-libs' then
+      -- The copy of all the bits to the ext_libs directory. Skip for now.
+      return '!;@CL@;!'
+    elseif cmd == 'strip-debug' then
+      -- Strip the debugging info off the files. Skip for now.
+      return '!;@SD@;!'
+    else error('Unhandled call: '..cmd) end
+  end
+
+  -- Now expand the recipe in a separate table for further reference!
+  r.vars = setmetatable({
+    ['@'] = r.outs[1], ['<'] = r.deps[1] or '', ['*'] = r.stem or '',
+    ['^'] = table.concat(r.deps, ' '),
+  }, {__index=r.vars})
+  function r.expand(s) return expand(s, r.vars) end
+  r.ex = {}
+  for i,c in ipairs(r) do r.ex[i] = r.expand(c:gsub('^[@-]*', '')) end
+
   return r
 end
 
@@ -343,6 +563,7 @@ local function make(fn)
   local r = findrule(fn)
   if not r then return fn.path end  -- We don't need to do anything.
   if r.made then return r.made end  -- Don't duplicate work if at all possible.
+  if r.antirecurse then return end  -- When just scanning, don't recurse.
 
   -- First make sure all the deps have been made
   local deps = {}
@@ -353,6 +574,7 @@ local function make(fn)
   local info = {out = fn.path}
   local handled,printout = {}, cfgbool 'DEBUG_MAKE_TRANSLATION'
   for i,c in ipairs(r) do
+    local ex = r.ex[i]
     local function check(tf, note, err)
       if not tf then handled[i],info.error = note or 'error', err or '#'..i end
     end
@@ -371,6 +593,22 @@ local function make(fn)
       if c:find '%-E cmake_progress_start' then handled[i] = 'CMake: progress bar markers'
       elseif c:find '%-%-check%-build%-system' then handled[i] = 'CMake: makefile regeneration'
       else printout = true end
+    elseif c:find '^$%(MAKE%)' then
+      local mf,cd,targs = nil,nil,{}
+      getopt(ex, 'no-print-directory,f:', {
+        f = function(f) mf = f end,
+        [false] = function(t) table.insert(targs, t) end,
+      })
+      mf = mf or 'Makefile'
+      cd = r.cwd..dir(cd or '')
+      handled[i] = 'Make: '..(mf and '('..mf..') ' or '')
+        ..'@'..(#cd > 0 and cd or './')..' '..table.concat(targs, ' ')
+      -- Unlike in other cases, we handle this directly here. Saves a call.
+      assert(not info.kind or info.kind == 'make'); info.kind = 'make'
+      parsemakefile(mf, cd)
+      r.antirecurse = true
+      for _,t in ipairs(targs) do make(cd..t) end
+      r.antirecurse = nil
     else printout = true end
   end
   if info.error ~= nil then printout = true end
@@ -383,6 +621,7 @@ local function make(fn)
     for i,c in ipairs(r) do
       if handled[i] then print('  # '..handled[i]) end
       print('  '..(handled[i] and '^' or '$')..' '..c)
+      if not handled[i] then print('  % '..r.ex[i]) end
     end
     if info.kind then
       local b = {}
@@ -390,6 +629,7 @@ local function make(fn)
       b = table.concat(b, ', ')
       print('  > '..info.kind..(translations[info.kind] and '()' or '')..' {'..b..'}')
     end
+    print()
   end
   if info.error ~= nil then error(info.error) end
   r.made = info.out
