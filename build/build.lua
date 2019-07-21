@@ -251,7 +251,7 @@ local function parsemakefile(fn, cwd)
     elseif state == 'outsiderule' then
       if l:find '^[^#%s].*:' then
         state = 'rulepreamble'
-        cur = {vars = vars}
+        cur = {vars = vars, cwd =cwd}
         cur.outs, cur.deps = l:match '^(.-):%s*(.*)$'
         assert(not cur.outs:find '%$' and not cur.deps:find '%$', l)
         local x = {}
@@ -306,7 +306,11 @@ local function parsemakefile(fn, cwd)
             end
           end
         elseif l:find '%g' then  -- Recipe line
-          table.insert(cur, l:sub(2))
+          assert(l:sub(1,1) == '\t', l)
+          if #cur > 0 and cur[#cur]:sub(-1) == '\\' then
+            cur[#cur] = cur[#cur]:sub(1,-2):gsub('%s*$', '')
+              ..' '..l:gsub('^%s*', '')
+          else table.insert(cur, l:sub(2)) end
         end
       end
     end
@@ -316,7 +320,6 @@ end
 -- Step 3: Hunt down the files that we need to generate, and find or construct
 -- a rule to generate them. Also do some post-processing for expanding vars.
 local function findrule(fn)
-  if type(fn) == 'string' then fn = path(fn) end
   local r = ruleset.normal[fn.path]
   if not r then
     -- First check if the file actually exists already.
@@ -326,17 +329,76 @@ local function findrule(fn)
     end
 
     -- If we haven't found anything by now, error.
-    assert(r, fn.path)
+    assert(r, 'No rule to generate '..fn.path..'!')
   end
+  return r
+end
 
-  print(table.unpack(r.outs))
-  print(table.unpack(r.deps))
-  print(table.unpack(r))
+-- Step 4: For some file, analyze the rule that generates it and determine its
+-- properties and figure out the core recipe command for translation.
+-- The return is the path to use to reference to the file for build purposes.
+local translations = {}
+local function make(fn)
+  if type(fn) == 'string' then fn = path(fn) end
+  local r = findrule(fn)
+  if not r then return fn.path end  -- We don't need to do anything.
+  if r.made then return r.made end  -- Don't duplicate work if at all possible.
+
+  -- First make sure all the deps have been made
+  local deps = {}
+  for i,d in ipairs(r.deps) do deps[i] = make(d) end
+
+  -- Next go through and identify every command, and collect together some
+  -- info to pass to the specific translator.
+  local info = {out = fn.path}
+  local handled,printout = {}, cfgbool 'DEBUG_MAKE_TRANSLATION'
+  for i,c in ipairs(r) do
+    local function check(tf, note, err)
+      if not tf then handled[i],info.error = note or 'error', err or '#'..i end
+    end
+    if c:find '$%(ACLOCAL%)' then handled[i] = 'Autotools: call to aclocal'
+    elseif c:find '$%(AUTOHEADER%)' then handled[i] = 'Autotools: call to autoheader'
+    elseif c:find '$%(AUTOCONF%)' then handled[i] = 'Autotools: call to autoconf'
+    elseif c:find '$%(SHELL%) %./config%.status' then handled[i] = 'Autotools: call to config.status'
+    elseif c:find '^@?rm %-f' then
+      handled[i] = 'Make: force removal of file'
+      check(not info.kind)
+    elseif c == 'touch $@' then handled[i] = 'Make: touch of output file'
+    elseif c:find '^@?test %-f $@ ||' then
+      handled[i] = 'Autotools: timestamp management'
+      check(c:find 'stamp%-h1')
+    elseif c:find '^$%(CMAKE_COMMAND%)' then
+      if c:find '%-E cmake_progress_start' then handled[i] = 'CMake: progress bar markers'
+      elseif c:find '%-%-check%-build%-system' then handled[i] = 'CMake: makefile regeneration'
+      else printout = true end
+    else printout = true end
+  end
+  if info.error ~= nil then printout = true end
+
+  -- If anything had troubles, print out a note to the output on the subject.
+  if printout and #r > 0 then
+    local function p(x, y) return x..(x ~= y and ' ('..y..')' or '') end
+    print(p(info.out, fn.path)..' | '..(#r.cwd > 0 and r.cwd or '.')..':')
+    for i,d in ipairs(deps) do print('  + '..p(d, r.deps[i])) end
+    for i,c in ipairs(r) do
+      if handled[i] then print('  # '..handled[i]) end
+      print('  '..(handled[i] and '^' or '$')..' '..c)
+    end
+    if info.kind then
+      local b = {}
+      for k,v in pairs(info) do table.insert(b, k..'='..tostring(v)) end
+      b = table.concat(b, ', ')
+      print('  > '..info.kind..(translations[info.kind] and '()' or '')..' {'..b..'}')
+    end
+  end
+  if info.error ~= nil then error(info.error) end
+  r.made = info.out
+  return r.made
 end
 
 -- Step N: Fire it off!
 parsemakefile 'Makefile'
-findrule 'all'
+make 'all'
 
 -- Error with a magic value to ensure the thing gets finalized
 error(finalize)
