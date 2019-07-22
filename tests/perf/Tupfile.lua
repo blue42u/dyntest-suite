@@ -24,16 +24,11 @@ for _,f in ipairs(forall(function(i, t)
       '../../reference/dyninst/<libs>',
       '../../reference/hpctoolkit/<libs>', lds,
     },
-    cmd = llp..'./hpcrun -e REALTIME@100 -t -o %o.tmp %C && '
-      ..'tar -C %o.tmp -cJf %o . && LD_PRELOAD= rm -rf %o.tmp',
+    cmd = llp..'./hpcrun.sh %o %C',
     output = '%t.%i.measurements.txz', serialize = true, redirect = '/dev/null',
   }
 end)) do
-  local untar = 'tar xJf %f --one-top-level=%o.tmpa'
-  local prof = '../../reference/hpctoolkit/install/bin/hpcprof -o %o.tmpb %o.tmpa'
-  local retar = 'tar -C %o.tmpb -cJf %o .'
-  local clean = 'rm -rf %o.tmpa %o.tmpb'
   tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<bin>'}},
-    table.concat({untar, prof, retar, clean}, ' && '),
+    './hpcprof.sh %f %o',
     f:gsub('measurements%.', ''))
 end
