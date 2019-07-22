@@ -29,11 +29,11 @@ local function plines(cmd, fmt)
     return x
   end, s, v
 end
--- local function testexec(cmd)
---   local p = io.popen(cmd, 'r')
---   for _ in p:lines(1024) do end
---   return not not p:close()
--- end
+local function testexec(cmd)
+  local p = io.popen(cmd, 'r')
+  for _ in p:lines(1024) do end
+  return not not p:close()
+end
 
 -- Unmagic the magic characters within s, for stitching together patterns.
 local function unmagic(s)
@@ -48,11 +48,22 @@ local function shell(...)
       for i,v in ipairs(w) do x[i] = shellw(v) end
       return table.concat(x, ' ')
     end
-    -- We don't handle subshells, so error if we see one.
-    assert(not w:find '`', "Subprocess in shell argument "..w)
-    local cnt
-    w,cnt = w:gsub('[\n$"]', '\\%0')
-    return cnt == 0 and not w:find '[\\%s]' and w or '"'..w..'"'
+    -- Fold any subshells out of sight for the time being
+    local subs = {}
+    w = w:gsub('`.-`', function(ss)
+      subs[#subs+1] = ss
+      local id = ('\0%d\0'):format(#subs)
+      subs[id] = ss
+      return id
+    end)
+    local quote
+    w,quote = w:gsub('[\n$"]', '\\%0')
+    if quote == 0 and not w:find '[\\%s]' then quote = false end
+    -- Unfold the subshells
+    w = w:gsub('\0%d+\0', function(id)
+      return quote and subs[id] or '"'..subs[id]..'"'
+    end)
+    return quote and '"'..w..'"' or w
   end
   local function pre(c)
     local prefix = ''
@@ -72,6 +83,9 @@ local function shell(...)
   local function post(c)
     local postfix = ''
     if c.onlyout then postfix = postfix..' 2>&1' end
+    if c.rein then postfix = postfix..' < '..c.rein end
+    if c.reout then postfix = postfix..' > '..(c.reout or '/dev/null') end
+    if c.reerr then postfix = postfix..' 2> '..(c.reerr or '/dev/null') end
     return postfix
   end
 
@@ -101,8 +115,8 @@ local function shell(...)
   return sequence{...}
 end
 -- local function sexec(...) return exec(shell(...)) end
--- local function slexec(...) return lexec(shell(...)) end
--- local function stestexec(...) return testexec(shell(...)) end
+local function slexec(...) return lexec(shell(...)) end
+local function stestexec(...) return testexec(shell(...)) end
 local function slines(...) return plines(shell(...)) end
 
 -- Command line argument parser, similar to getopt but better. Option string:
@@ -129,28 +143,52 @@ local function getopt(str, opts, handlers)
 
   -- Next iteratively fold any string-like structures into magic characters.
   local substrs = {}
-  repeat local cnt
-    str,cnt = str:gsub('([`"\'])(.*)', function(d, all)
-      local s,o = all:match('^(.-)'..d..'(.*)')
-      substrs[#substrs+1] = s
-      local id = ('\0%d\0'):format(#substrs)
-      substrs[id] = s
-      return id..o
+  local function substr(s)
+    substrs[#substrs+1] = s
+    local id = ('\0%d\0'):format(#substrs)
+    substrs[id] = s
+    return id
+  end
+  repeat local done = true
+    str = str:gsub('([^\\])([`"\'])(.*)', function(p,q,rest)
+      local s,extra = rest:match('^(.-[^\\])'..q..'(.*)')
+      assert(s, 'Unfinished quoted string!')
+      s = s:gsub('\\'..q, q)  -- Any escaped chars can live unescaped
+      if q ~= '`' then q = '' end  -- Normal strings will be folded together
+      done = false
+      return p..substr(q..s..q)..extra
     end)
-  until cnt == 0
+  until done
+
+  -- Any remaining quotes are escaped, wipe off the backslashes
+  str = str:gsub('\\([`"\'])', '%1')
 
   -- Function to handle arguments and construct bits.
   local bits = {}
-  local function handle(flag, pre, arg)
+  local function handle(flag, pre, oneword, arg)
+    local function ba(x) table.move(x, 1,#x, #bits+1, bits) end
+    local function pass() if oneword then ba{pre..arg} else ba{pre, arg} end end
     local h = handlers[flag]
-    if h == nil or h == true then bits[#bits+1] = pre..arg  -- Pass through with no fuss
+    if h == nil or h == true then pass()  -- Pass through with no fuss
     elseif h == false then return  -- Skip argument
-    elseif type(h) == 'string' then bits[#bits+1] = (h:gsub('%%(%d)',{['0']=pre,['1']=arg}))
     elseif type(h) == 'function' then
-      local x = h(arg, pre)
-      if x == nil then bits[#bits+1] = pre..arg
-      elseif x == false then return
-      else assert(type(x) == 'string'); bits[#bits+1] = x end
+      local x = {h(arg, pre)}
+      if #x == 0 then pass()
+      elseif x[1] == false then return
+      else
+        for i,y in ipairs(x) do
+          assert(type(y) == 'string')
+          if y == '?' then
+            if oneword then x[i],x[i+1] = '', pre..x[i+1]
+            else x[i] = pre end
+          end
+        end
+        local i = 1
+        repeat
+          if x[i] == '' then table.remove(x,i) else i = i + 1 end
+        until not x[i]
+        ba(x)
+      end
     else error('Unable to handle handler '..tostring(h)) end
   end
 
@@ -160,15 +198,16 @@ local function getopt(str, opts, handlers)
     repeat local cnt
       w,cnt = w:gsub('\0%d+\0', substrs)
     until cnt == 0
-    w = w:gsub('^["\']', ''):gsub('["\']$', '')
+    local q = w:match '^["\']'
+    if q and w:find(q..'$') then w = w:gsub('^'..q, ''):gsub(q..'$', '') end
     if w:sub(1,1) == '-' then  -- Option argument
       if flags[w:sub(2,2)] then  -- Short option
         local f = flags[w:sub(2,2)]
         if #w > 2 and types[f] == ',' then error('Argument given to non-argument flag: '..w) end
         if #w == 2 and types[f] == ':' then  -- Argument in next word
-          cur,cpre = f, '-'..f..' '
+          cur,cpre = f, '-'..f
         else  -- Argument (if present) in this word
-          handle(f, w:sub(1,2), w:sub(3))
+          handle(f, w:sub(1,2), true, w:sub(3))
         end
       else  -- Must be a long option
         local p,f,e,a = w:match '^(%-%-?)([^=]+)(=?)(.*)'
@@ -177,15 +216,15 @@ local function getopt(str, opts, handlers)
           if types[f] == ',' and e ~= '' then
             error('Argument given to non-argument flag: '..w)
           end
-          handle(f, p..f, a)
-        else cur,cpre = f,p..f..' ' end -- Argument in next word
+          handle(f, p..f..e, true, a)
+        else cur,cpre = f,p..f end -- Argument in next word
       end
     else  -- Non-option argument
-      if cur then handle(cur, cpre, w); cur = nil  -- Argument to a flag
-      else handle(first, '', w); first = false end  -- Positional arg
+      if cur then handle(cur, cpre, false, w); cur = nil  -- Argument to a flag
+      else handle(first, '', false, w); first = false end  -- Positional arg
     end
   end
-  return table.concat(bits, ' ')
+  return bits
 end
 
 -- Simple path munching function, takes a path and resolves any ../
@@ -252,17 +291,22 @@ end
 -- absolute or relative versions.
 local function path(p, cwd)
   if p:sub(1,1) ~= '/' then  -- Path relative to builddir/cwd, make absolute.
-    p = canonicalize(realbuilddir..dir(cwd or '')..p)
+    p = realbuilddir..dir(cwd or '')..p
   end
+  p = canonicalize(p)
   local o = {absolute = p}
   for from,to in pairs(transforms) do  -- Try to transform it.
-    if p:sub(1,#from) == from then
+    local r,s
+    if dir(p) == from then r,s = to,''
+    elseif p:sub(1,#from) == from then r,s = to,p:sub(#from+1)
+    end
+    if r then
       if o.root then error(o.root..' & '..to..' match '..p) end
-      o.root,o.stem = to,p:sub(#from+1)
+      o.root,o.stem = r,s
+      o.path = o.root..o.stem
       if to == srcdir then o.source = true
       elseif to == '' then o.build = true
       else o.external = true end
-      o.path = o.root..o.stem
     end
   end
   return o
@@ -424,10 +468,10 @@ local function findrule(fn, ruleset)
     if fn.external then return end
 
     -- If its a source file, check if it exists yet
-    if fn.source and (glob(fn.path) or glob(fn.stem)) then return end
+    if fn.source and glob(fn.path) then return end
 
     -- If it looks like a build file, check if its actually a source file
-    if fn.build and glob(srcdir..fn.stem) then return end
+    if fn.build and glob(srcdir..fn.stem) then return nil, 'source' end
 
     -- Try hunting down an implicit rule to handle this one. Since this is a
     -- "use-what-works" recursive search, the logic is bottled in its own func.
@@ -633,10 +677,13 @@ end
 local translations = {}
 local function make(fn, ruleset)
   if madefiles[fn.path] then return madefiles[fn.path] end  -- Some are already done.
-  local r = findrule(fn, ruleset)
+  local r,src = findrule(fn, ruleset)
+  if src then  -- Its actually a source file
+    return {path = srcdir..fn.stem, original=fn.path}
+  end
   if not r then return fn end  -- We don't need to do anything.
   if r.made then return r.made end  -- Don't duplicate work if at all possible.
-  local info = {path = fn.path}
+  local info = {path = fn.path, cwd = r.cwd}
 
   -- First make sure all the deps have been made
   info.deps = {}
@@ -654,7 +701,8 @@ local function make(fn, ruleset)
     elseif c:find '$%(AUTOHEADER%)' then handled[i] = 'Autotools: call to autoheader'
     elseif c:find '$%(AUTOCONF%)' then handled[i] = 'Autotools: call to autoconf'
     elseif c:find '$%(AUTOMAKE%)' then handled[i] = 'Autotools: call to autoconf'
-    elseif c:find '$%(SHELL%) %./config%.status' then handled[i] = 'Autotools: call to config.status'
+    elseif c:find '$%(SHELL%) %./config%.status' then
+      handled[i] = 'Autotools: call to config.status'
     elseif c:find '^@?rm %-f' then
       handled[i] = 'Make: force removal of file'
       check(not info.kind)
@@ -700,6 +748,30 @@ local function make(fn, ruleset)
       table.insert(info.rulesets, ruleset)
       check(not info.kind)
       info.kind = 'make'
+    elseif c:find '$%(COMPILE%.?o?s?%)' then
+      handled[i] = 'CC: Autotools-style compile command'
+      check(not info.kind)
+      info.kind, info.cmd = 'compile', ex:match ';%s*(.+)' or ex
+      info.ruleset = ruleset
+    elseif c:find '^gawk' then handled[i] = 'Awk: Elfutils gawk command'
+      check(not info.kind)
+      info.kind, info.cmd = 'awk', ex
+    elseif c:find '^sed' then handled[i] = 'Sed: Elfutils sed command'
+      check(not info.kind)
+      info.kind, info.cmd = 'sed', ex
+    elseif ex:find ';%s*m4' then handled[i] = 'M4: Elfutils m4 command'
+      check(not info.kind)
+      info.kind, info.cmd = 'm4', ex:match ';%s*(.+)' or ex
+    elseif ex:find '^mv' then
+      handled[i] = 'Awk/Sed/M4: Post-move command'
+      check(info.kind == 'awk' or info.kind == 'sed' or info.kind == 'm4')
+      getopt(ex, 'f,', {
+        [false] = function(x)
+          if not info.mvfrom then info.mvfrom = x
+          elseif not info.mvto then info.mvto = x
+          else error(x) end
+        end,
+      })
     else printout = true end
   end
   if info.error ~= nil then printout = true end
@@ -732,15 +804,110 @@ end
 
 -- Step 5: Based on the info extracted from above, break up and translate into
 -- something that Tup can handle with ease.
-function translations.make(info)
+function translations.make(info)  -- Recursive make call(s)
   for i,t in ipairs(info.targets) do
     local rs = info.rulesets and info.rulesets[i] or info.ruleset
     make(t, rs)
   end
 end
+function translations.compile(info)  -- Compilation command
+  local function pmatch(a, p)
+    if a.original == p then return a.path
+    elseif a.path == p then return p
+    else return make(path(p, info.cwd), info.ruleset).path end
+  end
+  local r = {inputs={extra_inputs={'<_gen>'}}, outputs={}}
+  r.command = '^o CC %o^ '..shell(getopt(info.cmd,
+    'D:I:std:W;f:g,O;c,o:l:', {
+    [false] = function(p)
+      table.insert(r.inputs, pmatch(info.deps[#r.inputs+1], p))
+      return r.inputs[#r.inputs]
+    end,
+    o = function(p)
+      table.insert(r.outputs, info.path == p and p or path(p, info.cwd).path)
+      return '?',r.outputs[#r.outputs]
+    end,
+    I = function(p)
+      p = path(p, info.cwd)
+      return '?',(p.path and #p.path == 0 and '.' or p.path or p.absolute)
+    end,
+  }))
+  if r.inputs[1]:find '^libcpu/' then return end
+  tup.frule(r)
+end
+function translations.awk(info)  -- Awk call
+  local r = {inputs={}, outputs={[2]='<_gen>'}}
+  r.command = '^o AWK %o^ '..shell(getopt(info.cmd, 'f:', {
+    f = function(p)
+      p = path(p); assert(p.source)
+      return '?',p.path
+    end,
+    [false] = function(p)
+      if p ~= '>' then
+        p = path(p); assert(p.source)
+        if #r.inputs == 0 then r.inputs[1] = p.path; return '?','%f' end
+        if p.path == info.mvfrom then p = path(info.mvto); assert(p.source) end
+        r.outputs[1] = p.stem
+        return '?','%o'
+      end
+    end,
+  }))
+  tup.frule(r)
+end
+function translations.sed(info)  -- Sed call
+  local r = {inputs={}, outputs={[2]='<_gen>'}}
+  r.command = '^o SED %o^ '..shell(getopt(info.cmd, 'e:', {
+    [false] = function(p)
+      if p ~= '>' then
+        p = path(p)
+        if #r.inputs == 0 then
+          r.inputs[1] = p.build and srcdir..p.stem or p.path
+          return '?','%f'
+        end
+        if p.path == info.mvfrom then p = path(info.mvto) end
+        r.outputs[1] = p.stem
+        return '?','%o'
+      end
+    end,
+  }))
+  tup.frule(r)
+end
+function translations.m4(info)
+  local r = {inputs={}, outputs={[2]='<_gen>'}}
+  r.command = '^o M4 %o^ '..shell(getopt(info.cmd, 'D:', {
+    [false] = function(p)
+      if p ~= '>' then
+        p = path(p)
+        if #r.inputs == 0 then
+          assert(p.source, p.path)
+          r.inputs[1] = p.path
+          return '?','%f'
+        end
+        if p.path == info.mvfrom then p = path(info.mvto) end
+        assert(p.build)
+        r.outputs[1] = p.path
+        return '?','%o'
+      end
+    end,
+  }))
+  tup.frule(r)
+end
 
--- Step N: Fire it off!
+-- Step 6: Fire it off!
 make(path 'all', parsemakefile 'Makefile')
+
+-- Step 7: Some files still aren't handled, outputs from Autotools and CMake.
+-- Use gzip+base64 for storage in Tup's db, and copy over to the output.
+for _,f in ipairs{
+  'config.h',  -- Elfutils config header
+} do
+  if stestexec{'stat', tmpdir..f, onlyout=true, reout=false} then
+    local b64 = slexec{{'gzip', '-n', rein=tmpdir..f}, {'base64', '-w0'}}
+    tup.rule('^o Copy %o^ '..shell{
+      {'echo', b64}, {'base64', '-d'}, {'gzip', '-d', reout='%o'}
+    }, {f, '<_gen>'})
+  end
+end
 
 -- Error with a magic value to ensure the thing gets finalized
 error(finalize)
