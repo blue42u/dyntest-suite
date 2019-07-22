@@ -259,10 +259,10 @@ local function path(p, cwd)
     if p:sub(1,#from) == from then
       if o.root then error(o.root..' & '..to..' match '..p) end
       o.root,o.stem = to,p:sub(#from+1)
-      o.path = o.root..o.stem
       if to == srcdir then o.source = true
       elseif to == '' then o.build = true
       else o.external = true end
+      o.path = o.root..o.stem
     end
   end
   return o
@@ -346,7 +346,7 @@ local function parsemakefile(fn, cwd)
     elseif state == 'outsiderule' then
       if l:find '^[^#%s].*:' then
         state = 'rulepreamble'
-        cur = {vars = vars, cwd =cwd}
+        cur = {vars = vars, cwd = cwd}
         cur.outs, cur.deps = l:match '^(.-):%s*(.*)$'
         assert(not cur.outs:find '%$' and not cur.deps:find '%$', l)
         local x = {}
@@ -377,6 +377,7 @@ local function parsemakefile(fn, cwd)
           if cur.implicit then  -- Implicit rule
             local rs = ruleset.templates
             for _,p in ipairs(cur.outs) do
+              p = p.path
               if not rs[p] then rs[p] = {} end
               rs[p][cur] = true
             end
@@ -415,16 +416,86 @@ end
 
 -- Step 3: Hunt down the files that we need to generate, and find or construct
 -- a rule to generate them. Also do some post-processing for expanding vars.
+local madefiles = {}
 local function findrule(fn, ruleset)
   local r = ruleset.normal[fn.path]
-  if not r then
+  if not r or #r == 0 then
     -- If its part of the externals, it exists already so just ignore it.
     if fn.external then return end
 
-    -- Then check if its already been handled somewhere in here.
-    if glob(fn.path) or glob(fn.stem) then return end
+    -- If its a source file, check if it exists yet
+    if fn.source and (glob(fn.path) or glob(fn.stem)) then return end
 
-    -- If we haven't found anything by now, error.
+    -- If it looks like a build file, check if its actually a source file
+    if fn.build and glob(srcdir..fn.stem) then return end
+
+    -- Try hunting down an implicit rule to handle this one. Since this is a
+    -- "use-what-works" recursive search, the logic is bottled in its own func.
+    local function search(f)
+      local final,fstem
+      for pat in pairs(ruleset.templates) do
+        local p = '^'..unmagic(pat:gsub('%%', '!:!')):gsub('!:!', '(.+)')..'$'
+        local m = f.path:match(p)
+        if m then
+          if final then error(pat..' & '..final..' match '..f.path) end
+          final,fstem = pat,m
+        end
+      end
+      if final then
+        local irs = ruleset.templates[final]
+        local any = false
+        for ir in pairs(irs) do if #ir > 0 then any = true
+          local ok = true
+          for _,d in ipairs(ir.deps) do
+            do
+              local nd = {}
+              for k,v in pairs(d) do nd[k] = v end
+              nd.stem = d.stem:gsub('%%', fstem)
+              nd.path = nd.root..nd.stem
+              d = nd
+            end
+            if d.external then ok = true
+            elseif d.source and (glob(d.path) or glob(d.stem)) then ok = true
+            elseif d.build and (glob(srcdir..d.stem)) then ok = true
+            elseif ruleset.normal[d.path] then ok = true
+            elseif madefiles[d.path] then ok = true
+            elseif search(d) then ok = true
+            else ok = false; break end
+          end
+          if ok then return ir,fstem end
+        end end
+        assert(not any, 'No successful implicit rule for '..f.path)
+      end
+    end
+    local ir,istem = search(fn)
+    if ir then  -- Search successful, copy over the relevent info
+      r = r or {outs = {}, deps = {}, vars = ir.vars, cwd = ir.cwd}
+      for i,o in ipairs(ir.outs) do
+        do
+          local n = {}
+          for k,v in pairs(o) do n[k] = v end
+          n.stem = o.stem:gsub('%%', istem)
+          n.path = n.root..n.stem
+          o = n
+        end
+        if r.outs[i] then assert(r.outs[i].path == o.path) end
+        r.outs[i] = o
+      end
+      for _,d in ipairs(ir.deps) do
+        do
+          local n = {}
+          for k,v in pairs(d) do n[k] = v end
+          n.stem = d.stem:gsub('%%', istem)
+          n.path = n.root..n.stem
+          d = n
+        end
+        table.insert(r.deps, d)
+      end
+      table.move(ir, 1,#ir, 1,r)
+      r.stem = istem
+    end
+
+    -- Otherwise, its probably a pseudo-phony.
     assert(r, 'No rule to generate '..(fn.path or fn.absolute)..'!')
   end
   if r.found then return r end  -- Don't duplicate work if possible.
@@ -525,7 +596,7 @@ local function findrule(fn, ruleset)
     if cmd == 'cd $(srcdir);pwd' then return expand('$(srcdir)', vs)
     elseif cmd == 'pwd' then return './'..r.cwd
     elseif cmd == '$(AR) t ../libdwfl/libdwfl.a' then
-      return 'XXXlibdwfl.a'  -- luacheck: no max line length
+      return 'XXXlibdwfl.a'
     elseif cmd == '$(AR) t ../libdwelf/libdwelf.a' then
       return 'XXXlibdwelf.a'
     else error('Unhandled shell: '..cmd) end
@@ -552,20 +623,19 @@ local function findrule(fn, ruleset)
   }, {__index=r.vars})
   function r.expand(s) return expand(s, r.vars) end
   r.ex = {}
-  for i,c in ipairs(r) do r.ex[i] = r.expand(c:gsub('^[@-]*', '')) end
+  for i,c in ipairs(r) do r.ex[i] = r.expand(c):gsub('^[@-]*', '') end
 
   return r
 end
 
 -- Step 4: For some file, analyze the rule that generates it and determine its
 -- properties and figure out the core recipe command for translation.
-local translations, madefiles = {}, {}
+local translations = {}
 local function make(fn, ruleset)
   if madefiles[fn.path] then return madefiles[fn.path] end  -- Some are already done.
   local r = findrule(fn, ruleset)
   if not r then return fn end  -- We don't need to do anything.
   if r.made then return r.made end  -- Don't duplicate work if at all possible.
-  if r.antirecurse then return end  -- When just scanning, don't recurse.
   local info = {path = fn.path}
 
   -- First make sure all the deps have been made
@@ -583,6 +653,7 @@ local function make(fn, ruleset)
     if c:find '$%(ACLOCAL%)' then handled[i] = 'Autotools: call to aclocal'
     elseif c:find '$%(AUTOHEADER%)' then handled[i] = 'Autotools: call to autoheader'
     elseif c:find '$%(AUTOCONF%)' then handled[i] = 'Autotools: call to autoconf'
+    elseif c:find '$%(AUTOMAKE%)' then handled[i] = 'Autotools: call to autoconf'
     elseif c:find '$%(SHELL%) %./config%.status' then handled[i] = 'Autotools: call to config.status'
     elseif c:find '^@?rm %-f' then
       handled[i] = 'Make: force removal of file'
