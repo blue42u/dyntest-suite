@@ -1,4 +1,6 @@
--- luacheck: std lua53, new globals tup
+-- luacheck: std lua53, new globals tup serpent
+
+tup.include '../external/serpent.lua'
 
 -- Handy functions for handling subprocesses
 local function pclose(f)
@@ -258,8 +260,9 @@ local function path(p, cwd)
       if o.root then error(o.root..' & '..to..' match '..p) end
       o.root,o.stem = to,p:sub(#from+1)
       o.path = o.root..o.stem
-      if to == srcdir then o.source = true end
-      if to == '' then o.build = true end
+      if to == srcdir then o.source = true
+      elseif to == '' then o.build = true
+      else o.external = true end
     end
   end
   return o
@@ -312,14 +315,15 @@ else error("Unable to determine build system!") end
 -- construct a global view of the world with all the bits.
 local makevarpatt = '[%w_<>@.?%%^*+-]+'
 local parsemakecache = {}
-local ruleset = {templates={}, normal={}}
 local function parsemakefile(fn, cwd)
   cwd = dir(cwd or '')
   if parsemakecache[cwd..fn] then
-    assert(parsemakecache[cwd..fn] == cwd, 'Makefile '..cwd..fn..' parsed under different working dirs!')
-    return
+    assert(parsemakecache[cwd..fn].cwd == cwd,
+      'Makefile '..cwd..fn..' parsed under different working dirs!')
+    return parsemakecache[cwd..fn]
   end
-  parsemakecache[cwd..fn] = cwd
+  local ruleset = {templates={}, normal={}, cwd=cwd}
+  parsemakecache[cwd..fn] = ruleset
 
   -- A simple single-state machine for parsing.
   local state = 'preamble'
@@ -348,17 +352,17 @@ local function parsemakefile(fn, cwd)
         local x = {}
         for p in cur.outs:gmatch '%g+' do
           if not cur.target then cur.target = p end
-          p = path(p, cwd).path
-          if not p then x = false; break end
-          if p:find '%%' then cur.implicit = true end
+          p = path(p, cwd)
+          if not p.path then x = false; break end
+          if p.path:find '%%' then cur.implicit = true end
           table.insert(x, p)
         end
         if not x then cur = nil else
           cur.outs = x
           local y = {}
           for p in cur.deps:gmatch '%g+' do
-            p = path(p, cwd).path
-            if p then table.insert(y, p) end
+            p = path(p, cwd)
+            if p.path then table.insert(y, p) end
           end
           cur.deps = y
         end
@@ -379,6 +383,7 @@ local function parsemakefile(fn, cwd)
           else  -- Normal rule, file output (in theory)
             local rs = ruleset.normal
             for _,p in ipairs(cur.outs) do
+              p = p.path
               if rs[p] then  -- Another rule already placed down.
                 if #rs[p] == 0 then  -- Other rule is dep-only. Take its deps.
                   table.move(rs[p].deps, 1,#rs[p].deps, #cur.deps+1, cur.deps)
@@ -386,16 +391,11 @@ local function parsemakefile(fn, cwd)
                 elseif #cur == 0 then  -- I'm dep-only, append my new deps
                   table.move(cur.deps, 1,#cur.deps, #rs[p].deps+1, rs[p].deps)
                 else  -- Two recipes for the same file, error.
-                  if not cur[1]:find '$%(MAKE%)'  -- For autotools
-                    and not cur[1]:find '%-%-check%-build%-system'  -- For CMake
-                    and not rs[p][1]:find '$%(MAKE%)'  -- For CMake too
-                  then
-                    print(table.unpack(rs[p].outs))
-                    print(table.unpack(rs[p]))
-                    print(table.unpack(cur.outs))
-                    print(table.unpack(cur))
-                    error(cwd..'| '..p)
-                  end
+                  print(table.unpack(rs[p].outs))
+                  print(table.unpack(rs[p]))
+                  print(table.unpack(cur.outs))
+                  print(table.unpack(cur))
+                  error(cwd..'| '..p)
                 end
               else rs[p] = cur end
             end
@@ -410,21 +410,22 @@ local function parsemakefile(fn, cwd)
       end
     end
   end
+  return ruleset
 end
 
 -- Step 3: Hunt down the files that we need to generate, and find or construct
 -- a rule to generate them. Also do some post-processing for expanding vars.
-local function findrule(fn)
+local function findrule(fn, ruleset)
   local r = ruleset.normal[fn.path]
   if not r then
-    -- First check if the file actually exists already.
-    if glob(fn.path) or glob(fn.stem) then
-      print('File '..fn.path..' already exists!')
-      return
-    end
+    -- If its part of the externals, it exists already so just ignore it.
+    if fn.external then return end
+
+    -- Then check if its already been handled somewhere in here.
+    if glob(fn.path) or glob(fn.stem) then return end
 
     -- If we haven't found anything by now, error.
-    assert(r, 'No rule to generate '..fn.path..'!')
+    assert(r, 'No rule to generate '..(fn.path or fn.absolute)..'!')
   end
   if r.found then return r end  -- Don't duplicate work if possible.
   r.found = true
@@ -543,9 +544,11 @@ local function findrule(fn)
   end
 
   -- Now expand the recipe in a separate table for further reference!
+  local x = {}
+  for i,d in ipairs(r.deps) do x[i] = d.path end
   r.vars = setmetatable({
-    ['@'] = r.outs[1], ['<'] = r.deps[1] or '', ['*'] = r.stem or '',
-    ['^'] = table.concat(r.deps, ' '),
+    ['@'] = r.outs[1].path, ['<'] = r.deps[1] and r.deps[1].path or '',
+    ['*'] = r.stem or '', ['^'] = table.concat(x, ' '),
   }, {__index=r.vars})
   function r.expand(s) return expand(s, r.vars) end
   r.ex = {}
@@ -556,27 +559,26 @@ end
 
 -- Step 4: For some file, analyze the rule that generates it and determine its
 -- properties and figure out the core recipe command for translation.
--- The return is the path to use to reference to the file for build purposes.
-local translations = {}
-local function make(fn)
-  if type(fn) == 'string' then fn = path(fn) end
-  local r = findrule(fn)
-  if not r then return fn.path end  -- We don't need to do anything.
+local translations, madefiles = {}, {}
+local function make(fn, ruleset)
+  if madefiles[fn.path] then return madefiles[fn.path] end  -- Some are already done.
+  local r = findrule(fn, ruleset)
+  if not r then return fn end  -- We don't need to do anything.
   if r.made then return r.made end  -- Don't duplicate work if at all possible.
   if r.antirecurse then return end  -- When just scanning, don't recurse.
+  local info = {path = fn.path}
 
   -- First make sure all the deps have been made
-  local deps = {}
-  for i,d in ipairs(r.deps) do deps[i] = make(d) end
+  info.deps = {}
+  for i,d in ipairs(r.deps) do info.deps[i] = make(d, ruleset) end
 
   -- Next go through and identify every command, and collect together some
   -- info to pass to the specific translator.
-  local info = {out = fn.path}
   local handled,printout = {}, cfgbool 'DEBUG_MAKE_TRANSLATION'
   for i,c in ipairs(r) do
     local ex = r.ex[i]
     local function check(tf, note, err)
-      if not tf then handled[i],info.error = note or 'error', err or '#'..i end
+      if not tf then handled[i],fn.error = note or 'error', err or '#'..i end
     end
     if c:find '$%(ACLOCAL%)' then handled[i] = 'Autotools: call to aclocal'
     elseif c:find '$%(AUTOHEADER%)' then handled[i] = 'Autotools: call to autoheader'
@@ -589,56 +591,85 @@ local function make(fn)
     elseif c:find '^@?test %-f $@ ||' then
       handled[i] = 'Autotools: timestamp management'
       check(c:find 'stamp%-h1')
-    elseif c:find '^$%(CMAKE_COMMAND%)' then
+    elseif c:find '^@?$%(CMAKE_COMMAND%)' then
       if c:find '%-E cmake_progress_start' then handled[i] = 'CMake: progress bar markers'
       elseif c:find '%-%-check%-build%-system' then handled[i] = 'CMake: makefile regeneration'
+      elseif c:find '%-E cmake_echo_color' then handled[i] = 'CMake: status message'
       else printout = true end
     elseif c:find '^$%(MAKE%)' then
-      local mf,cd,targs = nil,nil,{}
+      handled[i] = 'Make: recursive subcall'
+      local mf,cd = nil, nil
+      info.targets = {}
       getopt(ex, 'no-print-directory,f:', {
         f = function(f) mf = f end,
-        [false] = function(t) table.insert(targs, t) end,
+        [false] = function(t) table.insert(info.targets, path(t, r.cwd)) end,
       })
-      mf = mf or 'Makefile'
-      cd = r.cwd..dir(cd or '')
-      handled[i] = 'Make: '..(mf and '('..mf..') ' or '')
-        ..'@'..(#cd > 0 and cd or './')..' '..table.concat(targs, ' ')
-      -- Unlike in other cases, we handle this directly here. Saves a call.
-      assert(not info.kind or info.kind == 'make'); info.kind = 'make'
-      parsemakefile(mf, cd)
-      r.antirecurse = true
-      for _,t in ipairs(targs) do make(cd..t) end
-      r.antirecurse = nil
+      mf,cd = mf or 'Makefile', r.cwd..dir(cd or '')
+      info.ruleset = parsemakefile(mf, cd)
+      check(info.kind == 'make' or not info.kind)
+      info.kind = 'make'
+    elseif c == ([[@fail=; if $(am__make_keepgoing); then failcom='fail=yes';
+    else failcom='exit 1'; fi; dot_seen=no; target=`echo $@ | sed
+    s/-recursive//`; case "$@" in distclean-* | maintainer-clean-*)
+    list='$(DIST_SUBDIRS)' ;; *) list='$(SUBDIRS)' ;; esac; for subdir in
+    $$list; do echo "Making $$target in $$subdir"; if test "$$subdir" = ".";
+    then dot_seen=yes; local_target="$$target-am"; else local_target="$$target";
+    fi; ($(am__cd) $$subdir && $(MAKE) $(AM_MAKEFLAGS) $$local_target) || eval
+    $$failcom; done; if test "$$dot_seen" = "no"; then $(MAKE) $(AM_MAKEFLAGS)
+    "$$target-am" || exit 1; fi; test -z "$$fail"]]):gsub('\n%s*', ' ') then
+      handled[i] = '# Autotools: Subdir recursive make call'
+      info.targets,info.rulesets = {},{}
+      assert(fn.path:match '[^/]+$' == 'all-recursive')
+      for sd in r.expand '$(SUBDIRS)':gmatch '%g+' do
+        assert(sd ~= '.')
+        table.insert(info.targets, path('all', r.cwd..dir(sd)))
+        table.insert(info.rulesets, parsemakefile('Makefile', r.cwd..dir(sd)))
+      end
+      table.insert(info.targets, path('all-am', r.cwd))
+      table.insert(info.rulesets, ruleset)
+      check(not info.kind)
+      info.kind = 'make'
     else printout = true end
   end
   if info.error ~= nil then printout = true end
 
+  -- Try to invoke the translator, if we fail print out the rule.
+  if translations[info.kind] then
+    translations[info.kind](info)
+  elseif info.kind then printout = true end
+
   -- If anything had troubles, print out a note to the output on the subject.
   if printout and #r > 0 then
     local function p(x, y) return x..(x ~= y and ' ('..y..')' or '') end
-    print(p(info.out, fn.path)..' | '..(#r.cwd > 0 and r.cwd or '.')..':')
-    for i,d in ipairs(deps) do print('  + '..p(d, r.deps[i])) end
+    print(p(info.path, fn.path)..' | '..(#r.cwd > 0 and r.cwd or '.')..':')
+    for i,d in ipairs(info.deps) do print('  + '..p(d.path, r.deps[i].path)) end
     for i,c in ipairs(r) do
       if handled[i] then print('  # '..handled[i]) end
       print('  '..(handled[i] and '^' or '$')..' '..c)
       if not handled[i] then print('  % '..r.ex[i]) end
     end
     if info.kind then
-      local b = {}
-      for k,v in pairs(info) do table.insert(b, k..'='..tostring(v)) end
-      b = table.concat(b, ', ')
-      print('  > '..info.kind..(translations[info.kind] and '()' or '')..' {'..b..'}')
+      print('  > '..info.kind..(translations[info.kind] and '()' or '')..' '
+        ..serpent.line(info, {comment=false, maxlevel=2}))
     end
     print()
   end
   if info.error ~= nil then error(info.error) end
-  r.made = info.out
-  return r.made
+  r.made,madefiles[fn.path] = info,info
+  return info
+end
+
+-- Step 5: Based on the info extracted from above, break up and translate into
+-- something that Tup can handle with ease.
+function translations.make(info)
+  for i,t in ipairs(info.targets) do
+    local rs = info.rulesets and info.rulesets[i] or info.ruleset
+    make(t, rs)
+  end
 end
 
 -- Step N: Fire it off!
-parsemakefile 'Makefile'
-make 'all'
+make(path 'all', parsemakefile 'Makefile')
 
 -- Error with a magic value to ensure the thing gets finalized
 error(finalize)
