@@ -219,7 +219,12 @@ local function getopt(str, opts, handlers)
           handle(f, p..f..e, true, a)
         else cur,cpre = f,p..f end -- Argument in next word
       end
+    elseif w:find '^>' then  -- Output redirection
+      assert(not first)
+      if #w == 1 then cur,cpre = '>', '>'
+      else handle('>', '>', true, w:sub(2)) end
     else  -- Non-option argument
+      assert(not w:find '^<')
       if cur then handle(cur, cpre, false, w); cur = nil  -- Argument to a flag
       else handle(first, '', false, w); first = false end  -- Positional arg
     end
@@ -703,7 +708,7 @@ local function make(fn, ruleset)
     elseif c:find '$%(AUTOMAKE%)' then handled[i] = 'Autotools: call to autoconf'
     elseif c:find '$%(SHELL%) %./config%.status' then
       handled[i] = 'Autotools: call to config.status'
-    elseif c:find '^@?rm %-f' then
+    elseif c:find '^@?rm %-f' or ex:find '^rm %-f' then
       handled[i] = 'Make: force removal of file'
       check(not info.kind)
     elseif c == 'touch $@' then handled[i] = 'Make: touch of output file'
@@ -753,18 +758,55 @@ local function make(fn, ruleset)
       check(not info.kind)
       info.kind, info.cmd = 'compile', ex:match ';%s*(.+)' or ex
       info.ruleset = ruleset
+    elseif c:find '$%(%g*_?AR%)' then
+      handled[i] = 'AR: Autotools-style archiving command'
+      check(not info.kind)
+      info.kind, info.cmd = 'ar', ex:match ';%s*(.+)' or ex
+    elseif c:find '$%(LINK%)' then
+      handled[i] = 'LD: Autotools-style linking commmand'
+      check(not info.kind)
+      info.kind, info.cmd = 'ld', ex:match ';%s*(.+)' or ex
     elseif c:find '^gawk' then handled[i] = 'Awk: Elfutils gawk command'
       check(not info.kind)
       info.kind, info.cmd = 'awk', ex
-    elseif c:find '^sed' then handled[i] = 'Sed: Elfutils sed command'
+    elseif c:find '^sed' or ex:find '^[^;]+;%s*sed' then
+      handled[i] = 'Sed: Elfutils sed command'
       check(not info.kind)
-      info.kind, info.cmd = 'sed', ex
+      info.kind, info.cmd, info.postsort = 'sed', ex:match ';(.-)%s|%s(.+)'
+      if not info.cmd then info.cmd = ex:match ';(.+)' or ex end
     elseif ex:find ';%s*m4' then handled[i] = 'M4: Elfutils m4 command'
       check(not info.kind)
       info.kind, info.cmd = 'm4', ex:match ';%s*(.+)' or ex
+    elseif c:find './%g+_gendis' then handled[i] = 'Elfutils: Gendis command'
+      check(not info.kind)
+      info.kind, info.cmd = 'gendis', ex:match ';%s*(.+)' or ex
+    elseif c:find '$%(RANLIB%)' then
+      handled[i] = 'AR: Ranlib'
+      check(info.kind == 'ar')
+      info.ranlib = true
+    elseif c:find '$%(YLWRAP%)' then
+      handled[i] = 'Elfutils: ylwrap command'
+      check(not info.kind)
+      if not glob 'config/ylwrap' then
+        local b64 = slexec{{'gzip', '-n', rein=realsrcdir..'config/ylwrap'},
+          {'base64', '-w0'}}
+        tup.rule('^o Copy %o^ '..shell(
+          {{'echo', b64}, {'base64', '-d'}, {'gzip', '-d', reout='%o'}},
+          {'chmod', '+x', '%o'}
+        ), {'config/ylwrap'})
+      end
+      info.kind = 'ylwrap'
+      local ylwrap = unmagic(r.expand '$(YLWRAP)')
+      info.cmd = './config/ylwrap '..ex:match(ylwrap..'%s+(.+)')
+    elseif c == '@$(textrel_check)' then
+      handled[i] = 'LD: Elfutils TEXTREL assertion'
+      check(info.kind == 'ld')
+      info.assert = ' && (if readelf -d %o | grep -Fq TEXTREL; then '
+        ..'echo "WARNING: TEXTREL found in \'%o\'"; exit 1; fi)'
     elseif ex:find '^mv' then
-      handled[i] = 'Awk/Sed/M4: Post-move command'
-      check(info.kind == 'awk' or info.kind == 'sed' or info.kind == 'm4')
+      handled[i] = '*: Post-move command'
+      check(info.kind == 'awk' or info.kind == 'sed' or info.kind == 'm4'
+        or info.kind == 'gendis')
       getopt(ex, 'f,', {
         [false] = function(x)
           if not info.mvfrom then info.mvfrom = x
@@ -778,7 +820,7 @@ local function make(fn, ruleset)
 
   -- Try to invoke the translator, if we fail print out the rule.
   if translations[info.kind] then
-    translations[info.kind](info)
+    if translations[info.kind](info) then printout = true end
   elseif info.kind then printout = true end
 
   -- If anything had troubles, print out a note to the output on the subject.
@@ -810,6 +852,14 @@ function translations.make(info)  -- Recursive make call(s)
     make(t, rs)
   end
 end
+function translations.ar(info)  -- Archive (static library) command
+  local r = {inputs={}, outputs={info.path}}
+  r.command = '^o AR %o^ ar '..(info.ranlib and 'S' or '')..'cr %o %f'
+  for i,p in ipairs(info.deps) do r.inputs[i] = p.path end
+  if info.path:find '^libcpu/' then return end
+  if fullbuilddir == 'latest/hpctoolkit/' then return end
+  tup.frule(r)
+end
 function translations.compile(info)  -- Compilation command
   local function pmatch(a, p)
     if a.original == p then return a.path
@@ -832,7 +882,58 @@ function translations.compile(info)  -- Compilation command
       return '?',(p.path and #p.path == 0 and '.' or p.path or p.absolute)
     end,
   }))
-  if r.inputs[1]:find '^libcpu/' then return end
+  tup.frule(r)
+end
+function translations.ldx(info)  -- Linking command
+  local function pmatch(a, p)
+    if a.original == p then return a.path
+    elseif a.path == p then return p
+    else return make(path(p, info.cwd), info.ruleset).path end
+  end
+  local r = {inputs={}, outputs={}}
+  print(info.cmd)
+  r.command = '^o LD %o^ '..shell(getopt(info.cmd,
+    'o:std:W;g,O;shared,l:D:f:', {
+    [false] = function(p)
+      table.insert(r.inputs, pmatch(info.deps[#r.inputs+1], p))
+      return r.inputs[#r.inputs]
+    end,
+    o = function(p)
+      if #r.outputs == 0 then
+        r.outputs[1] = info.path == p and p or path(p, info.cwd).path
+        return '?','%o'
+      else return false end
+    end,
+  }))..(info.assert or '')
+  if info.path:find '^libcpu/' then return end
+  if fullbuilddir == 'latest/hpctoolkit/' then return end
+  tup.frule(r)
+end
+
+function translations.ylwrap(info)
+  info.cmd = info.cmd:gsub('`echo%s+(%g+)%s+|.*`', function(f)
+    return f:gsub('cc$','hh'):gsub('cpp$','hpp'):gsub('cxx$','hxx')
+      :gsub('c%+%+$','h++'):gsub('c$','h')
+  end)
+  local r = {inputs={extra_inputs={'config/ylwrap'}}, outputs={}}
+  local froms = {}
+  for w in info.cmd:gmatch '%g+' do
+    if not r.command then r.command = {w}
+    elseif #r.inputs == 0 then
+      r.inputs[1] = info.deps[1].path; table.insert(r.command, '%f')
+    elseif w == '--' then break
+    elseif #froms == #r.outputs then  -- Next pair
+      table.insert(froms, w)
+      table.insert(r.command, w)
+    else  -- Finishing up a pair
+      w = w:find('^'..unmagic(info.cwd)) and w or path(w, info.cwd).path
+      if not w:find '%.output$' then
+        table.insert(r.outputs, w)
+      end
+      table.insert(r.command, w)
+    end
+  end
+  r.command = '^o GEN %o^ '..table.concat(r.command, ' ')..' '..info.cmd:match '%-%-.*'
   tup.frule(r)
 end
 function translations.awk(info)  -- Awk call
@@ -843,54 +944,84 @@ function translations.awk(info)  -- Awk call
       return '?',p.path
     end,
     [false] = function(p)
-      if p ~= '>' then
-        p = path(p); assert(p.source)
-        if #r.inputs == 0 then r.inputs[1] = p.path; return '?','%f' end
-        if p.path == info.mvfrom then p = path(info.mvto); assert(p.source) end
-        r.outputs[1] = p.stem
-        return '?','%o'
-      end
+      p = path(p); assert(p.source)
+      r.inputs[1] = p.path
+      return '?', '%f'
+    end,
+    ['>'] = function(p)
+      p = path(p); assert(p.source)
+      if p.path == info.mvfrom then p = path(info.mvto); assert(p.source) end
+      r.outputs[1] = p.stem
+      return '?', '%o'
     end,
   }))
   tup.frule(r)
 end
 function translations.sed(info)  -- Sed call
   local r = {inputs={}, outputs={[2]='<_gen>'}}
-  r.command = '^o SED %o^ '..shell(getopt(info.cmd, 'e:', {
-    [false] = function(p)
-      if p ~= '>' then
-        p = path(p)
-        if #r.inputs == 0 then
-          r.inputs[1] = p.build and srcdir..p.stem or p.path
-          return '?','%f'
-        end
-        if p.path == info.mvfrom then p = path(info.mvto) end
-        r.outputs[1] = p.stem
-        return '?','%o'
-      end
+  local eseen = false
+  r.command = '^o SED %o^ '..shell{getopt(info.cmd, 'e:', {
+    e = function() eseen = true end,
+    [false] = function()
+      if not eseen then eseen = true; return end
+      assert(#r.inputs == 0)
+      r.inputs[1] = info.deps[1].path
+      return '?', '%f'
     end,
-  }))
+    ['>'] = function(p)
+      assert(r.outputs[1] == nil)
+      p = path(p)
+      if p.path == info.mvfrom then p = path(info.mvto) end
+      r.outputs[1] = p.stem
+      return '?', '%o'
+    end,
+  }), info.postsort and getopt(info.postsort, 'u,', {
+    [false] = error,
+    ['>'] = function(p)
+      assert(r.outputs[1] == nil)
+      p = path(p)
+      if p.path == info.mvfrom then p = path(info.mvto) end
+      r.outputs[1] = p.stem
+      return '?', '%o'
+    end,
+  })}
   tup.frule(r)
 end
 function translations.m4(info)
   local r = {inputs={}, outputs={[2]='<_gen>'}}
   r.command = '^o M4 %o^ '..shell(getopt(info.cmd, 'D:', {
     [false] = function(p)
-      if p ~= '>' then
-        p = path(p)
-        if #r.inputs == 0 then
-          assert(p.source, p.path)
-          r.inputs[1] = p.path
-          return '?','%f'
-        end
-        if p.path == info.mvfrom then p = path(info.mvto) end
-        assert(p.build)
-        r.outputs[1] = p.path
-        return '?','%o'
-      end
+      assert(#r.inputs == 0)
+      p = path(p); assert(p.source, p.path)
+      r.inputs[1] = p.path
+      return '?','%f'
+    end,
+    ['>'] = function(p)
+      p = path(p)
+      if p.path == info.mvfrom then p = path(info.mvto) end
+      assert(p.build)
+      r.outputs[1] = p.path
+      return '?', '%o'
     end,
   }))
   tup.frule(r)
+end
+function translations.gendis(info)
+  local r = {inputs={}, outputs={[2]='<_gen>'}}
+  r.command = '^o GEN %o^ '..shell(getopt(info.cmd, '', {
+    [false] = function()
+      assert(#r.inputs == 0)
+      r.inputs[1] = info.deps[1].path
+      return '?','%f'
+    end,
+    ['>'] = function(p)
+      p = path(p)
+      if p.path == info.mvfrom then p = path(info.mvto) end
+      r.outputs[1] = p.build and p.path or p.stem
+      return '?', '%o'
+    end,
+  }))
+  -- tup.frule(r)
 end
 
 -- Step 6: Fire it off!
