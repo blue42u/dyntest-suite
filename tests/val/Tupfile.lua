@@ -3,7 +3,7 @@
 local llp = 'LD_LIBRARY_PATH=../../external/gcc/lib '
 local lds = '../../external/gcc/<build>'
 local com = 'valgrind --log-file=%o --suppressions=system.supp'
-  ..' --suppressions=toreport.supp'
+  ..' --suppressions=toreport.supp --fair-sched=yes'
 
 tup.rule(forall(function(i)
   if i.size > 2 then return end
