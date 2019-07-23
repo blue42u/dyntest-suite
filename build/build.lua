@@ -1025,7 +1025,7 @@ function translations.compile(info)  -- Compilation command
     end,
     I = function(p)
       p = path(p, info.cwd)
-      return '?',p.path and #p.path == 0 and herep or hpath(p.path) or p.absolute
+      return '?',p.path and (#p.path == 0 and herep or hpath(p.path)) or p.absolute
     end,
     D = function(x) return '?',(x:gsub(unmagic(tmpdir), '')) end,
   }))
@@ -1099,7 +1099,7 @@ function translations.install(info)
   if not info.src then
     for _,f in ipairs(info.deps) do
       local ei,pelf = nil, ''
-      if f.kind == 'ld' then
+      if f.kind == 'ld' or f.kind == 'libtool' then
         ei = {topcwd..'../external/patchelf/<build>'}
         pelf = ' && '..topcwd..'../external/patchelf/install/bin/patchelf'
           ..' --set-rpath '..runpath..' %o'
@@ -1116,7 +1116,7 @@ function translations.install(info)
     instdedup[info.dst] = true
     local ei,pelf = nil, ''
     for _,f in ipairs(info.deps) do
-      if f.kind == 'ld' then
+      if f.kind == 'ld' or f.kind == 'libtool' then
         ei = {topcwd..'../external/patchelf/<build>'}
         pelf = ' && '..topcwd..'../external/patchelf/install/bin/patchelf'
           ..' --set-rpath \''..runpath..'\' %o'
