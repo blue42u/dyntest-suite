@@ -279,7 +279,7 @@ for f in opts.cfgflags:gmatch '%g+' do
       or dir(canonicalize(realbuilddir..ed))
     if not exhandled[path] then
       table.insert(exdeps, path..'<build>')
-      transforms[rpath..'dummy'] = path
+      transforms[rpath..'dummy'] = path..'install'
       exhandled[path] = true
       table.insert(runpath, rpath..'install/lib')
     end
@@ -738,6 +738,7 @@ local function make(fn, ruleset)
       handled[i] = 'Make: force removal of file'
       check(not info.kind)
     elseif c == 'touch $@' then handled[i] = 'Make: touch of output file'
+    elseif c:find '^@?$%(MKDIR_P%)' then handled[i] = 'Make: dir creation'
     elseif ex:find '^:' then handled[i] = 'Make: clever do-nothing command'
     elseif c:find '^@?test %-f $@ ||' then
       handled[i] = 'Autotools: timestamp management'
@@ -818,12 +819,31 @@ local function make(fn, ruleset)
         ..' -e "s%[@]PACKAGE_NAME[@]%'..r.expand '$(PACKAGE_NAME)'..'%g"'
         ..' -e "s%[@]PACKAGE_VERSION[@]%'..r.expand '$(PACKAGE_VERSION)'..'%g"'
         ..' '..info.deps[1].path..' > src/make-debug-archive.new'
-    elseif c:find '$%(LIBTOOL%)' then
+    elseif c:find '^@list=' then
+      handled[i] = 'Autotools: main install miniscript'
+      check(not info.kind)
+      info.kind,info.dstdir = 'install', dir(path(ex:match '"(.-)"').path)
+    elseif c:find '^$%(INSTALL%g*%)' then
+      handled[i] = 'Autotools: single install call'
+      check(not info.kind); info.kind = 'install'
+      getopt(ex, 'c,m:', {
+        [false] = function(p)
+          if not info.src then info.src = path(p, info.cwd).path
+          else info.dst = path(p, '').path end
+        end,
+      })
+      info.dstdir = info.dst:match '(.-)[^/]+$'
+    elseif c:find '^$%(MYLATEX2MAN%)' then
+      handled[i] = 'HPCToolkit: documentation conversion script'
+      check(not info.kind)
+      info.kind, info.cmd = 'latex2man', ex
+      info.ruleset = ruleset
+    elseif c:find '$%(LIBTOOL%)' or ex:find '/libtool%s' then
       handled[i] = 'CC: LibTool-style compile command'
       check(not info.kind)
       info.kind, info.cmd = 'libtool', ex:match ';%s*(.+)' or ex
-    elseif c:find '$%(COMPILE%.?o?s?%)' or (c:find '$%(CC%)'
-      and not ex:find 'libtool') then
+      info.ruleset = ruleset
+    elseif c:find '$%(COMPILE%.?o?s?%)' or c:find '$%(C[CX]X?%)' then
       handled[i] = 'CC: Autotools-style compile command'
       check(not info.kind)
       info.kind, info.cmd = 'compile', ex:match ';%s*(.+)' or ex
@@ -876,20 +896,6 @@ local function make(fn, ruleset)
     elseif c:find './%g+_gendis' then handled[i] = 'Elfutils: Gendis command'
       check(not info.kind)
       info.kind, info.cmd = 'gendis', ex:match ';%s*(.+)' or ex
-    elseif c:find '^@list=' then
-      handled[i] = 'Autotools: main install miniscript'
-      check(not info.kind)
-      info.kind,info.dstdir = 'install', dir(path(ex:match '"(.-)"').path)
-    elseif c:find '^$%(INSTALL%g*%)' then
-      handled[i] = 'Autotools: single install call'
-      check(not info.kind); info.kind = 'install'
-      getopt(ex, 'c,m:', {
-        [false] = function(p)
-          if not info.src then info.src = path(p, info.cwd).path
-          else info.dst = path(p, '').path end
-        end,
-      })
-      info.dstdir = info.dst:match '(.-)[^/]+$'
     elseif c:find '$%(YLWRAP%)' then
       handled[i] = 'Elfutils: ylwrap command'
       check(not info.kind)
@@ -988,7 +994,6 @@ function translations.ar(info)  -- Archive (static library) command
       else table.insert(r.inputs, pmatch(w)) end
     end
   end
-  if fullbuilddir == 'latest/hpctoolkit/' then return end
   tup.frule(r)
 end
 function translations.compile(info)  -- Compilation command
@@ -1025,7 +1030,7 @@ function translations.compile(info)  -- Compilation command
     D = function(x) return '?',(x:gsub(unmagic(tmpdir), '')) end,
   }))
   table.move(exdeps, 1,#exdeps, #r.inputs.extra_inputs+1, r.inputs.extra_inputs)
-  for i=#r.inputs+1,#info.deps do if not info.deps[i].external then
+  for i=#r.inputs+1,#info.deps do if info.deps[i].kind then
     table.insert(r.inputs.extra_inputs, info.deps[i].path)
   end end
   info.inputs = r.inputs
@@ -1038,14 +1043,17 @@ function translations.ld(info)  -- Linking command
       if a.original == p then return a.path
       elseif a.path == p then return p end
     end
-    return make(path(p, info.cwd), info.ruleset).path
+    p = make(path(p, info.cwd), info.ruleset)
+    return p.path, p.external
   end
   local r = {inputs={extra_inputs={}}, outputs={extra_outputs={}}}
   r.command = getopt(info.cmd,
-    'o:std:W;g,O;shared,l:D:f:L:', {
+    'o:std:W;g,O;shared,l:D:f:L:I:', {
     [false] = function(p)
-      table.insert(r.inputs, pmatch(p))
-      return r.inputs[#r.inputs]
+      local e
+      p,e = pmatch(p)
+      if not e then table.insert(r.inputs, p) end
+      return p
     end,
     o = function(p)
       if #r.outputs == 0 then
@@ -1084,14 +1092,10 @@ function translations.ld(info)  -- Linking command
   for i=#r.inputs+1,#info.deps do if not info.deps[i].external then
     table.insert(r.inputs.extra_inputs, info.deps[i].path)
   end end
-  if fullbuilddir == 'latest/hpctoolkit/' then return end
-  info.inputs = r.inputs
-  info.outputs = r.outputs
-  info.command = r.command
   tup.frule(r)
 end
+local instdedup = {}
 function translations.install(info)
-  if fullbuilddir == 'latest/hpctoolkit/' then return end
   if not info.src then
     for _,f in ipairs(info.deps) do
       local ei,pelf = nil, ''
@@ -1100,10 +1104,16 @@ function translations.install(info)
         pelf = ' && '..topcwd..'../external/patchelf/install/bin/patchelf'
           ..' --set-rpath '..runpath..' %o'
       end
+      local d = info.dstdir..f.path:match '[^/]+$'
+      if not instdedup[d] then  -- Hack for HPCToolkit
+      instdedup[d] = true
       tup.rule({f.path, extra_inputs=ei}, '^o Install %o^ cp -a %f %o'..pelf,
-        {info.dstdir..f.path:match '[^/]+$', '<build>'})
+        {d, '<build>'})
+      end
     end
   else
+    if instdedup[info.dst] then return end  -- Hack for HPCToolkit
+    instdedup[info.dst] = true
     local ei,pelf = nil, ''
     for _,f in ipairs(info.deps) do
       if f.kind == 'ld' then
@@ -1203,6 +1213,67 @@ function translations.cmakeinstall()
     end
   end
   parse(tmpdir..'cmake_install.cmake')
+end
+
+local ldflags = {}
+function translations.libtool(info)
+  local mode,bcmd = info.cmd:match '%-%-mode=(%g+)%s+(.+)'
+  local origp = info.path
+  if mode == 'compile' then
+    assert(not ldflags[info.path])
+    ldflags[info.path] = {}
+    for w in bcmd:gmatch '%f[%S]%-[lL]%g+%f[%s\0]' do
+      table.insert(ldflags[info.path], w) end
+    info.cmd = bcmd:gsub('%-o%s+(%g+)%.lo', '-o %1.o')
+    info.path = origp:gsub('%.lo$', '.o')
+    translations.compile(info)
+    info.cmd = bcmd:gsub('%-o%s+(%g+)%.lo', '-o %1.os')..' -fPIC -DPIC'
+    info.path = origp:gsub('%.lo$', '.os')
+    translations.compile(info)
+  elseif mode == 'link' then
+    assert(not ldflags[info.path])
+    ldflags[info.path] = {}
+    for _,l in bcmd:gmatch '%g+%.l[oa]' do
+      l = ldflags[l] or {}
+      table.move(l, 1,#l, #ldflags[info.path], ldflags[info.path])
+    end
+    local lf = table.concat(ldflags[info.path], ' ')
+    for w in bcmd:gmatch '%f[%S]%-[lL]%g+%f[%s\0]' do
+      table.insert(ldflags[info.path], w) end
+    if info.path:find '%.la$' then
+      info.cmd = bcmd:gsub('%-o%s+(%g+)%.la', '-o %1.so')..' -shared '..lf
+      info.path = origp:gsub('%.la$', '.so')
+      translations.ld(info)
+      info.cmd = {}
+      getopt(bcmd, 'o:std:W;g,O;shared,l:D:f:L:I:', {
+        [false]=function(x)
+          assert(not x:find '%.la$', x)
+          table.insert(info.cmd, x)
+        end,
+      })
+      info.cmd = 'ar cr output.a '..table.concat(info.cmd, ' ')
+      info.ranlib = true
+      info.path = origp:gsub('%.la$', '.a')
+      translations.ar(info)
+    else
+      info.cmd = bcmd..' '..lf
+      translations.ld(info)
+    end
+  else return true end
+end
+function translations.latex2man(info)
+  local r = {inputs={}, outputs={}}
+  r.command = '^o DOC %o^ '..shell(getopt(info.cmd, 'H,t:', {
+    [true] = function(x) return path(x, '').path end,
+    t = function(x) return '?',path(x, '').path end,
+    [false] = function(p)
+      p = path(p, '')
+      if #r.inputs == 0 then p = make(p, info.ruleset); r.inputs[1] = p.path
+      else r.outputs[1] = p.path end
+      return p.path
+    end,
+  }))
+  tup.frule(r)
 end
 
 function translations.ylwrap(info)
@@ -1329,9 +1400,15 @@ end
 for _,f in ipairs{
   'config.h', 'config/libelf.pc', 'config/libdw.pc', 'version.h',  -- Elfutils
   'common/h/dyninstversion.h',  -- Dyninst
+  -- HPCToolkit
+  'src/include/hpctoolkit-config.h', 'src/tool/hpcstruct/hpcstruct',
+  'src/tool/hpcstruct/dotgraph', 'src/tool/hpcprof/hpcprof',
+  'src/tool/hpcproftt/hpcproftt', '@config/config.guess',
 } do
-  if stestexec{'stat', tmpdir..f, onlyout=true, reout=false} then
-    local b64 = slexec{{'gzip', '-n', rein=tmpdir..f}, {'base64', '-w0'}}
+  local d = tmpdir
+  if f:sub(1,1) == '@' then d,f = fullsrcdir,f:match '^@(.*)' end
+  if stestexec{'stat', d..f, onlyout=true, reout=false} then
+    local b64 = slexec{{'gzip', '-n', rein=d..f}, {'base64', '-w0'}}
     tup.rule('^o Copy %o^ '..shell{
       {'echo', b64}, {'base64', '-d'}, {'gzip', '-d', reout='%o'}
     }, {f, '<_gen>'})
