@@ -234,15 +234,19 @@ end
 
 -- Simple path munching function, takes a path and resolves any ../
 local function canonicalize(p, cwd)
-  local cbits,ccur = {},1
+  local cbits = {}
   for b in (cwd or ''):gmatch '[^/]+' do table.insert(cbits, b) end
+  for i=1,#cbits do  -- Reverse the table
+    local j = #cbits-i+1
+    if i >= j then break end
+    cbits[i],cbits[j] = cbits[j],cbits[i]
+  end
   local ups,bits = 0,{}
   for b in p:gmatch '[^/]+' do
     if b == '..' then
       if #bits == 0 then ups = ups + 1 else table.remove(bits) end
     elseif b ~= '.' then  -- Skip over just .
-      if #bits == 0 and ups > 0 and cbits[ccur] == b then -- Fold a ../here
-        ccur, ups = ccur + 1, ups - 1
+      if cbits[ups] == b then ups = ups - 1 -- Fold a ../here
       else table.insert(bits, b) end
     end
   end
@@ -265,7 +269,7 @@ local realsrcdir = topdir..fullsrcdir
 local fullbuilddir = dir(opts.builddir)
 local realbuilddir = topdir..fullbuilddir
 
-local exdeps,exhandled,transforms = {},{},{}
+local exdeps,exhandled,transforms,runpath = {},{},{},{realbuilddir..'install/lib'}
 local cfgflags = {}
 for f in opts.cfgflags:gmatch '%g+' do
   f = f:gsub('@([^@]+)@', function(ed)
@@ -277,11 +281,13 @@ for f in opts.cfgflags:gmatch '%g+' do
       table.insert(exdeps, path..'<build>')
       transforms[rpath..'dummy'] = path
       exhandled[path] = true
+      table.insert(runpath, rpath..'install/lib')
     end
     return rpath..'dummy'
   end)
   table.insert(cfgflags, f)
 end
+runpath = table.concat(runpath, ':')
 transforms[realsrcdir] = srcdir
 transforms[realbuilddir] = ''
 
@@ -350,11 +356,13 @@ if glob(srcdir..'configure.ac') then  -- Its an automake thing
   end
   -- Run configure too while everything is arranged accordingly
   for l in slines({'cd', tmpdir}, {env=env, realsrcdir..'configure',
-    '--disable-dependency-tracking', cfgflags, onlyout=true}) do
+    '--prefix='..realbuilddir..'install', '--disable-dependency-tracking',
+    cfgflags, onlyout=true}) do
     if cfgbool 'DEBUG_CONFIGURE' then print(l) end
   end
 elseif glob(srcdir..'CMakeLists.txt') then  -- Negligably nicer CMake thing
   for l in slines({'cmake', '-G', 'Unix Makefiles', cfgflags,
+    '-DCMAKE_INSTALL_PREFIX='..realbuilddir..'install',
     '-S', fullsrcdir, '-B', tmpdir}) do
     if cfgbool 'DEBUG_CONFIGURE' then print(l) end
   end
@@ -518,7 +526,7 @@ local function findrule(fn, ruleset)
     end
     local ir,istem = search(fn)
     if ir then  -- Search successful, copy over the relevent info
-      r = r or {outs = {}, deps = {}, vars = ir.vars, cwd = ir.cwd}
+      r = r or {outs = {}, vars = ir.vars, cwd = ir.cwd}
       for i,o in ipairs(ir.outs) do
         do
           local n = {}
@@ -530,6 +538,8 @@ local function findrule(fn, ruleset)
         if r.outs[i] then assert(r.outs[i].path == o.path) end
         r.outs[i] = o
       end
+      local exds = r.deps or {}
+      r.deps = {}
       for _,d in ipairs(ir.deps) do
         do
           local n = {}
@@ -540,8 +550,9 @@ local function findrule(fn, ruleset)
         end
         table.insert(r.deps, d)
       end
-      table.move(ir, 1,#ir, 1,r)
+      table.move(exds, 1,#exds, #r.deps+1, r.deps)
       r.stem = istem
+      table.move(ir, 1,#ir, 1,r)
     end
 
     -- Otherwise, its probably a pseudo-phony.
@@ -689,6 +700,7 @@ local function make(fn, ruleset)
   if not r then return fn end  -- We don't need to do anything.
   if r.made then return r.made end  -- Don't duplicate work if at all possible.
   local info = {path = fn.path, cwd = r.cwd}
+  if fn.source then info.path = fn.stem end  -- Map source outputs to build
 
   -- First make sure all the deps have been made
   info.deps = {}
@@ -706,12 +718,15 @@ local function make(fn, ruleset)
     elseif c:find '$%(AUTOHEADER%)' then handled[i] = 'Autotools: call to autoheader'
     elseif c:find '$%(AUTOCONF%)' then handled[i] = 'Autotools: call to autoconf'
     elseif c:find '$%(AUTOMAKE%)' then handled[i] = 'Autotools: call to autoconf'
+    elseif c:find 'am%-%-refresh' then handled[i] = 'Autotools: refresh magic'
+    elseif c:find '^$%(mkinstalldirs%)' then handled[i] = 'Autotools: install dir creation'
     elseif c:find '$%(SHELL%) %./config%.status' then
       handled[i] = 'Autotools: call to config.status'
     elseif c:find '^@?rm %-f' or ex:find '^rm %-f' then
       handled[i] = 'Make: force removal of file'
       check(not info.kind)
     elseif c == 'touch $@' then handled[i] = 'Make: touch of output file'
+    elseif ex:find '^:' then handled[i] = 'Make: clever do-nothing command'
     elseif c:find '^@?test %-f $@ ||' then
       handled[i] = 'Autotools: timestamp management'
       check(c:find 'stamp%-h1')
@@ -720,7 +735,7 @@ local function make(fn, ruleset)
       elseif c:find '%-%-check%-build%-system' then handled[i] = 'CMake: makefile regeneration'
       elseif c:find '%-E cmake_echo_color' then handled[i] = 'CMake: status message'
       else printout = true end
-    elseif c:find '^$%(MAKE%)' then
+    elseif c:find '^@?$%(MAKE%)' then
       handled[i] = 'Make: recursive subcall'
       local mf,cd = nil, nil
       info.targets = {}
@@ -743,29 +758,68 @@ local function make(fn, ruleset)
     "$$target-am" || exit 1; fi; test -z "$$fail"]]):gsub('\n%s*', ' ') then
       handled[i] = '# Autotools: Subdir recursive make call'
       info.targets,info.rulesets = {},{}
-      assert(fn.path:match '[^/]+$' == 'all-recursive')
+      local t = fn.path:match '([^/]+)%-recursive$'
+      assert(t, fn.path)
       for sd in r.expand '$(SUBDIRS)':gmatch '%g+' do
         assert(sd ~= '.')
-        table.insert(info.targets, path('all', r.cwd..dir(sd)))
+        table.insert(info.targets, path(t, r.cwd..dir(sd)))
         table.insert(info.rulesets, parsemakefile('Makefile', r.cwd..dir(sd)))
       end
-      table.insert(info.targets, path('all-am', r.cwd))
+      table.insert(info.targets, path(t..'-am', r.cwd))
       table.insert(info.rulesets, ruleset)
       check(not info.kind)
       info.kind = 'make'
-    elseif c:find '$%(COMPILE%.?o?s?%)' then
+    elseif c == ([[$(AM_V_GEN)UNSTRIP=$(bindir)/`echo unstrip | sed
+    '$(transform)'`; AR=$(bindir)/`echo ar | sed '$(transform)'`; sed -e
+    "s,[@]UNSTRIP[@],$$UNSTRIP,g" -e "s,[@]AR[@],$$AR,g" -e
+    "s%[@]PACKAGE_NAME[@]%$(PACKAGE_NAME)%g" -e
+    "s%[@]PACKAGE_VERSION[@]%$(PACKAGE_VERSION)%g"
+    $(srcdir)/make-debug-archive.in > $@.new]]):gsub('\n%s*', ' ') then
+      handled[i] = 'Sed: Hardcoded Elfutils sed command'
+      check(not info.kind)
+      info.kind = 'sed'
+      info.cmd = 'sed -e "s,[@]UNSTRIP[@],'..topdir..'install/bin/eu-unstrip,g"'
+        ..' -e "s,[@]AR[@],'..topdir..'install/bin/eu-ar,g"'
+        ..' -e "s%[@]PACKAGE_NAME[@]%'..r.expand '$(PACKAGE_NAME)'..'%g"'
+        ..' -e "s%[@]PACKAGE_VERSION[@]%'..r.expand '$(PACKAGE_VERSION)'..'%g"'
+        ..' '..info.deps[1].path..' > src/make-debug-archive.new'
+    elseif c:find '$%(LIBTOOL%)' then
+      handled[i] = 'CC: LibTool-style compile command'
+      check(not info.kind)
+      info.kind, info.cmd = 'libtool', ex:match ';%s*(.+)' or ex
+    elseif c:find '$%(COMPILE%.?o?s?%)' or (c:find '$%(CC%)'
+      and not ex:find 'libtool') then
       handled[i] = 'CC: Autotools-style compile command'
       check(not info.kind)
       info.kind, info.cmd = 'compile', ex:match ';%s*(.+)' or ex
       info.ruleset = ruleset
+    elseif c:find '$%(CXX_FLAGS%)' then
+      handled[i] = 'CC: CMake-style compile command'
+      check(not info.kind)
+      info.kind, info.cd, info.cmd = 'compileCMAKE', ex:match '(.-)&&%s*(.+)'
+      if not info.cd then info.cmd = ex end
     elseif c:find '$%(%g*_?AR%)' then
       handled[i] = 'AR: Autotools-style archiving command'
       check(not info.kind)
       info.kind, info.cmd = 'ar', ex:match ';%s*(.+)' or ex
+    elseif c:find '$%(RANLIB%)' then
+      handled[i] = 'AR: Ranlib'
+      check(info.kind == 'ar')
+      info.ranlib = true
     elseif c:find '$%(LINK%)' then
       handled[i] = 'LD: Autotools-style linking commmand'
-      check(not info.kind)
+      check(not info.kind or info.kind == 'ld')
       info.kind, info.cmd = 'ld', ex:match ';%s*(.+)' or ex
+    elseif ex:find '^ln' then
+      if info.kind == 'ld' then
+        handled[i] = '*: Link command'
+        info.linkto = ex:match '%g+$'
+      elseif info.kind == 'install' then
+        handled[i] = '*: Link command'
+        info.links = info.links or {}
+        local f,t = ex:match '(%g+)%s+(%g+)$'
+        info.links[path(t, '').path] = f
+      end
     elseif c:find '^gawk' then handled[i] = 'Awk: Elfutils gawk command'
       check(not info.kind)
       info.kind, info.cmd = 'awk', ex
@@ -780,10 +834,20 @@ local function make(fn, ruleset)
     elseif c:find './%g+_gendis' then handled[i] = 'Elfutils: Gendis command'
       check(not info.kind)
       info.kind, info.cmd = 'gendis', ex:match ';%s*(.+)' or ex
-    elseif c:find '$%(RANLIB%)' then
-      handled[i] = 'AR: Ranlib'
-      check(info.kind == 'ar')
-      info.ranlib = true
+    elseif c:find '^@list=' then
+      handled[i] = 'Autotools: main install miniscript'
+      check(not info.kind)
+      info.kind,info.dstdir = 'install', dir(path(ex:match '"(.-)"').path)
+    elseif c:find '^$%(INSTALL%g*%)' then
+      handled[i] = 'Autotools: single install call'
+      check(not info.kind); info.kind = 'install'
+      getopt(ex, 'c,m:', {
+        [false] = function(p)
+          if not info.src then info.src = path(p, info.cwd).path
+          else info.dst = path(p, '').path end
+        end,
+      })
+      info.dstdir = info.dst:match '(.-)[^/]+$'
     elseif c:find '$%(YLWRAP%)' then
       handled[i] = 'Elfutils: ylwrap command'
       check(not info.kind)
@@ -798,11 +862,21 @@ local function make(fn, ruleset)
       info.kind = 'ylwrap'
       local ylwrap = unmagic(r.expand '$(YLWRAP)')
       info.cmd = './config/ylwrap '..ex:match(ylwrap..'%s+(.+)')
+    elseif ex:find "^echo 'ELFUTILS_" then
+      handled[i] = 'LD: Elfutils mapfile echo'
+      check(not info.kind)
+      info.kind = 'ld'
+      tup.rule('^o Wrote %o^ '..ex, {ex:match '> (%g+)'})
+      table.insert(info.deps, path(ex:match '> (%g+)', ''))
     elseif c == '@$(textrel_check)' then
       handled[i] = 'LD: Elfutils TEXTREL assertion'
       check(info.kind == 'ld')
       info.assert = ' && (if readelf -d %o | grep -Fq TEXTREL; then '
         ..'echo "WARNING: TEXTREL found in \'%o\'"; exit 1; fi)'
+    elseif ex:find '^chmod %+x' then
+      handled[i] = '*: Post-chmod command'
+      check(info.kind == 'sed')
+      info.postexec = true
     elseif ex:find '^mv' then
       handled[i] = '*: Post-move command'
       check(info.kind == 'awk' or info.kind == 'sed' or info.kind == 'm4'
@@ -825,9 +899,9 @@ local function make(fn, ruleset)
 
   -- If anything had troubles, print out a note to the output on the subject.
   if printout and #r > 0 then
-    local function p(x, y) return x..(x ~= y and ' ('..y..')' or '') end
+    local function p(x, y) return x..(y and x ~= y and ' ('..y..')' or '') end
     print(p(info.path, fn.path)..' | '..(#r.cwd > 0 and r.cwd or '.')..':')
-    for i,d in ipairs(info.deps) do print('  + '..p(d.path, r.deps[i].path)) end
+    for i,d in ipairs(info.deps) do print('  + '..p(d.path, r.deps[i] and r.deps[i].path)) end
     for i,c in ipairs(r) do
       if handled[i] then print('  # '..handled[i]) end
       print('  '..(handled[i] and '^' or '$')..' '..c)
@@ -854,9 +928,8 @@ function translations.make(info)  -- Recursive make call(s)
 end
 function translations.ar(info)  -- Archive (static library) command
   local r = {inputs={}, outputs={info.path}}
-  r.command = '^o AR %o^ ar '..(info.ranlib and 'S' or '')..'cr %o %f'
+  r.command = '^o AR %o^ ar '..(info.ranlib and 's' or '')..'cr %o %f'
   for i,p in ipairs(info.deps) do r.inputs[i] = p.path end
-  if info.path:find '^libcpu/' then return end
   if fullbuilddir == 'latest/hpctoolkit/' then return end
   tup.frule(r)
 end
@@ -866,33 +939,44 @@ function translations.compile(info)  -- Compilation command
     elseif a.path == p then return p
     else return make(path(p, info.cwd), info.ruleset).path end
   end
+  local here = dir(info.cwd:gsub('[^/]+', '..'))
+  local herep = #info.cwd > 0 and here or '.'
+  local cd = #info.cwd > 0 and 'cd '..info.cwd..' && ' or ''
+  local function hpath(p)
+    p = canonicalize(here..p, info.cwd)
+    return #p == 0 and '.' or p
+  end
   local r = {inputs={extra_inputs={'<_gen>'}}, outputs={}}
-  r.command = '^o CC %o^ '..shell(getopt(info.cmd,
+  r.command = '^o CC %o^ '..cd..shell(getopt(info.cmd,
     'D:I:std:W;f:g,O;c,o:l:', {
     [false] = function(p)
+      p = p:gsub('^`test %-f.-`/?', '')
       table.insert(r.inputs, pmatch(info.deps[#r.inputs+1], p))
-      return r.inputs[#r.inputs]
+      return hpath(r.inputs[#r.inputs])
     end,
     o = function(p)
       table.insert(r.outputs, info.path == p and p or path(p, info.cwd).path)
-      return '?',r.outputs[#r.outputs]
+      return '?',hpath(r.outputs[#r.outputs])
     end,
     I = function(p)
       p = path(p, info.cwd)
-      return '?',(p.path and #p.path == 0 and '.' or p.path or p.absolute)
+      return '?',p.path and #p.path == 0 and herep or hpath(p.path) or p.absolute
     end,
+    D = function(x) return '?',(x:gsub(unmagic(tmpdir), '')) end,
   }))
+  for i=#r.inputs+1,#info.deps do
+    table.insert(r.inputs.extra_inputs, info.deps[i].path)
+  end
   tup.frule(r)
 end
-function translations.ldx(info)  -- Linking command
+function translations.ld(info)  -- Linking command
   local function pmatch(a, p)
     if a.original == p then return a.path
     elseif a.path == p then return p
     else return make(path(p, info.cwd), info.ruleset).path end
   end
-  local r = {inputs={}, outputs={}}
-  print(info.cmd)
-  r.command = '^o LD %o^ '..shell(getopt(info.cmd,
+  local r = {inputs={extra_inputs={}}, outputs={extra_outputs={}}}
+  r.command = getopt(info.cmd,
     'o:std:W;g,O;shared,l:D:f:', {
     [false] = function(p)
       table.insert(r.inputs, pmatch(info.deps[#r.inputs+1], p))
@@ -904,10 +988,64 @@ function translations.ldx(info)  -- Linking command
         return '?','%o'
       else return false end
     end,
-  }))..(info.assert or '')
-  if info.path:find '^libcpu/' then return end
+    W = function(x)
+      if x:find '^l,' then
+        return '?',(x:gsub(',%-%-?rpath[^,]*,([^,]*)', function(ps)
+          return ',-rpath-link,'..ps:gsub('[^;:]+', function(p)
+            p = dir(path(p, info.cwd).path)
+            if p:find '^install/' then return '' end
+            return topdir..p
+          end)
+        end):gsub(',%-%-?soname,([^,]+)', function(so)
+          return ',--soname,'..so:match '[^/,]+$'
+        end))
+      end
+    end,
+    D = function(x) return '?',(x:gsub(unmagic(tmpdir), '')) end,
+  })
+  r.command = '^o LD %o^ '..shell(r.command)..(info.assert or '')
+  if info.linkto then
+    r.command = r.command..' && ln -s '..r.outputs[1]:match '[^/]+$'..' '..info.linkto
+    r.outputs.extra_outputs[1] = info.linkto
+    table.insert(r.outputs, '<libs>')
+  else
+    table.insert(r.inputs.extra_inputs, '<libs>')
+  end
+  for i=#r.inputs+1,#info.deps do
+    table.insert(r.inputs.extra_inputs, info.deps[i].path)
+  end
   if fullbuilddir == 'latest/hpctoolkit/' then return end
   tup.frule(r)
+end
+function translations.install(info)
+  if fullbuilddir == 'latest/hpctoolkit/' then return end
+  if not info.src then
+    for _,f in ipairs(info.deps) do
+      local ei,pelf = nil, ''
+      if f.kind == 'ld' then
+        ei = {topcwd..'../external/patchelf/<build>'}
+        pelf = ' && '..topcwd..'../external/patchelf/bin/patchelf'
+          ..' --set-rpath '..runpath..' %o'
+      end
+      tup.rule({f.path, extra_inputs=ei}, '^o Install %o^ cp %f %o'..pelf,
+        {info.dstdir..f.path:match '[^/]+$', '<build>'})
+    end
+  else
+    local ei,pelf = nil, ''
+    for _,f in ipairs(info.deps) do
+      if f.kind == 'ld' then
+        ei = {topcwd..'../external/patchelf/<build>'}
+        pelf = ' && '..topcwd..'../external/patchelf/bin/patchelf'
+          ..' --set-rpath \''..runpath..'\' %o'
+        break
+      end
+    end
+    tup.rule({info.src, extra_inputs=ei}, '^o Install %o^ cp %f %o'..pelf,
+      {info.dst, '<build>'})
+    if info.links then for t,f in pairs(info.links) do
+      tup.rule('^o Symlink %o^ ln -s '..f..' %o', {t, '<build>'})
+    end end
+  end
 end
 
 function translations.ylwrap(info)
@@ -934,6 +1072,7 @@ function translations.ylwrap(info)
     end
   end
   r.command = '^o GEN %o^ '..table.concat(r.command, ' ')..' '..info.cmd:match '%-%-.*'
+  table.insert(r.outputs, '<_gen>')
   tup.frule(r)
 end
 function translations.awk(info)  -- Awk call
@@ -960,10 +1099,10 @@ end
 function translations.sed(info)  -- Sed call
   local r = {inputs={}, outputs={[2]='<_gen>'}}
   local eseen = false
-  r.command = '^o SED %o^ '..shell{getopt(info.cmd, 'e:', {
-    e = function() eseen = true end,
-    [false] = function()
-      if not eseen then eseen = true; return end
+  r.command = '^o SED %o^ '..shell({getopt(info.cmd, 'e:', {
+    e = function(x) eseen = true; return '?',(x:gsub('%%', '%%%%')) end,
+    [false] = function(x)
+      if not eseen then eseen = true; return '?',(x:gsub('%%', '%%%%')) end
       assert(#r.inputs == 0)
       r.inputs[1] = info.deps[1].path
       return '?', '%f'
@@ -984,7 +1123,7 @@ function translations.sed(info)  -- Sed call
       r.outputs[1] = p.stem
       return '?', '%o'
     end,
-  })}
+  })}, info.postexec and {'chmod', '+x', '%o'})
   tup.frule(r)
 end
 function translations.m4(info)
@@ -1007,30 +1146,31 @@ function translations.m4(info)
   tup.frule(r)
 end
 function translations.gendis(info)
-  local r = {inputs={}, outputs={[2]='<_gen>'}}
-  r.command = '^o GEN %o^ '..shell(getopt(info.cmd, '', {
+  info.inputs,info.outputs = {extra_inputs={}},{}
+  info.command = '^o GEN %o^ '..shell(getopt(info.cmd, '', {
+    [true] = function()
+      info.inputs.extra_inputs[1] = info.deps[2].path
+      return info.inputs.extra_inputs[1]
+    end,
     [false] = function()
-      assert(#r.inputs == 0)
-      r.inputs[1] = info.deps[1].path
+      assert(#info.inputs == 0)
+      info.inputs[1] = info.deps[1].path
       return '?','%f'
     end,
     ['>'] = function(p)
       p = path(p)
       if p.path == info.mvfrom then p = path(info.mvto) end
-      r.outputs[1] = p.build and p.path or p.stem
+      info.outputs[1] = p.build and p.path or p.stem
       return '?', '%o'
     end,
   }))
-  -- tup.frule(r)
+  tup.frule(info)
 end
 
--- Step 6: Fire it off!
-make(path 'all', parsemakefile 'Makefile')
-
--- Step 7: Some files still aren't handled, outputs from Autotools and CMake.
+-- Step 6: Some files still aren't handled, outputs from Autotools and CMake.
 -- Use gzip+base64 for storage in Tup's db, and copy over to the output.
 for _,f in ipairs{
-  'config.h',  -- Elfutils config header
+  'config.h', 'config/libelf.pc', 'config/libdw.pc', 'version.h',  -- Elfutils
 } do
   if stestexec{'stat', tmpdir..f, onlyout=true, reout=false} then
     local b64 = slexec{{'gzip', '-n', rein=tmpdir..f}, {'base64', '-w0'}}
@@ -1039,6 +1179,10 @@ for _,f in ipairs{
     }, {f, '<_gen>'})
   end
 end
+
+-- Step 7: Fire it off!
+make(path 'all', parsemakefile 'Makefile')
+make(path 'install', parsemakefile 'Makefile')
 
 -- Error with a magic value to ensure the thing gets finalized
 error(finalize)
