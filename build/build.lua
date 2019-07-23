@@ -480,11 +480,21 @@ local function findrule(fn, ruleset)
     -- If its part of the externals, it exists already so just ignore it.
     if fn.external then return end
 
+    -- If its from "out there", it really does exist already
+    if not fn.source and not fn.build then return end
+
     -- If its a source file, check if it exists yet
     if fn.source and glob(fn.path) then return end
 
+    -- If it looks like a build file, check whether its a temp file.
+    if fn.build and stestexec{'stat', tmpdir..fn.stem, onlyout=true, reout=false} then
+      return nil, 'tmpdir'
+    end
+
     -- If it looks like a build file, check if its actually a source file
-    if fn.build and glob(srcdir..fn.stem) then return nil, 'source' end
+    if fn.build and not fn.path:find 'CMakeFiles/' and glob(srcdir..fn.stem) then
+      return nil, 'source'
+    end
 
     -- Try hunting down an implicit rule to handle this one. Since this is a
     -- "use-what-works" recursive search, the logic is bottled in its own func.
@@ -656,9 +666,9 @@ local function findrule(fn, ruleset)
     if cmd == 'cd $(srcdir);pwd' then return expand('$(srcdir)', vs)
     elseif cmd == 'pwd' then return './'..r.cwd
     elseif cmd == '$(AR) t ../libdwfl/libdwfl.a' then
-      return 'XXXlibdwfl.a'
+      return 'XXX'
     elseif cmd == '$(AR) t ../libdwelf/libdwelf.a' then
-      return 'XXXlibdwelf.a'
+      return 'XXX'
     else error('Unhandled shell: '..cmd) end
   end
   function funcs.call(_, cmd)
@@ -694,8 +704,10 @@ local translations = {}
 local function make(fn, ruleset)
   if madefiles[fn.path] then return madefiles[fn.path] end  -- Some are already done.
   local r,src = findrule(fn, ruleset)
-  if src then  -- Its actually a source file
+  if src == 'source' then  -- Its actually a source file
     return {path = srcdir..fn.stem, original=fn.path}
+  elseif src == 'tmpdir' then  -- Its actually an "external"
+    return {path = fn.stem, external=true}
   end
   if not r then return fn end  -- We don't need to do anything.
   if r.made then return r.made end  -- Don't duplicate work if at all possible.
@@ -730,21 +742,44 @@ local function make(fn, ruleset)
     elseif c:find '^@?test %-f $@ ||' then
       handled[i] = 'Autotools: timestamp management'
       check(c:find 'stamp%-h1')
+    elseif c:find '$%(CMAKE_COMMAND%)%s+%-E%s+cmake_link_script%s' then
+      handled[i] = 'LD: CMake-style linking/archiving command'
+      check(not info.kind)
+      info.kind = 'cmakeld'
+      local cd = c:match '^cd%s+(%g+)'
+      if cd then info.cwd = dir(path(cd, '').path) end
+      info.script = c:match 'cmake_link_script%s+(%g+)'
+      info.ruleset = ruleset
+    elseif c:find '$%(CMAKE_COMMAND%)%s+%-E%s+cmake_symlink_library%s' then
+      handled[i] = 'CMake: Link command'
+      check(info.kind == 'cmakeld')
+      info.links = {}
+      local last
+      for w in c:match 'cmake_symlink_library%s+(.*)':gmatch '%g+' do
+        if last then
+          info.links[path(w, info.cwd).path] = last
+        end
+        last = w
+      end
     elseif c:find '^@?$%(CMAKE_COMMAND%)' then
       if c:find '%-E cmake_progress_start' then handled[i] = 'CMake: progress bar markers'
       elseif c:find '%-%-check%-build%-system' then handled[i] = 'CMake: makefile regeneration'
       elseif c:find '%-E cmake_echo_color' then handled[i] = 'CMake: status message'
+      elseif c:find '%-E touch_nocreate' then handled[i] = 'CMake: touch'
+      elseif c:find '%-P %g+cmake_clean_target%.cmake' then
+        handled[i] = 'CMake: Subproject clean'
       else printout = true end
-    elseif c:find '^@?$%(MAKE%)' then
+    elseif c:find '^@?$%(MAKE%)' or c:find '^cd.*&&%s*$%(MAKE%)' then
       handled[i] = 'Make: recursive subcall'
-      local mf,cd = nil, nil
+      local mf,cd = 'Makefile', ex:match '^cd%s+(%g+)%s+&&'
+      if cd then cd = dir(path(cd, r.cwd).path); info.cwd = cd end
       info.targets = {}
-      getopt(ex, 'no-print-directory,f:', {
+      getopt(ex:match '&&(.*)' or ex, 'no-print-directory,f:', {
         f = function(f) mf = f end,
-        [false] = function(t) table.insert(info.targets, path(t, r.cwd)) end,
+        [false] = function(t) table.insert(info.targets, path(t, info.cwd)) end,
       })
-      mf,cd = mf or 'Makefile', r.cwd..dir(cd or '')
-      info.ruleset = parsemakefile(mf, cd)
+      if #info.targets == 0 then info.targets[1] = path('all', info.cwd) end
+      info.ruleset = parsemakefile(mf, info.cwd)
       check(info.kind == 'make' or not info.kind)
       info.kind = 'make'
     elseif c == ([[@fail=; if $(am__make_keepgoing); then failcom='fail=yes';
@@ -793,11 +828,13 @@ local function make(fn, ruleset)
       check(not info.kind)
       info.kind, info.cmd = 'compile', ex:match ';%s*(.+)' or ex
       info.ruleset = ruleset
-    elseif c:find '$%(CXX_FLAGS%)' then
+    elseif c:find '$%(CX?X?_FLAGS%)' then
       handled[i] = 'CC: CMake-style compile command'
       check(not info.kind)
-      info.kind, info.cd, info.cmd = 'compileCMAKE', ex:match '(.-)&&%s*(.+)'
-      if not info.cd then info.cmd = ex end
+      info.kind, info.cd, info.cmd = 'compile', ex:match '(.-)&&%s*(.+)'
+      if not info.cd then info.cmd = ex
+      else info.cwd = dir(path(info.cd:match '%s+(%g+)').path) end
+      info.ruleset = ruleset
     elseif c:find '$%(%g*_?AR%)' then
       handled[i] = 'AR: Autotools-style archiving command'
       check(not info.kind)
@@ -806,10 +843,15 @@ local function make(fn, ruleset)
       handled[i] = 'AR: Ranlib'
       check(info.kind == 'ar')
       info.ranlib = true
+      info.ruleset = ruleset
     elseif c:find '$%(LINK%)' then
       handled[i] = 'LD: Autotools-style linking commmand'
       check(not info.kind or info.kind == 'ld')
       info.kind, info.cmd = 'ld', ex:match ';%s*(.+)' or ex
+    elseif c:find '%-P cmake_install%.cmake%f[%s\0]' then
+      handled[i] = 'CMake: install script'
+      check(not info.kind)
+      info.kind = 'cmakeinstall'
     elseif ex:find '^ln' then
       if info.kind == 'ld' then
         handled[i] = '*: Link command'
@@ -909,7 +951,7 @@ local function make(fn, ruleset)
     end
     if info.kind then
       print('  > '..info.kind..(translations[info.kind] and '()' or '')..' '
-        ..serpent.line(info, {comment=false, maxlevel=2}))
+        ..serpent.block(info, {comment=false, maxlevel=2}))
     end
     print()
   end
@@ -929,15 +971,33 @@ end
 function translations.ar(info)  -- Archive (static library) command
   local r = {inputs={}, outputs={info.path}}
   r.command = '^o AR %o^ ar '..(info.ranlib and 's' or '')..'cr %o %f'
-  for i,p in ipairs(info.deps) do r.inputs[i] = p.path end
+  local function pmatch(p)
+    for _,a in ipairs(info.deps) do
+      if a.original == p then return a.path
+      elseif a.path == p then return p end
+    end
+    return make(path(p, info.cwd), info.ruleset).path
+  end
+  local cnt = 0
+  for w in info.cmd:gmatch '%g+' do
+    cnt = cnt + 1
+    if cnt > 3 then
+      if w:find '/XXX$' then  -- Hack for Elfutils
+        local t = tup.glob(path(w, info.cwd).path:gsub('XXX$', '*.o'))
+        table.move(t, 1,#t, #r.inputs+1, r.inputs)
+      else table.insert(r.inputs, pmatch(w)) end
+    end
+  end
   if fullbuilddir == 'latest/hpctoolkit/' then return end
   tup.frule(r)
 end
 function translations.compile(info)  -- Compilation command
-  local function pmatch(a, p)
-    if a.original == p then return a.path
-    elseif a.path == p then return p
-    else return make(path(p, info.cwd), info.ruleset).path end
+  local function pmatch(p)
+    for _,a in ipairs(info.deps) do
+      if a.original == p then return a.path
+      elseif a.path == p then return p end
+    end
+    return make(path(p, info.cwd), info.ruleset).path
   end
   local here = dir(info.cwd:gsub('[^/]+', '..'))
   local herep = #info.cwd > 0 and here or '.'
@@ -948,10 +1008,10 @@ function translations.compile(info)  -- Compilation command
   end
   local r = {inputs={extra_inputs={'<_gen>'}}, outputs={}}
   r.command = '^o CC %o^ '..cd..shell(getopt(info.cmd,
-    'D:I:std:W;f:g,O;c,o:l:', {
+    'D:I:std:W;w,f:g,O;c,o:l:', {
     [false] = function(p)
       p = p:gsub('^`test %-f.-`/?', '')
-      table.insert(r.inputs, pmatch(info.deps[#r.inputs+1], p))
+      table.insert(r.inputs, pmatch(p))
       return hpath(r.inputs[#r.inputs])
     end,
     o = function(p)
@@ -964,22 +1024,27 @@ function translations.compile(info)  -- Compilation command
     end,
     D = function(x) return '?',(x:gsub(unmagic(tmpdir), '')) end,
   }))
-  for i=#r.inputs+1,#info.deps do
+  table.move(exdeps, 1,#exdeps, #r.inputs.extra_inputs+1, r.inputs.extra_inputs)
+  for i=#r.inputs+1,#info.deps do if not info.deps[i].external then
     table.insert(r.inputs.extra_inputs, info.deps[i].path)
-  end
+  end end
+  info.inputs = r.inputs
+  info.outputs = r.outputs
   tup.frule(r)
 end
 function translations.ld(info)  -- Linking command
-  local function pmatch(a, p)
-    if a.original == p then return a.path
-    elseif a.path == p then return p
-    else return make(path(p, info.cwd), info.ruleset).path end
+  local function pmatch(p)
+    for _,a in ipairs(info.deps) do
+      if a.original == p then return a.path
+      elseif a.path == p then return p end
+    end
+    return make(path(p, info.cwd), info.ruleset).path
   end
   local r = {inputs={extra_inputs={}}, outputs={extra_outputs={}}}
   r.command = getopt(info.cmd,
-    'o:std:W;g,O;shared,l:D:f:', {
+    'o:std:W;g,O;shared,l:D:f:L:', {
     [false] = function(p)
-      table.insert(r.inputs, pmatch(info.deps[#r.inputs+1], p))
+      table.insert(r.inputs, pmatch(p))
       return r.inputs[#r.inputs]
     end,
     o = function(p)
@@ -1001,6 +1066,10 @@ function translations.ld(info)  -- Linking command
         end))
       end
     end,
+    L = function(p)
+      p = path(p, info.cwd)
+      return '?',p.path and #p.path == 0 and '.' or p.path or p.absolute
+    end,
     D = function(x) return '?',(x:gsub(unmagic(tmpdir), '')) end,
   })
   r.command = '^o LD %o^ '..shell(r.command)..(info.assert or '')
@@ -1011,10 +1080,14 @@ function translations.ld(info)  -- Linking command
   else
     table.insert(r.inputs.extra_inputs, '<libs>')
   end
-  for i=#r.inputs+1,#info.deps do
+  table.move(exdeps, 1,#exdeps, #r.inputs.extra_inputs+1, r.inputs.extra_inputs)
+  for i=#r.inputs+1,#info.deps do if not info.deps[i].external then
     table.insert(r.inputs.extra_inputs, info.deps[i].path)
-  end
+  end end
   if fullbuilddir == 'latest/hpctoolkit/' then return end
+  info.inputs = r.inputs
+  info.outputs = r.outputs
+  info.command = r.command
   tup.frule(r)
 end
 function translations.install(info)
@@ -1024,10 +1097,10 @@ function translations.install(info)
       local ei,pelf = nil, ''
       if f.kind == 'ld' then
         ei = {topcwd..'../external/patchelf/<build>'}
-        pelf = ' && '..topcwd..'../external/patchelf/bin/patchelf'
+        pelf = ' && '..topcwd..'../external/patchelf/install/bin/patchelf'
           ..' --set-rpath '..runpath..' %o'
       end
-      tup.rule({f.path, extra_inputs=ei}, '^o Install %o^ cp %f %o'..pelf,
+      tup.rule({f.path, extra_inputs=ei}, '^o Install %o^ cp -a %f %o'..pelf,
         {info.dstdir..f.path:match '[^/]+$', '<build>'})
     end
   else
@@ -1035,17 +1108,101 @@ function translations.install(info)
     for _,f in ipairs(info.deps) do
       if f.kind == 'ld' then
         ei = {topcwd..'../external/patchelf/<build>'}
-        pelf = ' && '..topcwd..'../external/patchelf/bin/patchelf'
+        pelf = ' && '..topcwd..'../external/patchelf/install/bin/patchelf'
           ..' --set-rpath \''..runpath..'\' %o'
         break
       end
     end
-    tup.rule({info.src, extra_inputs=ei}, '^o Install %o^ cp %f %o'..pelf,
+    tup.rule({info.src, extra_inputs=ei}, '^o Install %o^ cp -a %f %o'..pelf,
       {info.dst, '<build>'})
     if info.links then for t,f in pairs(info.links) do
       tup.rule('^o Symlink %o^ ln -s '..f..' %o', {t, '<build>'})
     end end
   end
+end
+
+function translations.cmakeld(info)
+  local cmd
+  for l in io.lines(tmpdir..info.cwd..info.script) do
+    if not cmd then cmd = l
+    else info.ranlib = true end
+  end
+  if info.links then for t,f in pairs(info.links) do
+    tup.rule('^o Symlink %o^ ln -s '..f..' %o', {t})
+  end end
+  info.cmd = cmd
+  if info.ranlib then translations.ar(info)
+  else translations.ld(info) end
+end
+function translations.cmakeinstall()
+  local parsecache,dedup = {},{}
+  local function parse(fn)
+    if parsecache[fn] then return end
+    parsecache[fn] = true
+    local data
+    do
+      local f = assert(io.open(fn))
+      data = f:read 'a'
+      f:close()
+    end
+    for inc in data:gmatch '%f[\0\n]%s*include(%b())' do
+      inc = inc:sub(2,-2):gsub('^"', ''):gsub('"$', '')
+      parse(inc)
+    end
+    for inst in data:gmatch '%f[\0\n]%s*file(%b())' do
+      inst = inst:sub(2,-2)
+      if inst:match '%g+' == 'INSTALL' then
+        local skip = {INSTALL=true, OPTIONAL=true, FILES=true}
+        local outdir, ins, ty, renm = nil, {}, nil, nil
+        for a in inst:gmatch '%g+' do
+          if outdir == false then
+            a = a:gsub('"', ''):gsub('${CMAKE_INSTALL_PREFIX}', 'install/')
+            outdir = dir(path(a).path)
+          elseif ty == false then ty = a
+          elseif renm == false then renm = a:gsub('"', '')
+          elseif a == 'DESTINATION' then outdir = false
+          elseif a == 'TYPE' then ty = false
+          elseif a == 'RENAME' then renm = false
+          elseif not skip[a] then
+            assert(a:find '"', a)
+            a = a:gsub('"', ''):gsub('${CMAKE_INSTALL_PREFIX}', 'install/')
+            a = path(a).path
+            if not a:find '%.cmake$' and not a:find '%.txt$'
+              and not a:find '%.pdf$' then
+              table.insert(ins, a)
+            end
+          end
+        end
+        if #ins > 0 and ty ~= 'DIRECTORY' then
+          local ei, pelf = nil,''
+          if ty == 'SHARED_LIBRARY' or ty == 'EXECUTABLE' then
+            ei = {topcwd..'../external/patchelf/<build>'}
+            pelf = ' && '..topcwd..'../external/patchelf/install/bin/patchelf'
+              ..' --set-rpath '..runpath..' %o'
+          end
+          if renm then
+            assert(#ins == 1)
+            if not dedup[ins[1]] then
+              tup.rule({ins[1], extra_inputs=ei},
+                '^o Install %o^ cp -a %f %o'..pelf, {outdir..renm, '<build>'})
+              dedup[ins[1]] = true
+            end
+          else
+            for _,v in ipairs(ins) do if not dedup[v] then
+              local x,y = ei, pelf
+              if ty == 'SHARED_LIBRARY' then  -- Hack for Dyninst
+                if not v:find '%.%d+%.%d+%.%d+$' then x,y = nil, '' end
+              end
+              tup.rule({v, extra_inputs=x}, '^o Install %o^ cp -a %f %o'..y,
+                {outdir..v:match '[^/]+$', '<build>'})
+              dedup[v] = true
+            end end
+          end
+        end
+      end
+    end
+  end
+  parse(tmpdir..'cmake_install.cmake')
 end
 
 function translations.ylwrap(info)
@@ -1171,6 +1328,7 @@ end
 -- Use gzip+base64 for storage in Tup's db, and copy over to the output.
 for _,f in ipairs{
   'config.h', 'config/libelf.pc', 'config/libdw.pc', 'version.h',  -- Elfutils
+  'common/h/dyninstversion.h',  -- Dyninst
 } do
   if stestexec{'stat', tmpdir..f, onlyout=true, reout=false} then
     local b64 = slexec{{'gzip', '-n', rein=tmpdir..f}, {'base64', '-w0'}}

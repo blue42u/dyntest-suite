@@ -1,6 +1,7 @@
 # To be sourced into other scripts, do not run directly!
 
-INSTALL="`pwd`"
+mkdir -p install
+INSTALL="`pwd`/install"
 set -e
 
 # Hide the temporaries in this script from Tup

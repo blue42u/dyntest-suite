@@ -1,17 +1,17 @@
 include_rules
 
-FILES += bin/dwarfdump
-FILES += include/dwarf.h
-FILES += include/libdwarf.h
-FILES += lib/libdwarf.a
-FILES += lib/libdwarf.la
-FILES += lib/libdwarf.so
-FILES += lib/libdwarf.so.1
-FILES += lib/libdwarf.so.1.0.0
-FILES += share/dwarfdump/dwarfdump.conf
-FILES += share/libdwarf/libdwarf-devel/libdwarf2.1.pdf
-FILES += share/libdwarf/libdwarf-devel/libdwarf2p.1.pdf
-FILES += share/man/man1/dwarfdump.1
+FILES += install/bin/dwarfdump
+FILES += install/include/dwarf.h
+FILES += install/include/libdwarf.h
+FILES += install/lib/libdwarf.a
+FILES += install/lib/libdwarf.la
+FILES += install/lib/libdwarf.so
+FILES += install/lib/libdwarf.so.1
+FILES += install/lib/libdwarf.so.1.0.0
+FILES += install/share/dwarfdump/dwarfdump.conf
+FILES += install/share/libdwarf/libdwarf-devel/libdwarf2.1.pdf
+FILES += install/share/libdwarf/libdwarf-devel/libdwarf2p.1.pdf
+FILES += install/share/man/man1/dwarfdump.1
 
 include find.lua
 ifeq (y,$(BUILD_DWARF))
