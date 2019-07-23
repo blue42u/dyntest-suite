@@ -5,11 +5,11 @@ D = ../../latest/dyninst/install
 RD = ../../reference/dyninst/install
 B = ../../external/boost
 
-#: micro-symtab.cpp | ../../latest/dyninst/<libs> ../../latest/dyninst/<bin> |> \
-#  ^o Compiled %o^ c++ -I$(D)/include -L$(D)/lib -o %o %f \
-#  -Wl,-rpath,`realpath $(D)/lib`:`realpath $(B)/lib` -lsymtabAPI -lboost_system\
-#  |> micro-symtab
-#: micro-symtab.cpp | ../../reference/dyninst/<libs> ../../reference/dyninst/<bin> |> \
-#  ^o Compiled %o^ c++ -I$(RD)/include -L$(RD)/lib -o %o %f \
-#  -Wl,-rpath,`realpath $(RD)/lib`:`realpath $(B)/lib` -lsymtabAPI -lboost_system\
-#  |> micro-symtab-ref
+: micro-symtab.cpp | ../../latest/dyninst/<libs> ../../latest/dyninst/<bin> |> \
+  ^o Compiled %o^ c++ -I$(D)/include -L$(D)/lib -o %o %f \
+  -Wl,-rpath,`realpath $(D)/lib`:`realpath $(B)/lib` -lsymtabAPI -lboost_system\
+  |> micro-symtab
+: micro-symtab.cpp | ../../reference/dyninst/<libs> ../../reference/dyninst/<bin> |> \
+  ^o Compiled %o^ c++ -I$(RD)/include -L$(RD)/lib -o %o %f \
+  -Wl,-rpath,`realpath $(RD)/lib`:`realpath $(B)/lib` -lsymtabAPI -lboost_system\
+  |> micro-symtab-ref
