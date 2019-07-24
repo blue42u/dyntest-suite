@@ -976,7 +976,8 @@ function translations.make(info)  -- Recursive make call(s)
 end
 function translations.ar(info)  -- Archive (static library) command
   local r = {inputs={}, outputs={info.path}}
-  r.command = '^o AR %o^ ar '..(info.ranlib and 's' or '')..'cr %o %f'
+  r.command = '^o AR %o^ ar '..(info.ranlib and 's' or 'S')
+    ..(info.thin and 'T' or '')..'cr %o %f'
   local function pmatch(p)
     for _,a in ipairs(info.deps) do
       if a.original == p then return a.path
@@ -1099,16 +1100,20 @@ function translations.install(info)
   if not info.src then
     for _,f in ipairs(info.deps) do
       local ei,pelf = nil, ''
-      if f.kind == 'ld' or f.kind == 'libtool' then
+      if f.kind == 'ld' or f.ltmode == 'link' then
         ei = {topcwd..'../external/patchelf/<build>'}
         pelf = ' && '..topcwd..'../external/patchelf/install/bin/patchelf'
           ..' --set-rpath '..runpath..' %o'
       end
-      local d = info.dstdir..f.path:match '[^/]+$'
+      local d = info.dstdir..(f.ltso or f.path):match '[^/]+$'
       if not instdedup[d] then  -- Hack for HPCToolkit
       instdedup[d] = true
-      tup.rule({f.path, extra_inputs=ei}, '^o Install %o^ cp -a %f %o'..pelf,
+      tup.rule({f.ltso or f.path, extra_inputs=ei}, '^o Install %o^ cp -a %f %o'..pelf,
         {d, '<build>'})
+      if f.ltar then
+        tup.rule(f.ltar, '^o Install %o^ cp -a %f %o',
+          {info.dstdir..f.ltar:match '[^/]+$', '<build>'})
+      end
       end
     end
   else
@@ -1116,7 +1121,7 @@ function translations.install(info)
     instdedup[info.dst] = true
     local ei,pelf = nil, ''
     for _,f in ipairs(info.deps) do
-      if f.kind == 'ld' or f.kind == 'libtool' then
+      if f.kind == 'ld' or f.ltmode == 'link' then
         ei = {topcwd..'../external/patchelf/<build>'}
         pelf = ' && '..topcwd..'../external/patchelf/install/bin/patchelf'
           ..' --set-rpath \''..runpath..'\' %o'
@@ -1218,6 +1223,7 @@ end
 local ldflags = {}
 function translations.libtool(info)
   local mode,bcmd = info.cmd:match '%-%-mode=(%g+)%s+(.+)'
+  bcmd = bcmd:gsub('%f[%S]%-rpath%s+(%g+)', '-Wl,-rpath,%1')
   local origp = info.path
   if mode == 'compile' then
     assert(not ldflags[info.path])
@@ -1230,6 +1236,7 @@ function translations.libtool(info)
     info.cmd = bcmd:gsub('%-o%s+(%g+)%.lo', '-o %1.os')..' -fPIC -DPIC'
     info.path = origp:gsub('%.lo$', '.os')
     translations.compile(info)
+    info.ltmode = 'compile'
   elseif mode == 'link' then
     assert(not ldflags[info.path])
     ldflags[info.path] = {}
@@ -1237,27 +1244,29 @@ function translations.libtool(info)
       l = ldflags[l] or {}
       table.move(l, 1,#l, #ldflags[info.path], ldflags[info.path])
     end
-    local lf = table.concat(ldflags[info.path], ' ')
     for w in bcmd:gmatch '%f[%S]%-[lL]%g+%f[%s\0]' do
       table.insert(ldflags[info.path], w) end
+    local lf = table.concat(ldflags[info.path], ' ')
     if info.path:find '%.la$' then
       info.cmd = bcmd:gsub('%-o%s+(%g+)%.la', '-o %1.so')..' -shared '..lf
       info.path = origp:gsub('%.la$', '.so')
+      info.ltso = info.path
       translations.ld(info)
       info.cmd = {}
       getopt(bcmd, 'o:std:W;g,O;shared,l:D:f:L:I:', {
-        [false]=function(x)
-          assert(not x:find '%.la$', x)
-          table.insert(info.cmd, x)
-        end,
+        [false]=function(x) table.insert(info.cmd, x) end,
       })
       info.cmd = 'ar cr output.a '..table.concat(info.cmd, ' ')
-      info.ranlib = true
+      info.ranlib,info.thin = true,true
       info.path = origp:gsub('%.la$', '.a')
+      info.ltar = info.path
       translations.ar(info)
+      info.ltmode = 'link'
     else
       info.cmd = bcmd..' '..lf
+      info.ltso = info.path
       translations.ld(info)
+      info.ltmode = 'link'
     end
   else return true end
 end
@@ -1404,6 +1413,8 @@ for _,f in ipairs{
   'src/include/hpctoolkit-config.h', 'src/tool/hpcstruct/hpcstruct',
   'src/tool/hpcstruct/dotgraph', 'src/tool/hpcprof/hpcprof',
   'src/tool/hpcproftt/hpcproftt', '@config/config.guess',
+  'src/tool/hpcrun/scripts/hpcrun', 'src/tool/hpcrun/scripts/hpcsummary',
+  'src/tool/hpcfnbounds/hpcfnbounds',
 } do
   local d = tmpdir
   if f:sub(1,1) == '@' then d,f = fullsrcdir,f:match '^@(.*)' end
