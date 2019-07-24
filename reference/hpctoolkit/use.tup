@@ -1,3 +1,0 @@
-HPCTOOLKIT_REAL_DIR = $(TUP_CWD)/install
-HPCTOOLKIT_DUMMY_DIR = `realpath $(TUP_CWD)/../../latest/hpctoolkit/dummy`
-HPCTOOLKIT_EX_DEP = $(TUP_CWD)/<libs> $(TUP_CWD)/<bin>

@@ -11,6 +11,7 @@ tup.rule('../../reference/hpctoolkit/<build>', '^o Generated %o^ sed'
   ..[[ -e "/^export HPCRUN_FN/s:/hpcfnbounds:\0-bin:"]]
   ..[[ -e "/^export LD_PRELOAD/iexport HPCTOOLKIT_EXT_LIBS_DIR=]]
   ..[['`realpath ../../external/dwarf/install/lib`'"]]
+  ..[[ -e "/^hash_value=/chash_value='no'"]]
   ..' ../../reference/hpctoolkit/install/bin/hpcrun > %o && chmod +x %o', 'hpcrun')
 
 for _,f in ipairs(forall(function(i, t)

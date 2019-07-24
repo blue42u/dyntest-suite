@@ -84,8 +84,8 @@ local function shell(...)
     local postfix = ''
     if c.onlyout then postfix = postfix..' 2>&1' end
     if c.rein then postfix = postfix..' < '..c.rein end
-    if c.reout then postfix = postfix..' > '..(c.reout or '/dev/null') end
-    if c.reerr then postfix = postfix..' 2> '..(c.reerr or '/dev/null') end
+    if c.reout ~= nil then postfix = postfix..' > '..(c.reout or '/dev/null') end
+    if c.reerr ~= nil then postfix = postfix..' 2> '..(c.reerr or '/dev/null') end
     return postfix
   end
 
@@ -387,7 +387,7 @@ local function parsemakefile(fn, cwd)
   local vars,cur = {},nil
   for l in slines{
     {{'cat', tmpdir..cwd..fn}, {'printf', 'dummyZXZ:\\n\\n'}},
-    {'env','-i', 'make', '-C', tmpdir..cwd, '-pqsrRf-', 'dummyZXZ'}
+    {'env','-i', 'make', '-C', tmpdir..cwd, '-pqsrRf-', 'dummyZXZ', reerr=false}
   } do
     if state == 'preamble' then
       if l:find '^#%s*Variables$' then state = 'vars' end
@@ -731,12 +731,29 @@ local function make(fn, ruleset)
     elseif c:find '$%(AUTOCONF%)' then handled[i] = 'Autotools: call to autoconf'
     elseif c:find '$%(AUTOMAKE%)' then handled[i] = 'Autotools: call to autoconf'
     elseif c:find 'am%-%-refresh' then handled[i] = 'Autotools: refresh magic'
-    elseif c:find '^$%(mkinstalldirs%)' then handled[i] = 'Autotools: install dir creation'
+    elseif c:find '^@?$%(mkinstalldirs%)' then handled[i] = 'Autotools: install dir creation'
     elseif c:find '$%(SHELL%) %./config%.status' then
       handled[i] = 'Autotools: call to config.status'
     elseif c:find '^@?rm %-f' or ex:find '^rm %-f' then
       handled[i] = 'Make: force removal of file'
       check(not info.kind)
+    elseif ex:find '!;@' then handled[i] = 'HPCToolkit: clever and annoying things'
+    elseif c:find '^if test "$%(PACKAGE%)" = "gettext%-tools"' then
+      handled[i] = 'Autotools: localization system update'
+    elseif c:find '^if { if %(LC_ALL=C find %-%-version%)' then
+      handled[i] = 'Autotools: localization system update'
+    elseif c:find '^test ! %-f $%(DOMAIN%)%.po' then
+      handled[i] = 'Autotools: localization system update'
+    elseif c:find '^@catalogs=\'$%(CATALOGS%)\';' then
+      handled[i] = 'Autotools: localization system install'
+    elseif c == '@$(CHECK_MACRO_VERSION)' then
+      handled[i] = 'Autotools: macro version check'
+    elseif c == 'test ! -f $(srcdir)/$(DOMAIN).pot || test -z "$(GMOFILES)" '
+      ..'|| $(MAKE) $(GMOFILES)' then
+      handled[i] = 'Autotools: Gettext update initializer'
+    elseif c == ([[@test ! -f $(srcdir)/$(DOMAIN).pot || { echo "touch stamp-po"
+      && echo timestamp > stamp-poT && mv stamp-poT stamp-po; }]]):gsub('%s*\n%s*', ' ') then
+      handled[i] = 'Autotools: Gettext timestamp miniscript'
     elseif c == 'touch $@' then handled[i] = 'Make: touch of output file'
     elseif c:find '^@?$%(MKDIR_P%)' then handled[i] = 'Make: dir creation'
     elseif ex:find '^:' then handled[i] = 'Make: clever do-nothing command'
@@ -843,6 +860,25 @@ local function make(fn, ruleset)
       check(not info.kind)
       info.kind, info.cmd = 'libtool', ex:match ';%s*(.+)' or ex
       info.ruleset = ruleset
+    elseif c == ([[@list1=''; list2='$(man_MANS)'; test -n "$(man1dir)" && test
+    -n "`echo $$list1$$list2`" || exit 0; echo " $(MKDIR_P)
+    '$(DESTDIR)$(man1dir)'"; $(MKDIR_P) "$(DESTDIR)$(man1dir)" || exit 1; { for
+    i in $$list1; do echo "$$i"; done; if test -n "$$list2"; then for i in
+    $$list2; do echo "$$i"; done | sed -n '/\.1[a-z]*$$/p'; fi; } | while read
+    p; do if test -f $$p; then d=; else d="$(srcdir)/"; fi; echo "$$d$$p"; echo
+    "$$p"; done | sed -e 'n;s,.*/,,;p;h;s,.*\.,,;s,^[^1][0-9a-z]*$$,1,;x' -e
+    's,\.[0-9a-z]*$$,,;$(transform);G;s,\n,.,' | sed 'N;N;s,\n, ,g' | { list=;
+    while read file base inst; do if test "$$base" = "$$inst"; then list="$$list
+    $$file"; else echo " $(INSTALL_DATA) '$$file'
+    '$(DESTDIR)$(man1dir)/$$inst'"; $(INSTALL_DATA) "$$file"
+    "$(DESTDIR)$(man1dir)/$$inst" || exit $$?; fi; done; for i in $$list; do
+    echo "$$i"; done | $(am__base_list) | while read files; do test -z
+    "$$files" || { echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(man1dir)'";
+    $(INSTALL_DATA) $$files "$(DESTDIR)$(man1dir)" || exit $$?; }; done;
+    }]]):gsub('\n%s*', ' ') then
+      handled[i] = 'HPCToolkit: manfile install script'
+      check(not info.kind)
+      info.kind,info.dstdir = 'install', dir(path(r.expand '$(man1dir)').path)
     elseif c:find '$%(COMPILE%.?o?s?%)' or c:find '$%(C[CX]X?%)' then
       handled[i] = 'CC: Autotools-style compile command'
       check(not info.kind)
@@ -936,6 +972,8 @@ local function make(fn, ruleset)
           else error(x) end
         end,
       })
+    elseif c:find '^@echo' then handled[i] = "Make: status message"
+    elseif c:find '> "$%(hash_file%)"$' then handled[i] = 'HPCToolkit: hash thing'
     else printout = true end
   end
   if info.error ~= nil then printout = true end
@@ -1080,6 +1118,7 @@ function translations.ld(info)  -- Linking command
       return '?',p.path and #p.path == 0 and '.' or p.path or p.absolute
     end,
     D = function(x) return '?',(x:gsub(unmagic(tmpdir), '')) end,
+    I = false,  -- Includes do nothing when just linking
   })
   r.command = '^o LD %o^ '..shell(r.command)..(info.assert or '')
   if info.linkto then

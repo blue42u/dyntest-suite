@@ -29,6 +29,7 @@ tup.rule(forall(function(i, t)
   }
 end), '^o Concat %o^ cat %f > %o', 'helgrind.log')
 
+if enabled('ENABLE_DRD', false) then
 tup.rule(forall(function(i)
   if i.size > 1 then return end
   return {
@@ -40,6 +41,7 @@ tup.rule(forall(function(i)
     deps = {lds},
   }
 end), '^o Concat %o^ cat %f > %o', '../drd.log')
+end
 
 local big,bigsize
 local massif = forall(function(i, t)

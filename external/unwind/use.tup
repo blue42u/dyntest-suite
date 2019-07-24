@@ -1,7 +1,0 @@
-include find.lua
-
-ifeq (y,$(BUILD_UNWIND))
-EX_DEPS += $(TUP_CWD)/<build>
-CFG_FLAGS += $(UNWIND_PREFIX)`realpath $(TUP_CWD)/dummy`
-TRANSFORMS += `realpath $(TUP_CWD)/dummy`=$(TUP_CWD)
-endif

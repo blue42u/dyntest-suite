@@ -2,6 +2,15 @@
 
 tup.creategitignore()
 
+function enabled(n, default)
+  assert(default ~= nil)
+  n = tup.getconfig(n)
+  if n == 'y' or n == 'Y' then return true
+  elseif n == 'n' or n == 'N' then return false
+  elseif n == '' then return not not default
+  else error('Configuration option '..n..' must be y/Y or n/N!') end
+end
+
 local cwd = tup.getcwd():gsub('[^/]$', '%0/')
 
 local lzma = cwd..'../external/lzma/<build>'
@@ -35,11 +44,11 @@ inputs = {
     deps = {lzma, tbb, boost, cwd..'../latest/hpctoolkit/<build>'},
     size = 3,
   },
---  { id = 'nwchem',
---    fn = cwd..'../nwchem',
---    size = 10,
---  },
 }
+for _,f in ipairs(tup.glob(cwd..'/extras/*')) do
+  local id = f:match '[^/]+$'
+  if id ~= '.gitignore' then table.insert(inputs, {id=id, fn=f, size=10}) end
+end
 
 local elf = cwd..'../latest/elfutils/'
 local dyn = cwd..'../latest/dyninst/'
