@@ -1,0 +1,31 @@
+include_rules
+
+FILES += install/bin/bunzip2
+FILES += install/bin/bzcat
+FILES += install/bin/bzcmp
+FILES += install/bin/bzdiff
+FILES += install/bin/bzegrep
+FILES += install/bin/bzfgrep
+FILES += install/bin/bzgrep
+FILES += install/bin/bzip2
+FILES += install/bin/bzip2recover
+FILES += install/bin/bzless
+FILES += install/bin/bzmore
+FILES += install/include/bzlib.h
+FILES += install/lib/libbz2.a
+FILES += install/lib/libbz2.so
+FILES += install/lib/libbz2.so.1.0
+FILES += install/lib/libbz2.so.1.0.6
+FILES += install/man/man1/bzcmp.1
+FILES += install/man/man1/bzdiff.1
+FILES += install/man/man1/bzegrep.1
+FILES += install/man/man1/bzfgrep.1
+FILES += install/man/man1/bzgrep.1
+FILES += install/man/man1/bzip2.1
+FILES += install/man/man1/bzless.1
+FILES += install/man/man1/bzmore.1
+
+include find.lua
+ifeq (y,$(BUILD_BZIP))
+: |> ^o Built BZip^ ./build.sh |> $(FILES) <build>
+endif

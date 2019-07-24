@@ -273,6 +273,8 @@ local exdeps,exhandled,transforms,runpath = {},{},{},{realbuilddir..'install/lib
 local cfgflags = {}
 for f in opts.cfgflags:gmatch '%g+' do
   f = f:gsub('@([^@]+)@', function(ed)
+    local ret = true
+    if ed:sub(1,1) == '!' then ret,ed = false,ed:sub(2) end
     local path = ed:sub(1,1) ~= '/' and dir(ed)
       or dir(canonicalize(topcwd..'..'..ed))
     local rpath = ed:sub(1,1) == '/' and dir(topdir..ed:sub(2))
@@ -283,7 +285,7 @@ for f in opts.cfgflags:gmatch '%g+' do
       exhandled[path] = true
       table.insert(runpath, rpath..'install/lib')
     end
-    return rpath..'dummy'
+    return ret and rpath..'dummy' or ''
   end)
   table.insert(cfgflags, f)
 end

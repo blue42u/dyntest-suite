@@ -16,6 +16,7 @@ function hpctoolkit(o) return build {
     --with-libunwind=@/external/unwind@
     --with-papi=@/external/papi@ --with-perfmon=@/external/papi@
     --with-libmonitor=@/external/monitor@
+    --with-bzip=@/external/bzip@
     --with-elfutils=@]]..o.elfutils..[[@
     --with-dyninst=@]]..o.dyninst..[[@
     --disable-hpcrun-static
