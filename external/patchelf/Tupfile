@@ -1,0 +1,7 @@
+include_rules
+
+FILES += install/bin/patchelf
+FILES += install/share/man/man1/patchelf.1
+FILES += install/share/doc/patchelf/README
+
+: |> ^o Built PatchELF^ ./build.sh |> $(FILES) <build>

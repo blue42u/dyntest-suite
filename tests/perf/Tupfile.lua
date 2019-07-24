@@ -3,7 +3,7 @@
 local llp = 'LD_LIBRARY_PATH=../../external/gcc/lib '
 local lds = '../../external/gcc/<build>'
 
-tup.rule('../../reference/hpctoolkit/<bin>', '^o Generated %o^ sed'
+tup.rule('../../reference/hpctoolkit/<build>', '^o Generated %o^ sed'
   ..[[ -e "/^libmonitor_dir/clibmonitor_dir='`realpath ../../external/monitor/lib`'"]]
   ..[[ -e "/^libunwind_dir/clibunwind_dir='`realpath ../../external/unwind/lib`'"]]
   ..[[ -e "/^papi_libdir/cpapi_libdir='`realpath ../../external/papi/lib`'"]]
@@ -11,7 +11,7 @@ tup.rule('../../reference/hpctoolkit/<bin>', '^o Generated %o^ sed'
   ..[[ -e "/^export HPCRUN_FN/s:/hpcfnbounds:\0-bin:"]]
   ..[[ -e "/^export LD_PRELOAD/iexport HPCTOOLKIT_EXT_LIBS_DIR=]]
   ..[['`realpath ../../external/dwarf/lib`'"]]
-  ..' ../../reference/hpctoolkit/install/bin/scripts/hpcrun > %o && chmod +x %o', 'hpcrun')
+  ..' ../../reference/hpctoolkit/install/bin/hpcrun > %o && chmod +x %o', 'hpcrun')
 
 for _,f in ipairs(forall(function(i, t)
   if i.size < 3 then return end
@@ -21,14 +21,14 @@ for _,f in ipairs(forall(function(i, t)
     deps = {
       'hpcrun', '../../external/monitor/<build>', '../../external/dwarf/<build>',
       '../../external/unwind/<build>', '../../external/papi/<build>',
-      '../../reference/dyninst/<libs>',
-      '../../reference/hpctoolkit/<libs>', lds,
+      '../../reference/dyninst/<build>',
+      '../../reference/hpctoolkit/<build>', lds,
     },
     cmd = llp..'./hpcrun.sh %o %C',
     output = '%t.%i.measurements.txz', serialize = true, redirect = '/dev/null',
   }
 end)) do
-  tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<bin>'}},
+  tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<build>'}},
     './hpcprof.sh %f %o',
     f:gsub('measurements%.', ''))
 end

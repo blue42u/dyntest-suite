@@ -29,17 +29,17 @@ tup.rule(forall(function(i, t)
   }
 end), '^o Concat %o^ cat %f > %o', 'helgrind.log')
 
--- tup.rule(forall(function(i)
---   if i.size > 1 then return end
---   return {
---     id = 'DRD',
---     threads = 32,
---     cmd = llp..com..' --tool=drd %C',
---     redirect = '/dev/null',
---     output = 'drd/%t.%i.log',
---     deps = {lds},
---   }
--- end), '^o Concat %o^ cat %f > %o', '../drd.log')
+tup.rule(forall(function(i)
+  if i.size > 1 then return end
+  return {
+    id = 'DRD',
+    threads = 32,
+    cmd = llp..com..' --tool=drd %C',
+    redirect = '/dev/null',
+    output = 'drd/%t.%i.log',
+    deps = {lds},
+  }
+end), '^o Concat %o^ cat %f > %o', '../drd.log')
 
 local big,bigsize
 local massif = forall(function(i, t)
