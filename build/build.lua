@@ -1068,7 +1068,7 @@ function translations.ld(info)  -- Linking command
           return ',-rpath-link,'..ps:gsub('[^;:]+', function(p)
             p = dir(path(p, info.cwd).path)
             if p:find '^install/' then return '' end
-            return topdir..p
+            return p
           end)
         end):gsub(',%-%-?soname,([^,]+)', function(so)
           return ',--soname,'..so:match '[^/,]+$'
@@ -1102,16 +1102,16 @@ function translations.install(info)
       local ei,pelf = nil, ''
       if f.kind == 'ld' or f.ltmode == 'link' then
         ei = {topcwd..'../external/patchelf/<build>'}
-        pelf = ' && '..topcwd..'../external/patchelf/install/bin/patchelf'
-          ..' --set-rpath '..runpath..' %o'
+        pelf = " '"..runpath.."'"
       end
       local d = info.dstdir..(f.ltso or f.path):match '[^/]+$'
       if not instdedup[d] then  -- Hack for HPCToolkit
       instdedup[d] = true
-      tup.rule({f.ltso or f.path, extra_inputs=ei}, '^o Install %o^ cp -a %f %o'..pelf,
+      tup.rule({f.ltso or f.path, extra_inputs=ei},
+        '^o Install %o^ '..topcwd..'install.sh %f %o'..pelf,
         {d, '<build>'})
       if f.ltar then
-        tup.rule(f.ltar, '^o Install %o^ cp -a %f %o',
+        tup.rule(f.ltar, '^o Install %o^ '..topcwd..'install.sh %f %o',
           {info.dstdir..f.ltar:match '[^/]+$', '<build>'})
       end
       end
@@ -1123,12 +1123,11 @@ function translations.install(info)
     for _,f in ipairs(info.deps) do
       if f.kind == 'ld' or f.ltmode == 'link' then
         ei = {topcwd..'../external/patchelf/<build>'}
-        pelf = ' && '..topcwd..'../external/patchelf/install/bin/patchelf'
-          ..' --set-rpath \''..runpath..'\' %o'
+        pelf = " '"..runpath.."'"
         break
       end
     end
-    tup.rule({info.src, extra_inputs=ei}, '^o Install %o^ cp -d %f %o'..pelf,
+    tup.rule({info.src, extra_inputs=ei}, '^o Install %o^ '..topcwd..'install.sh %f %o'..pelf,
       {info.dst, '<build>'})
     if info.links then for _,l in ipairs(info.links) do
       local t,f = l[1],l[2]
@@ -1192,28 +1191,23 @@ function translations.cmakeinstall()
           end
         end
         if #ins > 0 and ty ~= 'DIRECTORY' then
-          local ei, pelf = nil,''
+          local ei, pelf = {},''
           if ty == 'SHARED_LIBRARY' or ty == 'EXECUTABLE' then
-            ei = {topcwd..'../external/patchelf/<build>'}
-            pelf = ' && '..topcwd..'../external/patchelf/install/bin/patchelf'
-              ..' --set-rpath '..runpath..' %o'
+            ei[1] = topcwd..'../external/patchelf/<build>'
+            pelf = " '"..runpath.."'"
           end
           if renm then
             assert(#ins == 1)
             if not dedup[ins[1]] then
               tup.rule({ins[1], extra_inputs=ei},
-                '^o Install %o^ cp -d %f %o'..pelf, {outdir..renm, '<build>'})
+                '^o Install %o^ '..topcwd..'install.sh %f %o'..pelf,
+                {outdir..renm, '<build>'})
               dedup[ins[1]] = true
             end
           else
             for _,v in ipairs(ins) do if not dedup[v] then
-              local x,y,z = ei, pelf, ''
-              if ty == 'SHARED_LIBRARY' then  -- Hack for Dyninst
-                if not v:find '%.%d+%.%d+%.%d+$' then
-                  x,y,z = nil, ' && stat %f >/dev/null && touch %o', 'LD_PRELOAD= '
-                end
-              end
-              tup.rule({v, extra_inputs=x}, '^o Install %o^ '..z..'cp -d %f %o'..y,
+              tup.rule({v, extra_inputs=ei},
+                '^o Install %o^ '..topcwd..'install.sh %f %o'..pelf,
                 {outdir..v:match '[^/]+$', '<build>'})
               dedup[v] = true
             end end
