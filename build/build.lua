@@ -758,7 +758,7 @@ local function make(fn, ruleset)
       local last
       for w in c:match 'cmake_symlink_library%s+(.*)':gmatch '%g+' do
         if last then
-          info.links[path(w, info.cwd).path] = last
+          table.insert(info.links, {path(w, info.cwd).path, last})
         end
         last = w
       end
@@ -880,7 +880,7 @@ local function make(fn, ruleset)
         handled[i] = '*: Link command'
         info.links = info.links or {}
         local f,t = ex:match '(%g+)%s+(%g+)$'
-        info.links[path(t, '').path] = f
+        table.insert(info.links, {path(t, '').path, f})
       end
     elseif c:find '^gawk' then handled[i] = 'Awk: Elfutils gawk command'
       check(not info.kind)
@@ -1128,10 +1128,12 @@ function translations.install(info)
         break
       end
     end
-    tup.rule({info.src, extra_inputs=ei}, '^o Install %o^ cp -a %f %o'..pelf,
+    tup.rule({info.src, extra_inputs=ei}, '^o Install %o^ cp -d %f %o'..pelf,
       {info.dst, '<build>'})
-    if info.links then for t,f in pairs(info.links) do
-      tup.rule('^o Symlink %o^ ln -s '..f..' %o', {t, '<build>'})
+    if info.links then for _,l in ipairs(info.links) do
+      local t,f = l[1],l[2]
+      tup.rule({t:match '(.-)[^/]+$'..f}, '^o Symlink %o^ ln -s '..f..' %o',
+        {t, '<build>'})
     end end
   end
 end
@@ -1142,12 +1144,13 @@ function translations.cmakeld(info)
     if not cmd then cmd = l
     else info.ranlib = true end
   end
-  if info.links then for t,f in pairs(info.links) do
-    tup.rule('^o Symlink %o^ ln -s '..f..' %o', {t})
-  end end
   info.cmd = cmd
   if info.ranlib then translations.ar(info)
   else translations.ld(info) end
+  if info.links then for _,l in ipairs(info.links) do
+    local t,f = l[1],l[2]
+    tup.rule({t:match '(.-)[^/]+$'..f}, '^o Symlink %o^ ln -s '..f..' %o', {t})
+  end end
 end
 function translations.cmakeinstall()
   local parsecache,dedup = {},{}
@@ -1199,16 +1202,18 @@ function translations.cmakeinstall()
             assert(#ins == 1)
             if not dedup[ins[1]] then
               tup.rule({ins[1], extra_inputs=ei},
-                '^o Install %o^ cp -a %f %o'..pelf, {outdir..renm, '<build>'})
+                '^o Install %o^ cp -d %f %o'..pelf, {outdir..renm, '<build>'})
               dedup[ins[1]] = true
             end
           else
             for _,v in ipairs(ins) do if not dedup[v] then
-              local x,y = ei, pelf
+              local x,y,z = ei, pelf, ''
               if ty == 'SHARED_LIBRARY' then  -- Hack for Dyninst
-                if not v:find '%.%d+%.%d+%.%d+$' then x,y = nil, '' end
+                if not v:find '%.%d+%.%d+%.%d+$' then
+                  x,y,z = nil, ' && stat %f >/dev/null && touch %o', 'LD_PRELOAD= '
+                end
               end
-              tup.rule({v, extra_inputs=x}, '^o Install %o^ cp -a %f %o'..y,
+              tup.rule({v, extra_inputs=x}, '^o Install %o^ '..z..'cp -d %f %o'..y,
                 {outdir..v:match '[^/]+$', '<build>'})
               dedup[v] = true
             end end
@@ -1308,7 +1313,9 @@ function translations.ylwrap(info)
       table.insert(r.command, w)
     end
   end
-  r.command = '^o GEN %o^ '..table.concat(r.command, ' ')..' '..info.cmd:match '%-%-.*'
+  r.command = '^o GEN %o^ LD_PRELOAD= '..table.concat(r.command, ' ')
+    ..' '..info.cmd:match '%-%-.*'
+    ..' && stat %f %o >/dev/null && touch %o'
   table.insert(r.outputs, '<_gen>')
   tup.frule(r)
 end

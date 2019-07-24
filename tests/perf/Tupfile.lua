@@ -28,7 +28,7 @@ for _,f in ipairs(forall(function(i, t)
     output = '%t.%i.measurements.txz', serialize = true, redirect = '/dev/null',
   }
 end)) do
-  tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<build>'}},
+  tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<build>', '../src/micro-symtab'}},
     './hpcprof.sh %f %o',
     f:gsub('measurements%.', ''))
 end
