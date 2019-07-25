@@ -355,19 +355,23 @@ if glob(srcdir..'configure.ac') then  -- Its an automake thing
     PATH = topdir..'/build/bin:?',
     AUTOM4TE = topdir..'/build/autom4te-no-cache',
     REALLDD = lexec 'which ldd',
+    CFLAGS = '-g', CXXFLAGS = '-g',
   }
   for l in slines({'autoreconf', '-fis', fullsrcdir, onlyout=true, env=env}) do
     if cfgbool 'DEBUG_CONFIGURE' then print(l) end
   end
   -- Run configure too while everything is arranged accordingly
   for l in slines({'cd', tmpdir}, {env=env, realsrcdir..'configure',
-    '--prefix='..realbuilddir..'install', '--disable-dependency-tracking',
+    '--prefix='..realbuilddir..'install',
+    '--disable-dependency-tracking',
     cfgflags, onlyout=true}) do
     if cfgbool 'DEBUG_CONFIGURE' then print(l) end
   end
 elseif glob(srcdir..'CMakeLists.txt') then  -- Negligably nicer CMake thing
   for l in slines({'cmake', '-G', 'Unix Makefiles', cfgflags,
     '-DCMAKE_INSTALL_PREFIX='..realbuilddir..'install',
+    '-DCMAKE_BUILD_TYPE=RelWithDebInfo',
+    '-DCMAKE_MODULE_PATH='..topdir..'build',
     '-S', fullsrcdir, '-B', tmpdir}) do
     if cfgbool 'DEBUG_CONFIGURE' then print(l) end
   end

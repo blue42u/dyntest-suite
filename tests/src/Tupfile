@@ -14,7 +14,7 @@ RD = ../../reference/dyninst/install
   ^o Compiled %o^ c++ $(CFLAGS) -I$(D)/include -L$(D)/lib -o %o %f \
   -Wl,-rpath,`realpath $(D)/lib`:$(RPATH) -lsymtabAPI \
   |> micro-symtab
-: micro-symtab.cpp | ../../latest/dyninst/<build> $(DEPS) |> \
+: micro-symtab.cpp | ../../latest/dyninst-vg/<build> $(DEPS) |> \
   ^o Compiled %o^ c++ $(CFLAGS) -I$(AD)/include -L$(AD)/lib -o %o %f \
   -Wl,-rpath,`realpath $(AD)/lib`:$(RPATH) -lsymtabAPI \
   |> micro-symtab-ann

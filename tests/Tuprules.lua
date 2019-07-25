@@ -123,7 +123,7 @@ function forall(harness, post)
       if h.redirect then args = args:gsub('%%o', h.redirect) end
       if i.grouped then args = args:gsub('%%f', i.fn)
       else table.insert(ins, i.fn) end
-      if not t.grouped then table.insert(ins.extra_inputs, t.fn) end
+      if not t.grouped then table.insert(ins.extra_inputs, tfn) end
 
       local out = h.output:gsub('%%(.)', { t = t.id, i = i.id })
       local cmd = env..' '..h.cmd:gsub('%%(.)', {
