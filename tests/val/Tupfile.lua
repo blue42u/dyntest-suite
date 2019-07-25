@@ -8,6 +8,7 @@ local llp = 'LD_LIBRARY_PATH=../../external/gcc/lib '
 local lds = '../../external/gcc/<build>'
 local com = val..' --log-file=%o --suppressions=system.supp'
   ..' --suppressions=toreport.supp --fair-sched=yes'
+local logs = {}
 
 tup.rule(forall(function(i)
   if i.size > 2 then return end
@@ -19,7 +20,7 @@ tup.rule(forall(function(i)
     output = 'mc/%t.%i.log',
     deps = {'../../external/valgrind/<build>'},
   }
-end), '^o Concat %o^ cat %f > %o', 'memcheck.log')
+end), '^o Concat %o^ cat %f > %o', {'memcheck.log', '<out>'})
 
 tup.rule(forall(function(i, t)
   if i.size > 1 then return end
@@ -32,7 +33,7 @@ tup.rule(forall(function(i, t)
     output = 'hg/%t.%i.log',
     deps = {lds, '../../external/valgrind/<build>'},
   }
-end), '^o Concat %o^ cat %f > %o', 'helgrind.log')
+end), '^o Concat %o^ cat %f > %o', {'helgrind.log', '<out>'})
 
 if enabled('ENABLE_DRD', false) then
 tup.rule(forall(function(i)
@@ -45,7 +46,7 @@ tup.rule(forall(function(i)
     output = 'drd/%t.%i.log',
     deps = {lds, '../../external/valgrind/<build>'},
   }
-end), '^o Concat %o^ cat %f > %o', '../drd.log')
+end), '^o Concat %o^ cat %f > %o', {'drd.log', '<out>'})
 end
 
 local big,bigsize
@@ -67,6 +68,6 @@ for i,f in ipairs(massif) do
   tup.rule({f, extra_inputs={'../../external/valgrind/<build>'}},
     '^ Massif Dump %f -> %o^ '..VALGRIND_MS_PRINT..' %f > %o', o)
   if i == big.idx then
-    tup.rule(o, '^ Copy %f -> %o^ cp %f %o', 'massif.dump')
+    tup.rule(o, '^ Copy %f -> %o^ cp %f %o', {'massif.dump', '<out>'})
   end
 end

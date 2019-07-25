@@ -1,7 +1,4 @@
 include_rules
 
-VAL = val/memcheck.log val/helgrind.log val/massif.dump
-STA = stable/stable.out
-: foreach $(VAL) $(STA) |> ^o Compressed %f^ xz -9ec %f > %o |> %B.xz {v}
-
-: {v} |> ^o Tar'd final output bundle^ tar cf %o %f |> all.tar
+: stable/stable.out perf/*.tar | val/<out> |> \
+  ^o Constructed final output bundle^ ./tarcat.sh %o %f %<out> |> all.txz

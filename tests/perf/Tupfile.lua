@@ -28,13 +28,13 @@ for _,f in ipairs(forall(function(i, t)
       '../../reference/hpctoolkit/<build>', lds,
     },
     cmd = llp..'./hpcrun.sh %o %C',
-    output = '%t.%i.measurements.txz', serialize = true, redirect = '/dev/null',
+    output = '%t.%i.measurements', serialize = true, redirect = '/dev/null',
   }
 end)) do
   tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<build>',
     '../src/micro-symtab', serialend()}},
     './hpcprof.sh %f %o',
-    {f:gsub('measurements%.', ''), '../<s_2_post>'})
+    {f:gsub('%.measurements', '.tar'), '../<s_2_post>'})
 end
 
 serialfinal()
