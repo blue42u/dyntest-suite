@@ -11,6 +11,17 @@ function enabled(n, default)
   else error('Configuration option '..n..' must be y/Y or n/N!') end
 end
 
+if tup.getconfig 'MAX_THREADS' ~= '' then
+  maxthreads = assert(math.tointeger(tup.getconfig 'MAX_THREADS'),
+    'Configuration option MAX_THREADS must be a valid integer!')
+else
+  maxthreads = 0
+  for l in io.lines '/proc/cpuinfo' do
+    if l:find '^processor%s*:' then maxthreads = maxthreads + 1 end
+  end
+  assert(maxthreads ~= 0, 'Error getting thread count!')
+end
+
 local cwd = tup.getcwd():gsub('[^/]$', '%0/')
 
 local lzma = cwd..'../external/lzma/<build>'
@@ -90,10 +101,16 @@ tests = {
 
 local ti,tm = table.insert,tup.append_table
 
--- The actual rule-creation command, that handles any little oddities
 local lastsg
+function serialend()
+  return lastsg and cwd..('<s_%d_%d>'):format(sclass, lastsg)
+    or sclass == 1 and cwd..'<s_init>' or cwd..('<s_%d_post>'):format(sclass-1)
+end
+
+-- The actual rule-creation command, that handles any little oddities
 function forall(harness, post)
-  local allouts = {}
+  local cnt = 0
+  local clusters, is, ts = {},{},{}
   for _,i in ipairs(inputs) do for _,t in ipairs(tests) do
     if t.id ~= 'unstrip' or i.id ~= 'libasm' and i.id ~= 'libdw' then
     local single = {}
@@ -123,22 +140,32 @@ function forall(harness, post)
 
       local outs = {out}
       if h.serialize then
-        ti(ins.extra_inputs, lastsg and cwd..('<s_%d>'):format(lastsg) or cwd..'<s_init>')
+        ti(ins.extra_inputs, serialend())
         lastsg = (lastsg or 0) + 1
-        ti(outs, cwd..('<s_%d>'):format(lastsg))
+        ti(outs, serialend())
       else ti(outs, cwd..'<s_init>') end
 
       local fakeaccess = ' stat '..i.fn..' '..tfn
         ..' >/dev/null && touch %o && LD_PRELOAD= '
 
       tup.rule(ins, name..fakeaccess..cmd, outs)
-      if post then table.insert(single, out) else
-        table.insert(allouts, out)
-        h.idx = #outs
-      end
+      table.insert(single, out)
+      cnt = cnt + 1
+      h.idx = cnt
     end
-    if post then tm(allouts, post(single, i, t) or {}) end
+    table.insert(clusters, single)
+    is[#clusters], ts[#clusters] = i, t
     end
   end end
+  local allouts = {}
+  for i,c in ipairs(clusters) do
+    tm(allouts, post and (post(c, is[i], ts[i]) or {}) or c)
+  end
   return allouts
+end
+
+function serialfinal()
+  tup.rule(serialend(),
+    '^o Serialization bridge^ touch %o',
+    {'order_post', cwd..('<s_%d_post>'):format(sclass)})
 end

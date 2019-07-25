@@ -1,5 +1,7 @@
 -- luacheck: std lua53, no global (Tup-Lua)
 
+sclass = 2
+
 local llp = 'LD_LIBRARY_PATH=../../external/gcc/lib '
 local lds = '../../external/gcc/<build>'
 
@@ -29,7 +31,10 @@ for _,f in ipairs(forall(function(i, t)
     output = '%t.%i.measurements.txz', serialize = true, redirect = '/dev/null',
   }
 end)) do
-  tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<build>', '../src/micro-symtab'}},
+  tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<build>',
+    '../src/micro-symtab', serialend()}},
     './hpcprof.sh %f %o',
-    f:gsub('measurements%.', ''))
+    {f:gsub('measurements%.', ''), '../<s_2_post>'})
 end
+
+serialfinal()
