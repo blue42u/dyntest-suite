@@ -223,8 +223,11 @@ local function getopt(str, opts, handlers)
       assert(not first)
       if #w == 1 then cur,cpre = '>', '>'
       else handle('>', '>', true, w:sub(2)) end
+    elseif w:find '^<' then  -- Input redirection
+      assert(not first)
+      if #w == 1 then cur,cpre = '<', '<'
+      else handle('<', '<', true, w:sub(2)) end
     else  -- Non-option argument
-      assert(not w:find '^<')
       if cur then handle(cur, cpre, false, w); cur = nil  -- Argument to a flag
       else handle(first, '', false, w); first = false end  -- Positional arg
     end
@@ -948,6 +951,10 @@ local function make(fn, ruleset)
       info.kind = 'ylwrap'
       local ylwrap = unmagic(r.expand '$(YLWRAP)')
       info.cmd = './config/ylwrap '..ex:match(ylwrap..'%s+(.+)')
+    elseif c:find '/stringify%.py' then
+      handled[i] = 'HPCToolkit: Stringification'
+      check(not info.kind)
+      info.kind, info.cmd = 'stringify', ex
     elseif ex:find "^echo 'ELFUTILS_" then
       handled[i] = 'LD: Elfutils mapfile echo'
       check(not info.kind)
@@ -1320,6 +1327,23 @@ function translations.latex2man(info)
       if #r.inputs == 0 then p = make(p, info.ruleset); r.inputs[1] = p.path
       else r.outputs[1] = p.path end
       return p.path
+    end,
+  }))
+  tup.frule(r)
+end
+function translations.stringify(info)
+  local r = {inputs={}, outputs={[2]='<_gen>'}}
+  r.command = '^o STR %o^ '..shell(getopt(info.cmd, '', {
+    ['<'] = function(p)
+      p = path(p); assert(p.source)
+      r.inputs[1] = p.path
+      return '?', '%f'
+    end,
+    ['>'] = function(p)
+      p = path(p); assert(p.source)
+      if p.path == info.mvfrom then p = path(info.mvto); assert(p.source) end
+      r.outputs[1] = p.stem
+      return '?', '%o'
     end,
   }))
   tup.frule(r)
