@@ -92,6 +92,14 @@ tests = {
     reffn = cwd..'src/micro-symtab-ref',
     args = '%f > %o',
   },
+  { id = 'micro-parse',
+    size = 1,
+    env = 'OMP_NUM_THREADS=%T',
+    fn = cwd..'src/micro-parse',
+    annfn = cwd..'src/micro-parse-ann',
+    reffn = cwd..'src/micro-parse-ref',
+    args = '%f > %o',
+  },
 }
 
 local ti,tm = table.insert,tup.append_table

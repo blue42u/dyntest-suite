@@ -22,3 +22,16 @@ RD = ../../reference/dyninst/install
   ^o Compiled %o^ c++ $(CFLAGS) -I$(RD)/include -L$(RD)/lib -o %o %f \
   -Wl,-rpath,`realpath $(RD)/lib`:$(RPATH) -lsymtabAPI \
   |> micro-symtab-ref
+
+: micro-parse.cpp | ../../latest/dyninst/<build> $(DEPS) |> \
+  ^o Compiled %o^ c++ $(CFLAGS) -I$(D)/include -L$(D)/lib -o %o %f \
+  -Wl,-rpath,`realpath $(D)/lib`:$(RPATH) -lparseAPI \
+  |> micro-parse
+: micro-parse.cpp | ../../latest/dyninst-vg/<build> $(DEPS) |> \
+  ^o Compiled %o^ c++ $(CFLAGS) -I$(AD)/include -L$(AD)/lib -o %o %f \
+  -Wl,-rpath,`realpath $(AD)/lib`:$(RPATH) -lparseAPI \
+  |> micro-parse-ann
+: micro-parse.cpp | ../../reference/dyninst/<build> $(DEPS) |> \
+  ^o Compiled %o^ c++ $(CFLAGS) -I$(RD)/include -L$(RD)/lib -o %o %f \
+  -Wl,-rpath,`realpath $(RD)/lib`:$(RPATH) -lparseAPI \
+  |> micro-parse-ref

@@ -4,7 +4,7 @@ tup.include '../../external/valgrind/find.lua'
 
 local val = VALGRIND_CMD
 
-local llp = 'LD_LIBRARY_PATH=../../external/gcc/lib '
+local llp = 'LD_LIBRARY_PATH=../../external/gcc/install/lib '
 local lds = '../../external/gcc/<build>'
 local com = val..' --log-file=%o --suppressions=system.supp'
   ..' --suppressions=toreport.supp --fair-sched=yes'
