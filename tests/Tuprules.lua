@@ -85,7 +85,7 @@ tests = {
     args = '-f %f -o %o',
   },
   { id = 'micro-symtab',
-    size = 0,
+    size = 1,
     env = 'OMP_NUM_THREADS=%T',
     fn = cwd..'src/micro-symtab',
     annfn = cwd..'src/micro-symtab-ann',

@@ -9,8 +9,15 @@ local lds = '../../external/gcc/<build>'
 local com = val..' --log-file=%o --suppressions=system.supp'
   ..' --suppressions=toreport.supp --fair-sched=yes'
 
+local sz = 2
+if tup.getconfig 'VAL_CLASS' ~= '' then
+  sz = assert(math.tointeger(tup.getconfig 'VAL_CLASS'),
+    'Configuration option VAL_CLASS must be a valid integer!')
+end
+
+if sz > 0 then
 tup.rule(forall(function(i)
-  if i.size > 2 then return end
+  if i.size > sz then return end
   return {
     id = 'Memcheck', annotations = true,
     threads = 32,
@@ -20,9 +27,11 @@ tup.rule(forall(function(i)
     deps = {'../../external/valgrind/<build>'},
   }
 end), '^o Concat %o^ cat %f > %o', {'memcheck.log', '<out>'})
+end
 
+if sz > 1 then
 tup.rule(forall(function(i, t)
-  if i.size > 1 then return end
+  if i.size > sz-1 then return end
   if t.id == 'hpcstruct' and i.id == 'libdw' then return end
   return {
     id = 'Helgrind', annotations = true,
@@ -33,10 +42,11 @@ tup.rule(forall(function(i, t)
     deps = {lds, '../../external/valgrind/<build>'},
   }
 end), '^o Concat %o^ cat %f > %o', {'helgrind.log', '<out>'})
+end
 
-if enabled('ENABLE_DRD', false) then
+if sz > 2 then
 tup.rule(forall(function(i)
-  if i.size > 1 then return end
+  if i.size > sz-2 then return end
   return {
     id = 'DRD', annotations = true,
     threads = 32,
@@ -48,9 +58,10 @@ tup.rule(forall(function(i)
 end), '^o Concat %o^ cat %f > %o', {'drd.log', '<out>'})
 end
 
+if sz > 0 then
 local big,bigsize
 local massif = forall(function(i, t)
-  if i.size > 2 then return end
+  if i.size > sz then return end
   local o = {
     id = 'Massif', annotations = true,
     threads = 32,
@@ -69,4 +80,5 @@ for i,f in ipairs(massif) do
   if i == big.idx then
     tup.rule(o, '^ Copy %f -> %o^ cp %f %o', {'massif.dump', '<out>'})
   end
+end
 end

@@ -8,6 +8,8 @@ if [ "$VER" != 8.3.0 ]; then
 fi
 
 CORES=`grep -c '^processor' /proc/cpuinfo`
+CORES=$((CORES * 2 / 3))
+
 source ../init.sh \
   ftp://ftp.mirrorservice.org/sites/sourceware.org/pub/gcc/releases/gcc-$VER/gcc-$VER.tar.xz \
   64baadfe6cc0f4947a84cb12d7f0dfaf45bb58b7e92461639596c21e02d97d2c \
