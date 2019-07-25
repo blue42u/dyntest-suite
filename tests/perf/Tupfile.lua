@@ -3,7 +3,6 @@
 sclass = 2
 
 local llp = 'LD_LIBRARY_PATH=../../external/gcc/lib '
-local lds = '../../external/gcc/<build>'
 
 tup.rule('../../reference/hpctoolkit/<build>', '^o Generated %o^ sed'
   ..[[ -e "/^libmonitor_dir/clibmonitor_dir='`realpath ../../external/monitor/install/lib`'"]]
@@ -21,12 +20,7 @@ for _,f in ipairs(forall(function(i, t)
   if i.id == 'nwchem' and (t.id ~= 'micro-symtab' and t.id ~= 'hpcstruct') then return end
   return {
     id = 'Perf', threads = 8,
-    deps = {
-      'hpcrun', '../../external/monitor/<build>', '../../external/dwarf/<build>',
-      '../../external/unwind/<build>', '../../external/papi/<build>',
-      '../../reference/dyninst/<build>', '../../external/zlib/<build>',
-      '../../reference/hpctoolkit/<build>', lds,
-    },
+    deps = {'hpcrun'},
     cmd = llp..'./hpcrun.sh %o %C',
     output = '%t.%i.measurements', serialize = true, redirect = '/dev/null',
   }

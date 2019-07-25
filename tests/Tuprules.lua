@@ -24,35 +24,39 @@ end
 
 local cwd = tup.getcwd():gsub('[^/]$', '%0/')
 
-local lzma = cwd..'../external/lzma/<build>'
-local tbb = cwd..'../external/tbb/<build>'
-local boost = cwd..'../external/boost/<build>'
+local alldeps = {}
+for _,d in ipairs{
+  '../external/lzma', '../external/tbb', '../external/boost',
+  '../external/monitor', '../external/dwarf', '../external/unwind',
+  '../external/papi', '../external/zlib', '../external/bzip',
+  '../external/gcc',
+  '../latest/elfutils', '../latest/dyninst', '../latest/dyninst-vg',
+  '../latest/hpctoolkit', '../latest/hpctoolkit-vg', '../reference/elfutils',
+  '../reference/dyninst', '../reference/hpctoolkit',
+} do
+  table.insert(alldeps, cwd..d..'/<build>')
+end
 
 -- List of inputs to test against
 inputs = {
-  { id = 'libasm',
+  { id = 'libasm', grouped = true,
     fn = cwd..'../latest/elfutils/install/lib/libasm.so',
-    deps = {lzma, cwd..'../latest/elfutils/<build>'},
     size = 1,
   },
-  { id = 'libdw',
+  { id = 'libdw', grouped = true,
     fn = cwd..'../latest/elfutils/install/lib/libdw.so',
-    deps = {lzma, cwd..'../latest/elfutils/<build>'},
     size = 1,
   },
-  { id = 'libcommon',
+  { id = 'libcommon', grouped = true,
     fn = cwd..'../latest/dyninst/install/lib/libcommon.so',
-    deps = {lzma, tbb, boost, cwd..'../latest/dyninst/<build>'},
     size = 2,
   },
-  { id = 'libdyninst',
+  { id = 'libdyninst', grouped = true,
     fn = cwd..'../latest/dyninst/install/lib/libdyninstAPI.so',
-    deps = {lzma, tbb, boost, cwd..'../latest/dyninst/<build>'},
     size = 3,
   },
-  { id = 'hpcstruct',
+  { id = 'hpcstruct', grouped = true,
     fn = cwd..'../latest/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
-    deps = {lzma, tbb, boost, cwd..'../latest/hpctoolkit/<build>'},
     size = 3,
   },
 }
@@ -61,41 +65,32 @@ for _,f in ipairs(tup.glob(cwd..'/extras/*')) do
   if id ~= '.gitignore' then table.insert(inputs, {id=id, fn=f, size=10}) end
 end
 
-local elf = cwd..'../latest/elfutils/'
-local dyn = cwd..'../latest/dyninst/'
-local hpc = cwd..'../latest/hpctoolkit/'
-local refelf = cwd..'../reference/elfutils/'
-local refdyn = cwd..'../reference/dyninst/'
-local refhpc = cwd..'../reference/hpctoolkit/'
-
 -- List of tests to test with
 tests = {
   { id = 'hpcstruct',
-    size = 3,
+    size = 3, grouped = true,
     env = 'OMP_NUM_THREADS=%T',
     fn = cwd..'../latest/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
+    annfn = cwd..'../latest/hpctoolkit-vg/install/libexec/hpctoolkit/hpcstruct-bin',
     reffn = cwd..'../reference/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
     args = '-j%T --jobs-symtab %T -o %o %f',
-    deps = {tbb, boost, elf..'<build>', dyn..'<build>', hpc..'<build>'},
-    refdeps = {tbb, boost, refelf..'<build>', refdyn..'<build>', refhpc..'<build>'},
     outclean = [=[sed -e 's/i="[[:digit:]]\+"/i="NNNNN"/g' %f > %o]=],
   },
   { id = 'unstrip',
-    size = 2,
+    size = 2, grouped = true,
     env = 'OMP_NUM_THREADS=%T',
     fn = cwd..'../latest/dyninst/install/bin/unstrip',
+    annfn = cwd..'../latest/dyninst-vg/install/bin/unstrip',
     reffn = cwd..'../reference/dyninst/install/bin/unstrip',
     args = '-f %f -o %o',
-    deps = {tbb, boost, elf..'<build>', dyn..'<build>'},
-    refdeps = {tbb, boost, refelf..'<build>', refdyn..'<build>'},
   },
   { id = 'micro-symtab',
     size = 0,
     env = 'OMP_NUM_THREADS=%T',
-    fn = cwd..'src/micro-symtab', reffn = cwd..'src/micro-symtab-ref',
+    fn = cwd..'src/micro-symtab',
+    annfn = cwd..'src/micro-symtab-ann',
+    reffn = cwd..'src/micro-symtab-ref',
     args = '%f > %o',
-    deps = {tbb, boost, elf..'<build>', dyn..'<build>', cwd..'src/micro-symtab'},
-    refdeps = {tbb, boost, refelf..'<build>', refdyn..'<build>', cwd..'src/micro-symtab-ref'},
   },
 }
 
@@ -118,13 +113,17 @@ function forall(harness, post)
       local repl = {
         T = ('%d'):format(h.threads or 1),
       }
-      local tfn,tdeps,env = t.fn, t.deps, t.env or ''
-      if h.reference then tfn,tdeps,env = t.reffn, t.refdeps, t.refenv or env end
+      local ins = {extra_inputs=table.move(alldeps, 1,#alldeps, 1,{})}
+      local tfn,env = t.fn, t.env or ''
+      if h.reference then tfn,env = t.reffn, t.refenv or env
+      elseif h.annotations then tfn,env = t.annfn, t.annenv or env end
 
       env = env:gsub('%%(.)', repl)
       local args = (t.args or ''):gsub('%%(.)', repl)
       if h.redirect then args = args:gsub('%%o', h.redirect) end
-      if i.deps then args = args:gsub('%%f', i.fn) end
+      if i.grouped then args = args:gsub('%%f', i.fn)
+      else table.insert(ins, i.fn) end
+      if not t.grouped then table.insert(ins.extra_inputs, t.fn) end
 
       local out = h.output:gsub('%%(.)', { t = t.id, i = i.id })
       local cmd = env..' '..h.cmd:gsub('%%(.)', {
@@ -133,9 +132,6 @@ function forall(harness, post)
       local name = '^'..(h.rebuild and '' or 'o')..' '
         ..h.id..' '..t.id..' '..i.id..' ^'
 
-      local ins = {extra_inputs={}}
-      if i.deps then tm(ins.extra_inputs, i.deps) else ti(ins, i.fn) end
-      if tdeps then tm(ins.extra_inputs, tdeps) else ti(ins, tfn) end
       if h.deps then tm(ins.extra_inputs, h.deps) end
 
       local outs = {out}

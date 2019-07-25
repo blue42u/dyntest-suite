@@ -7,12 +7,17 @@ RPATH = `realpath $(B)/install/lib`:`realpath $(T)/install/lib`
 DEPS = $(B)/<build> $(T)/<build>
 
 D = ../../latest/dyninst/install
+AD = ../../latest/dyninst-vg/install
 RD = ../../reference/dyninst/install
 
 : micro-symtab.cpp | ../../latest/dyninst/<build> $(DEPS) |> \
   ^o Compiled %o^ c++ $(CFLAGS) -I$(D)/include -L$(D)/lib -o %o %f \
   -Wl,-rpath,`realpath $(D)/lib`:$(RPATH) -lsymtabAPI \
   |> micro-symtab
+: micro-symtab.cpp | ../../latest/dyninst/<build> $(DEPS) |> \
+  ^o Compiled %o^ c++ $(CFLAGS) -I$(AD)/include -L$(AD)/lib -o %o %f \
+  -Wl,-rpath,`realpath $(AD)/lib`:$(RPATH) -lsymtabAPI \
+  |> micro-symtab-ann
 : micro-symtab.cpp | ../../reference/dyninst/<build> $(DEPS) |> \
   ^o Compiled %o^ c++ $(CFLAGS) -I$(RD)/include -L$(RD)/lib -o %o %f \
   -Wl,-rpath,`realpath $(RD)/lib`:$(RPATH) -lsymtabAPI \

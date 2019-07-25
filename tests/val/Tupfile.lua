@@ -8,12 +8,11 @@ local llp = 'LD_LIBRARY_PATH=../../external/gcc/lib '
 local lds = '../../external/gcc/<build>'
 local com = val..' --log-file=%o --suppressions=system.supp'
   ..' --suppressions=toreport.supp --fair-sched=yes'
-local logs = {}
 
 tup.rule(forall(function(i)
   if i.size > 2 then return end
   return {
-    id = 'Memcheck',
+    id = 'Memcheck', annotations = true,
     threads = 32,
     cmd = com..' --tool=memcheck %C',
     redirect = '/dev/null',
@@ -26,7 +25,7 @@ tup.rule(forall(function(i, t)
   if i.size > 1 then return end
   if t.id == 'hpcstruct' and i.id == 'libdw' then return end
   return {
-    id = 'Helgrind',
+    id = 'Helgrind', annotations = true,
     threads = 32,
     cmd = llp..com..' --tool=helgrind %C',
     redirect = '/dev/null',
@@ -39,7 +38,7 @@ if enabled('ENABLE_DRD', false) then
 tup.rule(forall(function(i)
   if i.size > 1 then return end
   return {
-    id = 'DRD',
+    id = 'DRD', annotations = true,
     threads = 32,
     cmd = llp..com..' --tool=drd %C',
     redirect = '/dev/null',
@@ -53,7 +52,7 @@ local big,bigsize
 local massif = forall(function(i, t)
   if i.size > 2 then return end
   local o = {
-    id = 'Massif',
+    id = 'Massif', annotations = true,
     threads = 32,
     cmd = val..' -q --massif-out-file=%o --tool=massif %C',
     redirect = '/dev/null',
