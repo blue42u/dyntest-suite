@@ -28,9 +28,8 @@ if [ "$first" ]; then
 %>' \
     --old-group-format='Missing %dn lines:
 %<' \
-    --changed-group-format='Replaced %n lines (%dn -> %dN):
-%<With %dN lines (%dn -> %dN):
-%>' \
+    --changed-group-format='Replaced %dn lines with %dN:
+%<%>' \
     --old-line-format='-%L' --new-line-format='+%L' "$ref" "$first"
 fi
 echo
