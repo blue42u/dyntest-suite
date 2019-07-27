@@ -7,7 +7,8 @@ local val = VALGRIND_CMD
 local llp = 'LD_LIBRARY_PATH=../../external/gcc/install/lib '
 local lds = '../../external/gcc/<build>'
 local com = val..' --log-file=%o --suppressions=system.supp'
-  ..' --suppressions=toreport.supp --fair-sched=yes'
+  ..' --fair-sched=yes'
+  ..' --soname-synonyms=somalloc=\\*tbbmalloc\\*'
 
 local sz = 2
 if tup.getconfig 'VAL_CLASS' ~= '' then
@@ -17,7 +18,7 @@ end
 
 if sz > 0 then
 tup.rule(forall(function(i)
-  if i.size > sz then return end
+  if i.size > sz-1 then return end
   return {
     id = 'Memcheck', annotations = true,
     threads = 32,
@@ -79,6 +80,29 @@ for i,f in ipairs(massif) do
     '^ Massif Dump %f -> %o^ '..VALGRIND_MS_PRINT..' %f > %o', o)
   if i == big.idx then
     tup.rule(o, '^ Copy %f -> %o^ cp %f %o', {'massif.dump', '<out>'})
+  end
+end
+end
+
+if sz > 0 then
+local big,bigsize
+local massif = forall(function(i, t)
+  if i.size > sz-1 then return end
+  local o = {
+    id = 'Callgrind', annotations = true,
+    threads = 32,
+    cmd = val..' -q --callgrind-out-file=%o --tool=callgrind --dump-instr=yes'
+      ..' --collect-systime=yes --collect-bus=yes --fair-sched=yes %C',
+    redirect = '/dev/null',
+    output = 'cg/callgrind.out.%t.%i',
+    deps = {'../../external/valgrind/<build>'},
+  }
+  if not big or i.size*t.size > bigsize then big,bigsize = o,i.size*t.size end
+  return o
+end)
+for i,f in ipairs(massif) do
+  if i == big.idx then
+    tup.rule(f, '^ Copy %f -> %o^ cp %f %o', {'callgrind.out', '<out>'})
   end
 end
 end

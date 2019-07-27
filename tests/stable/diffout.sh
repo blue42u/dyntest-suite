@@ -23,7 +23,14 @@ for run in "$@"; do
   fi
 done
 if [ "$first" ]; then
-  echo "  -- Diff output from $firstthreads"
-  diff "$ref" "$first"
+  diff -d --unchanged-group-format='' \
+    --new-group-format='Additional/bogus %dN lines:
+%>' \
+    --old-group-format='Missing %dn lines:
+%<' \
+    --changed-group-format='Replaced %n lines (%dn -> %dN):
+%<With %dN lines (%dn -> %dN):
+%>' \
+    --old-line-format='-%L' --new-line-format='+%L' "$ref" "$first"
 fi
 echo

@@ -13,6 +13,12 @@ tup.rule('../../reference/hpctoolkit/<build>', '^o Generated %o^ sed'
   ..[[ -e "/^hash_value=/chash_value='no'"]]
   ..' ../../reference/hpctoolkit/install/bin/hpcrun > %o && chmod +x %o', 'hpcrun')
 
+local structs = tup.glob 'struct/*.struct'
+for i,s in ipairs(structs) do
+  structs[i] = '-S '..s
+end
+structs = table.concat(structs, ' ')
+
 for _,f in ipairs(forall(function(i, t)
   if i.size < 3 then return end
   if i.id == 'nwchem' and (t.id ~= 'micro-symtab' and t.id ~= 'hpcstruct') then return end
@@ -24,8 +30,8 @@ for _,f in ipairs(forall(function(i, t)
   }
 end)) do
   tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<build>',
-    '../src/micro-symtab', serialend()}},
-    './hpcprof.sh %f %o',
+    'struct/<out>', '../src/micro-symtab', serialend()}},
+    './hpcprof.sh %f %o '..structs,
     {f:gsub('%.measurements', '.tar'), '../<s_2_post>'})
 end
 

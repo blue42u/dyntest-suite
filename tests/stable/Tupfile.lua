@@ -17,6 +17,7 @@ tup.rule(forall(function(i)
   }, table.unpack(runs)
 end, function(ins, i, t)
   if #ins == 0 then return end
+  if t.unstable then return end
   if t.outclean then
     for idx, f in ipairs(ins) do
       local o = f..'.clean'

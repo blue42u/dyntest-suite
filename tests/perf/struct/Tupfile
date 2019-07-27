@@ -1,0 +1,26 @@
+include_rules
+
+!struct = | ../../../reference/hpctoolkit/<build> |> \
+  ^o STRUCT %o^ \
+  ../../../reference/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin \
+  -o %o |>
+
+: foreach ../../src/micro-symtab ../../src/micro-symtab-* |> !struct %f |> %b.struct <out>
+: foreach ../../src/micro-parse ../../src/micro-parse-* |> !struct %f |> %b.struct <out>
+: ../../../external/boost/<build> |> !struct ../../../external/boost/install/lib/libboost_filesystem.so.1.70.0 |> libboost_filesystem.so.1.70.0.struct <out>
+: ../../../external/boost/<build> |> !struct ../../../external/boost/install/lib/libboost_thread.so.1.70.0 |> libboost_thread.so.1.70.0.struct <out>
+: ../../../external/monitor/<build> |> !struct ../../../external/monitor/install/lib/libmonitor.so.0.0.0 |> libmonitor.so.0.0.0.struct <out>
+: ../../../external/tbb/<build> |> !struct ../../../external/tbb/install/lib/libtbbmalloc_proxy.so.2 |> libtbbmalloc_proxy.so.2.struct <out>
+: ../../../external/tbb/<build> |> !struct ../../../external/tbb/install/lib/libtbbmalloc.so.2 |> libtbbmalloc.so.2.struct <out>
+: ../../../external/tbb/<build> |> !struct ../../../external/tbb/install/lib/libtbb.so.2 |> libtbb.so.2.struct <out>
+: ../../../latest/dyninst/<build> |> !struct ../../../latest/dyninst/install/bin/unstrip |> unstrip.struct <out>
+: ../../../latest/dyninst/<build> |> !struct ../../../latest/dyninst/install/lib/libcommon.so.10.1.0 |> libcommon.so.10.1.0.struct <out>
+: ../../../latest/dyninst/<build> |> !struct ../../../latest/dyninst/install/lib/libdynDwarf.so.10.1.0 |> libdynDwarf.so.10.1.0.struct <out>
+: ../../../latest/dyninst/<build> |> !struct ../../../latest/dyninst/install/lib/libdynElf.so.10.1.0 |> libdynElf.so.10.1.0.struct <out>
+: ../../../latest/dyninst/<build> |> !struct ../../../latest/dyninst/install/lib/libinstructionAPI.so.10.1.0 |> libinstructionAPI.so.10.1.0.struct <out>
+: ../../../latest/dyninst/<build> |> !struct ../../../latest/dyninst/install/lib/libparseAPI.so.10.1.0 |> libparseAPI.so.10.1.0.struct <out>
+: ../../../latest/dyninst/<build> |> !struct ../../../latest/dyninst/install/lib/libsymtabAPI.so.10.1.0 |> libsymtabAPI.so.10.1.0.struct <out>
+: ../../../latest/dyninst/<build> |> !struct ../../../latest/elfutils/install/lib/libdw-0.176.so |> libdw-0.176.so.struct <out>
+: ../../../latest/dyninst/<build> |> !struct ../../../latest/elfutils/install/lib/libelf-0.176.so |> libelf-0.176.so.struct <out>
+: ../../../latest/hpctoolkit/<build> |> !struct ../../../latest/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin |> hpcstruct-bin.struct <out>
+: ../../../reference/hpctoolkit/<build> |> !struct ../../../reference/hpctoolkit/install/lib/hpctoolkit/libhpcrun.so |> libhpcrun.so.struct <out>
