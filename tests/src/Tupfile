@@ -7,14 +7,14 @@ RPATH = `realpath $(B)/install/lib`:`realpath $(T)/install/lib`
 DEPS = $(B)/<build> $(T)/<build>
 
 D = ../../latest/dyninst/install
-AD = ../../latest/dyninst-vg/install
+AD = ../../annotated/dyninst/install
 RD = ../../reference/dyninst/install
 
 : micro-symtab.cpp | ../../latest/dyninst/<build> $(DEPS) |> \
   ^o Compiled %o^ c++ $(CFLAGS) -I$(D)/include -L$(D)/lib -o %o %f \
   -Wl,-rpath,`realpath $(D)/lib`:$(RPATH) -lsymtabAPI \
   |> micro-symtab
-: micro-symtab.cpp | ../../latest/dyninst-vg/<build> $(DEPS) |> \
+: micro-symtab.cpp | ../../annotated/dyninst/<build> $(DEPS) |> \
   ^o Compiled %o^ c++ $(CFLAGS) -I$(AD)/include -L$(AD)/lib -o %o %f \
   -Wl,-rpath,`realpath $(AD)/lib`:$(RPATH) -lsymtabAPI \
   |> micro-symtab-ann
@@ -27,7 +27,7 @@ RD = ../../reference/dyninst/install
   ^o Compiled %o^ c++ $(CFLAGS) -I$(D)/include -L$(D)/lib -o %o %f \
   -Wl,-rpath,`realpath $(D)/lib`:$(RPATH) -lparseAPI \
   |> micro-parse
-: micro-parse.cpp | ../../latest/dyninst-vg/<build> $(DEPS) |> \
+: micro-parse.cpp | ../../annotated/dyninst/<build> $(DEPS) |> \
   ^o Compiled %o^ c++ $(CFLAGS) -I$(AD)/include -L$(AD)/lib -o %o %f \
   -Wl,-rpath,`realpath $(AD)/lib`:$(RPATH) -lparseAPI \
   |> micro-parse-ann

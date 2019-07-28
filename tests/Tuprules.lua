@@ -30,9 +30,9 @@ for _,d in ipairs{
   '../external/monitor', '../external/dwarf', '../external/unwind',
   '../external/papi', '../external/zlib', '../external/bzip',
   '../external/gcc',
-  '../latest/elfutils', '../latest/dyninst', '../latest/dyninst-vg',
-  '../latest/hpctoolkit', '../latest/hpctoolkit-vg', '../reference/elfutils',
-  '../reference/dyninst', '../reference/hpctoolkit',
+  '../latest/elfutils', '../latest/dyninst', '../annotated/dyninst',
+  '../latest/hpctoolkit', '../annotated/hpctoolkit', '../reference/elfutils',
+  '../reference/dyninst', '../reference/hpctoolkit', '../annotated/elfutils',
 } do
   table.insert(alldeps, cwd..d..'/<build>')
 end
@@ -71,7 +71,7 @@ tests = {
     size = 3, grouped = true,
     env = 'OMP_NUM_THREADS=%T',
     fn = cwd..'../latest/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
-    annfn = cwd..'../latest/hpctoolkit-vg/install/libexec/hpctoolkit/hpcstruct-bin',
+    annfn = cwd..'../annotated/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
     reffn = cwd..'../reference/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
     args = '-j%T --jobs-symtab %T -o %o %f',
     outclean = [=[sed -e 's/i="[[:digit:]]\+"/i="NNNNN"/g' %f > %o]=],
@@ -80,7 +80,7 @@ tests = {
     size = 2, grouped = true,
     env = 'OMP_NUM_THREADS=%T',
     fn = cwd..'../latest/dyninst/install/bin/unstrip',
-    annfn = cwd..'../latest/dyninst-vg/install/bin/unstrip',
+    annfn = cwd..'../annotated/dyninst/install/bin/unstrip',
     reffn = cwd..'../reference/dyninst/install/bin/unstrip',
     args = '-f %f -o %o',
     unstable = true,  -- TODO: outclean = 'nm -a ...',

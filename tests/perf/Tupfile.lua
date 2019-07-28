@@ -31,7 +31,7 @@ for _,f in ipairs(forall(function(i, t)
 end)) do
   tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<build>',
     'struct/<out>', '../src/micro-symtab', serialend()}},
-    './hpcprof.sh %f %o '..structs,
+    '^o Prof %o^ ./hpcprof.sh %f %o '..structs,
     {f:gsub('%.measurements', '.tar'), '../<s_2_post>'})
 end
 
