@@ -21,4 +21,5 @@ for f in "$@"; do
 done
 
 cd "$TMP"
-LD_PRELOAD="$TUPIFY" tar -cJf "$DST" *
+tar cf out.tar *
+LD_PRELOAD="$TUPIFY" sh -c "xz -c9ev out.tar > '$DST'"

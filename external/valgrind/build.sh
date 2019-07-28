@@ -5,8 +5,8 @@ source ../init.sh https://sourceware.org/pub/valgrind/valgrind-3.15.0.tar.bz2 \
   46e5fbdcbc3502a5976a317a0860a975
 
 # The usual configure-make-install
-./configure --prefix="`realpath zzz`" --quiet \
-  --enable-lto > /dev/null
+./configure --prefix="`realpath zzz`" --quiet --disable-dependency-tracking \
+  --enable-lto --enable-only64bit --with-mpicc=false > /dev/null
 make --quiet > /dev/null
 make --quiet install > /dev/null
 

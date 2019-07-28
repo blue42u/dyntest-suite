@@ -6,7 +6,5 @@ function elfutils(o) return build {
   builddir = o.builddir,
   cfgflags = [[
     --enable-maintainer-mode --enable-install-elfh
-    --with-zlib=@/external/zlib@ --with-bzlib=@/external/bzlib@
-    --with-lzma=@/external/lzma@
   ]]..(o.cfg or ''),
 } end
