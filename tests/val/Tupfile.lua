@@ -4,8 +4,10 @@ tup.include '../../external/valgrind/find.lua'
 
 local val = VALGRIND_CMD
 
-local llp = 'LD_LIBRARY_PATH=../../external/gcc/install/lib '
-local lds = '../../external/gcc/<build>'
+local llp = ''
+if tup.getconfig 'ENABLE_OMP_DEBUG' ~= '' then
+  llp = 'LD_LIBRARY_PATH="'..tup.getconfig 'ENABLE_OMP_DEBUG'..'" '
+end
 local com = val..' --log-file=%o --suppressions=system.supp'
   ..' --fair-sched=yes'
   ..' --soname-synonyms=somalloc=\\*tbbmalloc\\*'
@@ -40,7 +42,7 @@ tup.rule(forall(function(i, t)
     cmd = llp..com..' --tool=helgrind %C',
     redirect = '/dev/null',
     output = 'hg/%t.%i.log',
-    deps = {lds, '../../external/valgrind/<build>'},
+    deps = { '../../external/valgrind/<build>'},
   }
 end), '^o Concat %o^ cat %f > %o', {'helgrind.log', '<out>'})
 end
@@ -54,7 +56,7 @@ tup.rule(forall(function(i)
     cmd = llp..com..' --tool=drd %C',
     redirect = '/dev/null',
     output = 'drd/%t.%i.log',
-    deps = {lds, '../../external/valgrind/<build>'},
+    deps = { '../../external/valgrind/<build>'},
   }
 end), '^o Concat %o^ cat %f > %o', {'drd.log', '<out>'})
 end
