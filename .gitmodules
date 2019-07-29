@@ -22,3 +22,6 @@
 [submodule "src/ref-elfutils"]
 	path = src/ref-elfutils
 	url = git://sourceware.org/git/elfutils.git
+[submodule "external/slaxml"]
+	path = external/slaxml
+	url = https://github.com/Phrogz/SLAXML.git

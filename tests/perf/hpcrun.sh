@@ -2,11 +2,14 @@
 
 set -e
 
-OUT="$1"
-shift 1
+RATE="$1"
+OUT="$2"
+shift 2
 
 trap 'rm -rf "$TMP"' EXIT
 TMP="`mktemp -d`"
 
-./hpcrun -e REALTIME@100 -t -o "$TMP" "$@"
+export LD_LIBRARY_PATH=../../external/tbb/install/lib
+export LD_PRELOAD=../../external/tbb/install/lib/libtbbmalloc_proxy.so
+./hpcrun -e REALTIME@"$RATE" -t -o "$TMP" "$@"
 tar -C "$TMP" -cf "$OUT" .

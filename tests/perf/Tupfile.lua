@@ -19,19 +19,46 @@ for i,s in ipairs(structs) do
 end
 structs = table.concat(structs, ' ')
 
-for _,f in ipairs(forall(function(i, t)
+local detailed = forall(function(i)
   if i.size < 3 then return end
   return {
-    id = 'Perf', threads = maxthreads,
+    id = 'Perf (detailed)', threads = maxthreads,
     deps = {'hpcrun'},
-    cmd = './hpcrun.sh %o %C',
+    cmd = './hpcrun.sh 100 %o %C',
     output = 'measurements/%t.%i.tar', serialize = true, redirect = '/dev/null',
   }
-end)) do
+end)
+
+local rep = 3
+if tup.getconfig 'PERF_REP' ~= '' then
+  rep = assert(math.tointeger(tup.getconfig 'PERF_REP'),
+    'Configuration option PERF_REP must be a valid integer!')
+end
+
+local coarse = forall(function(i)
+  if i.size < 3 then return end
+  local outs = {}
+  for r=1,rep do table.insert(outs, {
+    id = 'Perf (coarse, rep '..r..')', threads=maxthreads,
+    deps = {'hpcrun'},
+    cmd = './hpcrun.sh 2000 %o %C', redirect = '/dev/null',
+    output = 'measurements/%t.%i.'..r..'.tar', serialize = true,
+  }) end
+  return table.unpack(outs)
+end)
+
+for _,f in ipairs(detailed) do
   tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<build>',
-    'struct/<out>', '../src/micro-symtab', serialend()}},
+    'struct/<out>', serialend()}},
     '^o Prof %o^ ./hpcprof.sh %f %o '..structs,
     {f:gsub('measurements/', ''), '../<s_2_post>'})
+end
+
+for _,f in ipairs(coarse) do
+  tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<build>',
+    'struct/<out>', '../../external/lua/luaexec', serialend()}},
+    '^o Dump %o^ ./hpcdump.sh %f %o '..structs,
+    {f:gsub('measurements/(.*)%.tar', 'coarse/%1.lua'), '../<s_2_post>'})
 end
 
 serialfinal()

@@ -1,6 +1,6 @@
 include_rules
 
-!struct = | ../../../reference/hpctoolkit/<build> |> \
+!struct = | ../../../reference/hpctoolkit/<build> ../../../external/lzma/<build> |> \
   ^o STRUCT %o^ \
   touch %o && \
   LD_PRELOAD= \
