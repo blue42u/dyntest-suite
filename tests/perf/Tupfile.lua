@@ -21,18 +21,17 @@ structs = table.concat(structs, ' ')
 
 for _,f in ipairs(forall(function(i, t)
   if i.size < 3 then return end
-  if i.id == 'nwchem' and (t.id ~= 'micro-symtab' and t.id ~= 'hpcstruct') then return end
   return {
     id = 'Perf', threads = maxthreads,
     deps = {'hpcrun'},
     cmd = './hpcrun.sh %o %C',
-    output = '%t.%i.measurements', serialize = true, redirect = '/dev/null',
+    output = 'measurements/%t.%i.tar', serialize = true, redirect = '/dev/null',
   }
 end)) do
   tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<build>',
     'struct/<out>', '../src/micro-symtab', serialend()}},
     '^o Prof %o^ ./hpcprof.sh %f %o '..structs,
-    {f:gsub('%.measurements', '.tar'), '../<s_2_post>'})
+    {f:gsub('measurements/', ''), '../<s_2_post>'})
 end
 
 serialfinal()

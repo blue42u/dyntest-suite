@@ -18,7 +18,9 @@ if tup.getconfig 'VAL_CLASS' ~= '' then
     'Configuration option VAL_CLASS must be a valid integer!')
 end
 
-if sz > 0 then
+if not enabled('TEST_VAL', true) then return end
+
+if sz > 0 and enabled('TEST_MEMCHECK', true) then
 tup.rule(forall(function(i)
   if i.size > sz-1 then return end
   return {
@@ -32,7 +34,7 @@ tup.rule(forall(function(i)
 end), '^o Concat %o^ cat %f > %o', {'memcheck.log', '<out>'})
 end
 
-if sz > 1 then
+if sz > 1 and enabled('TEST_HELGRIND', true) then
 tup.rule(forall(function(i, t)
   if i.size > sz-1 then return end
   if t.id == 'hpcstruct' and i.id == 'libdw' then return end
@@ -47,7 +49,7 @@ tup.rule(forall(function(i, t)
 end), '^o Concat %o^ cat %f > %o', {'helgrind.log', '<out>'})
 end
 
-if sz > 2 then
+if sz > 2 and enabled('TEST_DRD', true) then
 tup.rule(forall(function(i)
   if i.size > sz-2 then return end
   return {
@@ -61,7 +63,7 @@ tup.rule(forall(function(i)
 end), '^o Concat %o^ cat %f > %o', {'drd.log', '<out>'})
 end
 
-if sz > 0 then
+if sz > 0 and enabled('TEST_MASSIF', false) then
 local big,bigsize
 local massif = forall(function(i, t)
   if i.size > sz then return end
@@ -86,10 +88,10 @@ for i,f in ipairs(massif) do
 end
 end
 
-if sz > 0 then
+if sz > 0 and enabled('TEST_CALLGRIND', false) then
 local big,bigsize
-local massif = forall(function(i, t)
-  if i.size > sz-1 then return end
+local callgrind = forall(function(i, t)
+  if i.size > sz then return end
   local o = {
     id = 'Callgrind', annotations = true,
     threads = 32,
@@ -102,7 +104,7 @@ local massif = forall(function(i, t)
   if not big or i.size*t.size > bigsize then big,bigsize = o,i.size*t.size end
   return o
 end)
-for i,f in ipairs(massif) do
+for i,f in ipairs(callgrind) do
   if i == big.idx then
     tup.rule(f, '^ Copy %f -> %o^ cp %f %o', {'callgrind.out', '<out>'})
   end
