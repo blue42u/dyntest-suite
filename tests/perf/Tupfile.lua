@@ -35,7 +35,8 @@ if tup.getconfig 'PERF_REP' ~= '' then
     'Configuration option PERF_REP must be a valid integer!')
 end
 
-local coarse = forall(function(i)
+local coarse = {}
+forall(function(i)
   if i.size < 3 then return end
   local outs = {}
   for r=1,rep do table.insert(outs, {
@@ -45,20 +46,28 @@ local coarse = forall(function(i)
     output = 'measurements/%t.%i.'..r..'.tar', serialize = true,
   }) end
   return table.unpack(outs)
-end)
+end, function(c, i, t) if #c > 0 then table.insert(coarse, {c, i, t}) end end)
 
 for _,f in ipairs(detailed) do
   tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<build>',
     'struct/<out>', serialend()}},
     '^o Prof %o^ ./hpcprof.sh %f %o '..structs,
-    {f:gsub('measurements/', ''), '../<s_2_post>'})
+    {f:gsub('measurements/', 'detailed/'), '../<s_2_post>'})
 end
 
-for _,f in ipairs(coarse) do
-  tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<build>',
-    'struct/<out>', '../../external/lua/luaexec', serialend()}},
-    '^o Dump %o^ ./hpcdump.sh %f %o '..structs,
-    {f:gsub('measurements/(.*)%.tar', 'coarse/%1.lua'), '../<s_2_post>'})
+for _,x in ipairs(coarse) do
+  local c,i,t = x[1], x[2], x[3]
+  local parts = {}
+  for _,f in ipairs(c) do
+    local o = f:gsub('measurements/', 'coarse/')
+    tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<build>',
+      'struct/<out>', serialend()}},
+      '^o Prof %o^ ./hpcprof.sh %f %o '..structs, o)
+    table.insert(parts, o)
+  end
+  parts.extra_inputs = {'../../external/lua/luaexec'}
+  tup.rule(parts, '^o Dump %o^ ./hpcdump.sh %o %f',
+    {'stats/'..t.id..'.'..i.id..'.lua', '../<s_2_post>'})
 end
 
 serialfinal()

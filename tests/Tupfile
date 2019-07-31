@@ -1,4 +1,4 @@
 include_rules
 
-: stable/stable.out perf/*.tar | val/<out> |> \
-  ^o Constructed final output bundle^ ./tarcat.sh %o %f %<out> |> all.txz
+: stable/stable.out | <s_2_post> val/<out> |> \
+  ^o Constructed final output bundle^ ./tarcat.sh %o %f %<out> %<s_2_post> |> all.txz

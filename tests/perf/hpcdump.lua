@@ -2,6 +2,9 @@
 -- bits that we care about.
 -- luacheck: std lua53
 
+-- Make sure we can access SLAXML from here
+package.path = '../../external/slaxml/?.lua;'..package.path
+
 -- Helper for walking around XML structures. Had it lying around.
 local xtrav
 do
@@ -54,12 +57,9 @@ do
   end
 end
 
-local dbpath = ...
-package.path = '../../external/slaxml/?.lua;'..package.path
-
 -- First we generate stacktraces for all the relevant bits
-local traces = {}
-do
+local function trace(dbpath)
+  local traces = {}
   -- Parse the XML and generate an (overly large) DOM table from it
   local f = assert(io.open(dbpath..'/experiment.xml'))
   local xml = f:read '*a'
@@ -79,26 +79,27 @@ do
   end
 
   -- Next go through the traces and record them as small tables, recursively.
-  local trace = {}
+  local tr = {}
   local function process(t)
     -- Add this tag's place to the common trace
-    if t.attr.n then trace[#trace+1] = assert(procs[t.attr.n]) end
+    if t.attr.n then tr[#tr+1] = assert(procs[t.attr.n]) end
 
     -- Make a copy and register in the traces
-    if t.attr.it then traces[tonumber(t.attr.it)] = table.move(trace, 1,#trace, 1, {}) end
+    if t.attr.it then traces[tonumber(t.attr.it)] = table.move(tr, 1,#tr, 1, {}) end
 
     -- Recurse for every useful next frame
     for tt in xtrav(t, {_name={'PF','Pr','L','C','S'}}) do process(tt) end
 
     -- Remove the trace added by this call
-    if t.attr.n then trace[#trace] = nil end
+    if t.attr.n then tr[#tr] = nil end
   end
   for t in xtrav(pd, {_name='PF'}) do process(t) end
+  return traces
 end
 
 -- Next we process the timepoint data.
-local tps = {}
-do
+local function timepoint(dbpath, traces)
+  local tps = {}
   local f = io.open(dbpath..'/experiment.mt', 'r')
   local function read(fmt, ...)
     if type(fmt) == 'string' then
@@ -155,16 +156,18 @@ do
   end
 
   f:close()
+  return tps
 end
 
 -- Function to find the timeranges (start and end of timepoints) that match a
 -- certain pattern, which is the top part of a trace (prefix match).
-local function range(...)
+local function range(tps, ...)
   local patt = {...}
   local out = {}
   local matching = false
   for _,tp in ipairs(tps) do
     -- Check if it matches. Default to true if patt happens to be empty.
+    assert(#tp.trace ~= 0)
     local ok = true
     local i = 1
     for pi,p in ipairs(patt) do
@@ -197,58 +200,66 @@ local function range(...)
   return out
 end
 
--- We want to find the ranges that we care about, and then output the Lua for easy processing.
--- To make it easier, a function to spit bits out.
--- First line is the name of the key, all other lines are the trace pattern.
-local function output(fmt)
-  local n,p = nil, {}
-  for l in fmt:gmatch '[^\n]+' do
-    if n then p[#p+1] = l else n = l end
+-- Table with prefix patterns for the regions we care about.
+local regions = {
+  exec = {},  -- Matches anything, entire trace.
+  -- Symtab::createIndices, a parallel "windup" for the DWARF parsing
+  symtabCI = {'...', 'Dyninst::SymtabAPI::Symtab::createIndices'},
+  -- Symtab::DwarfWalker, the main parallel DWARF parsing operation
+  symtabDW = {'...', 'Dyninst::SymtabAPI::DwarfWalker::parse'},
+  -- Parser::parse_frame, the main parallel binary parsing.
+  parsePF = {'...', 'Dyninst::ParseAPI::Parser::parse_frames'},
+}
+
+-- Parse the arguments. First is the output file, rest are databases.
+local dbs = {...}
+local outfn = table.remove(dbs, 1)
+
+-- Read in each database and process out its ranges for the given regions.
+-- Ranges from different databases are matched together, and we error
+-- if the counts differ unless they're fully missing.
+local stats = {}
+for _,db in ipairs(dbs) do
+  local tps = timepoint(db, trace(db))
+  for k,p in pairs(regions) do
+    stats[k] = stats[k] or {}
+    local rs = range(tps, table.unpack(p))
+    if #rs > 0 then  -- Try to add into the current pile
+      if #stats[k] == 0 then  -- Use this as the official count
+        for i=1,#rs do stats[k][i] = {} end
+      end
+      assert(#stats[k] == #rs, 'Mismatching counts for '..k..': '..#stats[k]..' ~= '..#rs..'!')
+      for i,r in ipairs(rs) do table.insert(stats[k][i], r) end
+    end
   end
-  local ranges = range(table.unpack(p))
-  for i,r in ipairs(ranges) do
-    ranges[i] = ('{s=%f, e=%f, l=%f}'):format(r[1].time, r[2].time, r[2].time-r[1].time)
-  end
-  print(n..' = {'..table.concat(ranges, ', ')..'},')
+  tps = nil  -- luacheck: ignore
+  collectgarbage()  -- Try to reduce memory usage if at all possible
 end
 
--- And here we go!
-print 'return {'
+-- Next parse through each stat and reduce down to its final statistics.
+for _,stat in pairs(stats) do
+  for idx,rs in ipairs(stat) do
+    local o = {avg = 0, sd = 0}
+    for _,r in ipairs(rs) do o.avg = o.avg + (r[2].time - r[1].time) end
+    o.avg = o.avg / #rs
+    for _,r in ipairs(rs) do o.sd = o.sd + (r[2].time - r[1].time - o.avg)^2 end
+    o.sd = math.sqrt(o.sd / (#rs - 1))
+    stat[idx] = o
+  end
+end
 
--- Entire execution
-output 'exec'
--- createIndices is mostly a parallel region, I'm interested in it
-output [[symtabCI
-...
-BAnal::Struct::makeStructure
-...
-Dyninst::SymtabAPI::Symtab::createIndices]]
--- The original parallelism in Symtab: the DwarfWalker
-output [[symtabDW
-...
-Dyninst::SymtabAPI::DwarfWalker::parse
-]]
--- Two ranges within makeStructure. Short and not really our problem, but still parallel.
-output [[banal
-...
-BAnal::Struct::makeStructure
-GOMP_parallel
-]]
--- Parallel "windup" for ParseAPI. Very highly unbalanced, but also very short.
-output [[parseIR
-...
-Dyninst::ParseAPI::SymtabCodeSource::init_regions
-[Gg][Oo][Mm][Pp]_
-]]
--- The main parallel region in ParseAPI, the parsing of the frames.
-output [[parsePF
-...
-Dyninst::ParseAPI::Parser::parse_frames
-]]
--- Parallel "winddown" for ParseAPI. Has a leftover barrier but otherwise fine.
-output [[parseFF
-...
-Dyninst::ParseAPI::Parser::finalize_funcs
-]]
-
-print '}'
+-- Last, pop open the output file and cough out everything we gained here.
+local ord = {}
+for k in pairs(stats) do table.insert(ord, k) end
+table.sort(ord)
+local f = io.open(outfn, 'w')
+f:write 'return {\n'
+for _,k in ipairs(ord) do
+  f:write('  '..k..' = {\n')
+  for _,s in ipairs(stats[k]) do
+    f:write(('    {avg=%f, sd=%f},\n'):format(s.avg, s.sd))
+  end
+  f:write '  },\n'
+end
+f:write '}\n'
+f:close()
