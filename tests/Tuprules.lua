@@ -70,9 +70,11 @@ tests = {
   { id = 'hpcstruct',
     size = 3, grouped = true,
     env = 'OMP_NUM_THREADS=%T',
-    fn = cwd..'../latest/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
-    annfn = cwd..'../annotated/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
-    reffn = cwd..'../reference/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
+    modes = {
+      [false] = cwd..'../latest/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
+      ann = cwd..'../annotated/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
+      ref = cwd..'../reference/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
+    },
     args = '-j%T --jobs-symtab %T -o %o %f',
     outclean = [=[sed -e 's/i="[[:digit:]]\+"/i="NNNNN"/g' %f > %o]=],
   },
@@ -88,17 +90,21 @@ tests = {
   { id = 'micro-symtab', unstable = true,
     size = 1,
     env = 'OMP_NUM_THREADS=%T',
-    fn = cwd..'src/micro-symtab',
-    annfn = cwd..'src/micro-symtab-ann',
-    reffn = cwd..'src/micro-symtab-ref',
+    modes = {
+      [false] = cwd..'src/micro-symtab',
+      ann = cwd..'src/micro-symtab-ann',
+      ref = cwd..'src/micro-symtab-ref',
+    },
     args = '%f > %o',
   },
   { id = 'micro-parse', unstable = true,
     size = 1,
     env = 'OMP_NUM_THREADS=%T',
-    fn = cwd..'src/micro-parse',
-    annfn = cwd..'src/micro-parse-ann',
-    reffn = cwd..'src/micro-parse-ref',
+    modes = {
+      [false] = cwd..'src/micro-parse',
+      ann = cwd..'src/micro-parse-ann',
+      ref = cwd..'src/micro-parse-ref',
+    },
     args = '%f > %o',
   },
 }
@@ -123,9 +129,8 @@ function forall(harness, post)
         T = ('%d'):format(h.threads or 1),
       }
       local ins = {extra_inputs=table.move(alldeps, 1,#alldeps, 1,{})}
-      local tfn,env = t.fn, t.env or ''
-      if h.reference then tfn,env = t.reffn, t.refenv or env
-      elseif h.annotations then tfn,env = t.annfn, t.annenv or env end
+      local tfn,env = t.modes[false], t.env or ''
+      if h.mode then tfn = assert(t.modes[h.mode]) end
 
       env = env:gsub('%%(.)', repl)
       local args = (t.args or ''):gsub('%%(.)', repl)

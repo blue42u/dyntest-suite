@@ -24,7 +24,7 @@ if sz > 0 and enabled('TEST_MEMCHECK', true) then
 tup.rule(forall(function(i)
   if i.size > sz-1 then return end
   return {
-    id = 'Memcheck', annotations = true,
+    id = 'Memcheck', mode = 'ann',
     threads = 32,
     cmd = com..' --tool=memcheck %C',
     redirect = '/dev/null',
@@ -39,7 +39,7 @@ tup.rule(forall(function(i, t)
   if i.size > sz-1 then return end
   if t.id == 'hpcstruct' and i.id == 'libdw' then return end
   return {
-    id = 'Helgrind', annotations = true,
+    id = 'Helgrind', mode = 'ann',
     threads = 32,
     cmd = llp..com..' --tool=helgrind %C',
     redirect = '/dev/null',
@@ -53,7 +53,7 @@ if sz > 2 and enabled('TEST_DRD', true) then
 tup.rule(forall(function(i)
   if i.size > sz-2 then return end
   return {
-    id = 'DRD', annotations = true,
+    id = 'DRD', mode = 'ann',
     threads = 32,
     cmd = llp..com..' --tool=drd %C',
     redirect = '/dev/null',
@@ -68,7 +68,7 @@ local big,bigsize
 local massif = forall(function(i, t)
   if i.size > sz then return end
   local o = {
-    id = 'Massif', annotations = true,
+    id = 'Massif', mode = 'ann',
     threads = 32,
     cmd = val..' -q --massif-out-file=%o --tool=massif %C',
     redirect = '/dev/null',
@@ -93,7 +93,7 @@ local big,bigsize
 local callgrind = forall(function(i, t)
   if i.size > sz then return end
   local o = {
-    id = 'Callgrind', annotations = true,
+    id = 'Callgrind', mode = 'ann',
     threads = 32,
     cmd = val..' -q --callgrind-out-file=%o --tool=callgrind --dump-instr=yes'
       ..' --collect-systime=yes --collect-bus=yes --fair-sched=yes %C',

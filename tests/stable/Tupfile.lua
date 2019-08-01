@@ -12,8 +12,8 @@ tup.rule(forall(function(i)
     }
   end
   return {
-    id = 'Stable (ref)', reference = true, threads = 1, cmd = '%C',
-    output = '%t.%i/ref',
+    id = 'Stable (ref)', threads = 1, cmd = '%C',
+    output = '%t.%i/ref', mode = 'ref',
   }, table.unpack(runs)
 end, function(ins, i, t)
   if #ins == 0 then return end
