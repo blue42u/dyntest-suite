@@ -143,15 +143,15 @@ function forall(harness, post)
 
       if h.deps then tm(ins.extra_inputs, h.deps) end
 
-      local outs = {out}
+      local outs = {out, '^\\.hpctrace$', '^\\.hpcrun$'}
       if h.serialize then
         ti(ins.extra_inputs, serialend())
         lastsg = (lastsg or 0) + 1
         ti(outs, serialend())
       else ti(outs, cwd..'<s_init>') end
 
-      local fakeaccess = ' stat '..i.fn..' '..tfn
-        ..' >/dev/null && touch %o && LD_PRELOAD= '
+      local fakeaccess = ''
+      if h.fakeout then fakeaccess = 'touch %o && '..fakeaccess end
 
       tup.rule(ins, name..fakeaccess..cmd, outs)
       table.insert(single, out)

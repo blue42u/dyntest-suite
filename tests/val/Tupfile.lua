@@ -28,7 +28,7 @@ tup.rule(forall(function(i)
     threads = 32,
     cmd = com..' --tool=memcheck %C',
     redirect = '/dev/null',
-    output = 'mc/%t.%i.log',
+    output = 'mc/%t.%i.log', fakeout = true,
     deps = {'../../external/valgrind/<build>'},
   }
 end), '^o Concat %o^ cat %f > %o', {'memcheck.log', '<out>'})
@@ -43,7 +43,7 @@ tup.rule(forall(function(i, t)
     threads = 32,
     cmd = llp..com..' --tool=helgrind %C',
     redirect = '/dev/null',
-    output = 'hg/%t.%i.log',
+    output = 'hg/%t.%i.log', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
   }
 end), '^o Concat %o^ cat %f > %o', {'helgrind.log', '<out>'})
@@ -57,7 +57,7 @@ tup.rule(forall(function(i)
     threads = 32,
     cmd = llp..com..' --tool=drd %C',
     redirect = '/dev/null',
-    output = 'drd/%t.%i.log',
+    output = 'drd/%t.%i.log', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
   }
 end), '^o Concat %o^ cat %f > %o', {'drd.log', '<out>'})
@@ -72,7 +72,7 @@ local massif = forall(function(i, t)
     threads = 32,
     cmd = val..' -q --massif-out-file=%o --tool=massif %C',
     redirect = '/dev/null',
-    output = 'massif/%t.%i.out',
+    output = 'massif/%t.%i.out', fakeout = true,
     deps = {'../../external/valgrind/<build>'},
   }
   if not big or i.size*t.size > bigsize then big,bigsize = o,i.size*t.size end
@@ -98,7 +98,7 @@ local callgrind = forall(function(i, t)
     cmd = val..' -q --callgrind-out-file=%o --tool=callgrind --dump-instr=yes'
       ..' --collect-systime=yes --collect-bus=yes --fair-sched=yes %C',
     redirect = '/dev/null',
-    output = 'cg/callgrind.out.%t.%i',
+    output = 'cg/callgrind.out.%t.%i', fakeout = true,
     deps = {'../../external/valgrind/<build>'},
   }
   if not big or i.size*t.size > bigsize then big,bigsize = o,i.size*t.size end

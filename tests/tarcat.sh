@@ -7,14 +7,12 @@ shift 1
 trap 'rm -rf "$TMP"' EXIT
 TMP="`mktemp -d`"
 
-TUPIFY="$LD_PRELOAD"
-export LD_PRELOAD=
-
 for f in "$@"; do
   case "$f" in
   *.tar)
     mkdir -p "$TMP"/"`basename "$f" .tar`"
-    tar -C "$TMP"/"`basename "$f" .tar`" -xf "$f"
+    stat "$f" > /dev/null
+    LD_PRELOAD= tar -C "$TMP"/"`basename "$f" .tar`" -xf "$f"
     ;;
   *) cp "$f" "$TMP"
   esac
@@ -22,4 +20,4 @@ done
 
 cd "$TMP"
 tar cf out.tar *
-LD_PRELOAD="$TUPIFY" sh -c "xz -c9ev out.tar > '$DST'"
+xz -cv out.tar > "$DST"

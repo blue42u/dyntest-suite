@@ -1,0 +1,25 @@
+diff --git a/src/ldpreload/ldpreload.c b/src/ldpreload/ldpreload.c
+index 9b7ce607..285bf339 100644
+--- a/src/ldpreload/ldpreload.c
++++ b/src/ldpreload/ldpreload.c
+@@ -140,9 +140,12 @@ static void child(void)
+ 	}
+ }
+ 
++static int inited = 0;
+ static void init_fd(void) __attribute__((constructor));
+ static void init_fd(void)
+ {
++	if(inited != 0) return;
++	inited = 1;
+ 	const char *depfile;
+ 	if(pthread_atfork(prepare, parent, child) != 0) {
+ 		fprintf(stderr, "tup error: Unable to set pthread atfork handlers.\n");
+@@ -609,6 +612,7 @@ static void handle_file_locked(const char *dirname, int dirlen, const char *file
+ 	if(ignore_file(file2))
+ 		return;
+ 
++	init_fd();
+ 	if(tup_flock(depfd) < 0) {
+ 		fprintf(stderr, "tup error: Unable to lock dependency file for writing [%i]: (file event = %s)\n", depfd, file);
+ 		goto out_error;
