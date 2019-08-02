@@ -33,6 +33,7 @@ for _,d in ipairs{
   '../latest/elfutils', '../latest/dyninst', '../annotated/dyninst',
   '../latest/hpctoolkit', '../annotated/hpctoolkit', '../reference/elfutils',
   '../reference/dyninst', '../reference/hpctoolkit', '../annotated/elfutils',
+  '../serial/dyninst', '../serial/hpctoolkit',
 } do
   table.insert(alldeps, cwd..d..'/<build>')
 end
@@ -74,6 +75,7 @@ tests = {
       [false] = cwd..'../latest/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
       ann = cwd..'../annotated/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
       ref = cwd..'../reference/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
+      ser = cwd..'../serial/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin'
     },
     args = '-j%T --jobs-symtab %T -o %o %f',
     outclean = [=[sed -e 's/i="[[:digit:]]\+"/i="NNNNN"/g' %f > %o]=],
@@ -94,6 +96,7 @@ tests = {
       [false] = cwd..'src/micro-symtab',
       ann = cwd..'src/micro-symtab-ann',
       ref = cwd..'src/micro-symtab-ref',
+      ser = cwd..'src/micro-symtab-ser'
     },
     args = '%f > %o',
   },
@@ -104,6 +107,7 @@ tests = {
       [false] = cwd..'src/micro-parse',
       ann = cwd..'src/micro-parse-ann',
       ref = cwd..'src/micro-parse-ref',
+      ser = cwd..'src/micro-parse-ser',
     },
     args = '%f > %o',
   },

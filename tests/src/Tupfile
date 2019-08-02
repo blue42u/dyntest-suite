@@ -9,6 +9,7 @@ DEPS = $(B)/<build> $(T)/<build>
 D = ../../latest/dyninst/install
 AD = ../../annotated/dyninst/install
 RD = ../../reference/dyninst/install
+SD = ../../serial/dyninst/install
 
 : micro-symtab.cpp | ../../latest/dyninst/<build> $(DEPS) |> \
   ^o Compiled %o^ c++ $(CFLAGS) -I$(D)/include -L$(D)/lib -o %o %f \
@@ -22,6 +23,10 @@ RD = ../../reference/dyninst/install
   ^o Compiled %o^ c++ $(CFLAGS) -I$(RD)/include -L$(RD)/lib -o %o %f \
   -Wl,-rpath,`realpath $(RD)/lib`:$(RPATH) -lsymtabAPI \
   |> micro-symtab-ref
+: micro-symtab.cpp | ../../serial/dyninst/<build> $(DEPS) |> \
+  ^o Compiled %o^ c++ $(CFLAGS) -DSERIALMODE -I$(SD)/include -L$(SD)/lib -o %o %f \
+  -Wl,-rpath,`realpath $(SD)/lib`:$(RPATH) -lsymtabAPI \
+  |> micro-symtab-ser
 
 : micro-parse.cpp | ../../latest/dyninst/<build> $(DEPS) |> \
   ^o Compiled %o^ c++ $(CFLAGS) -I$(D)/include -L$(D)/lib -o %o %f \
@@ -35,3 +40,7 @@ RD = ../../reference/dyninst/install
   ^o Compiled %o^ c++ $(CFLAGS) -I$(RD)/include -L$(RD)/lib -o %o %f \
   -Wl,-rpath,`realpath $(RD)/lib`:$(RPATH) -lparseAPI \
   |> micro-parse-ref
+: micro-parse.cpp | ../../serial/dyninst/<build> $(DEPS) |> \
+  ^o Compiled %o^ c++ $(CFLAGS) -DSERIALMODE  -I$(SD)/include -L$(SD)/lib -o %o %f \
+  -Wl,-rpath,`realpath $(SD)/lib`:$(RPATH) -lparseAPI \
+  |> micro-parse-ser
