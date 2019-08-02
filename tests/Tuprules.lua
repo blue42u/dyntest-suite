@@ -152,7 +152,7 @@ function forall(harness, post)
 
       if h.deps then tm(ins.extra_inputs, h.deps) end
 
-      local outs = {out, '^\\.hpctrace$', '^\\.hpcrun$'}
+      local outs = {out, '^\\.hpctrace$', '^\\.hpcrun$', '^core$'}
       if h.serialize then
         ti(ins.extra_inputs, serialend())
         lastsg = (lastsg or 0) + 1
