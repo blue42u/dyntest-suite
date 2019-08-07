@@ -6,7 +6,7 @@ shift 2
 
 set -e
 
-printf "SUMMARY: %${#REP}d / %d sucessful, %${#REP}d crashes.\n" 0 0 0 > "$OUT"
+printf "SUMMARY: %0${#REP}d / %d sucessful, %0${#REP}d crashes.\n" 0 $REP 0 > "$OUT"
 
 GOOD=0
 BAD=0

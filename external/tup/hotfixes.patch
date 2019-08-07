@@ -1,5 +1,5 @@
 diff --git a/src/ldpreload/ldpreload.c b/src/ldpreload/ldpreload.c
-index 9b7ce607..285bf339 100644
+index 9b7ce607..3152b6ac 100644
 --- a/src/ldpreload/ldpreload.c
 +++ b/src/ldpreload/ldpreload.c
 @@ -140,9 +140,12 @@ static void child(void)
@@ -15,7 +15,24 @@ index 9b7ce607..285bf339 100644
  	const char *depfile;
  	if(pthread_atfork(prepare, parent, child) != 0) {
  		fprintf(stderr, "tup error: Unable to set pthread atfork handlers.\n");
-@@ -609,6 +612,7 @@ static void handle_file_locked(const char *dirname, int dirlen, const char *file
+@@ -155,12 +158,14 @@ static void init_fd(void)
+ 	}
+ 	WRAP(s_open, "open");
+ 	if(depfd < 0) {
+-		depfd = s_open(depfile, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0666);
+-		if(depfd < 0) {
++		int fd = s_open(depfile, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0666);
++		if(fd < 0) {
+ 			perror(depfile);
+ 			fprintf(stderr, "tup error: Unable to write dependencies to a temporary file.\n");
+ 			goto out_error;
+ 		}
++		depfd = dup(fd);
++		close(fd);
+ 	}
+ 	return;
+ 
+@@ -609,6 +614,7 @@ static void handle_file_locked(const char *dirname, int dirlen, const char *file
  	if(ignore_file(file2))
  		return;
  
