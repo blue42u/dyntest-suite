@@ -36,6 +36,7 @@ if tup.getconfig 'PERF_REP' ~= '' then
 end
 
 local coarse = {}
+if rep > 0 then
 forall(function(i)
   if i.size < 3 then return end
   local outs = {}
@@ -49,6 +50,7 @@ forall(function(i)
   end
   return table.unpack(outs)
 end, function(c, i, t) if #c > 0 then table.insert(coarse, {c, i, t}) end end)
+end
 
 for _,f in ipairs(detailed) do
   tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<build>',
