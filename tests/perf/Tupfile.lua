@@ -46,12 +46,6 @@ forall(function(i)
       cmd = './hpcrun.sh 2000 %o %C', redirect = '/dev/null',
       output = 'measurements/%t.%i.'..r..'.tar', serialize = true,
     })
-    table.insert(outs, {
-      id = 'Perf (coarse serial, rep '..r..')', threads=1, mode = 'ser',
-      deps = {'hpcrun'},
-      cmd = './hpcrun.sh 2000 %o %C', redirect = '/dev/null',
-      output = 'measurements/%t.%i.'..r..'.ser.tar', serialize = true,
-    })
   end
   return table.unpack(outs)
 end, function(c, i, t) if #c > 0 then table.insert(coarse, {c, i, t}) end end)
@@ -65,21 +59,17 @@ end
 
 for _,x in ipairs(coarse) do
   local c,i,t = x[1], x[2], x[3]
-  local lats,sers = {},{}
+  local lats = {}
   for _,f in ipairs(c) do
     local o = f:gsub('measurements/', 'coarse/')
     tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<build>',
       'struct/<out>', serialend()}},
       '^o Prof %o^ ./hpcprof.sh %f %o '..structs, o)
-    if o:find '%.ser%.tar' then table.insert(sers, o)
-    else table.insert(lats, o) end
+    table.insert(lats, o)
   end
   lats.extra_inputs = {'../../external/lua/luaexec'}
-  sers.extra_inputs = {'../../external/lua/luaexec'}
   tup.rule(lats, '^o Dump %o^ ./hpcdump.sh %o %f',
     {'stats/'..t.id..'.'..i.id..'.lua', '../<s_2_post>'})
-  tup.rule(sers, '^o Dump %o^ ./hpcdump.sh %o %f',
-    {'stats/'..t.id..'.'..i.id..'.ser.lua', '../<s_2_post>'})
 end
 
 serialfinal()
