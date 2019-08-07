@@ -89,7 +89,7 @@ tests = {
   --   args = '-f %f -o %o',
   --   unstable = true,  -- TODO: outclean = 'nm -a ...',
   -- },
-  { id = 'micro-symtab', unstable = true,
+  { id = 'micro-symtab', nooutput = true,
     size = 1,
     env = 'OMP_NUM_THREADS=%T',
     modes = {
@@ -98,9 +98,9 @@ tests = {
       ref = cwd..'src/micro-symtab-ref',
       ser = cwd..'src/micro-symtab-ser'
     },
-    args = '%f > %o',
+    args = '%f',
   },
-  { id = 'micro-parse', unstable = true,
+  { id = 'micro-parse', nooutput = true,
     size = 1,
     env = 'OMP_NUM_THREADS=%T',
     modes = {
@@ -109,7 +109,7 @@ tests = {
       ref = cwd..'src/micro-parse-ref',
       ser = cwd..'src/micro-parse-ser',
     },
-    args = '%f > %o',
+    args = '%f',
   },
 }
 
