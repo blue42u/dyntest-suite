@@ -49,6 +49,52 @@
 }
 
 {
+  libtbb (inlined)
+  Helgrind:Race
+  ...
+  fun:__TBB*
+}
+{
+  libtbb (inlined)
+  drd:ConflictingAccess
+  ...
+  fun:*__TBB*
+}
+
+{
+  libtbb (inlined)
+  Helgrind:Race
+  src:concurrent_hash_map.h
+}
+{
+  libtbb (inlined)
+  drd:ConflictingAccess
+  src:concurrent_hash_map.h
+}
+
+{
+  libtbb (inlined)
+  Helgrind:Race
+  src:_tbb_hash_compare_impl.h
+}
+{
+  libtbb (inlined)
+  drd:ConflictingAccess
+  src:_tbb_hash_compare_impl.h
+}
+
+{
+  libtbb (inlined)
+  Helgrind:Race
+  src:spin_rw_mutex.h
+}
+{
+  libtbb (inlined)
+  drd:ConflictingAccess
+  src:spin_rw_mutex.h
+}
+
+{
   libgomp
   Helgrind:Race
   obj:*libgomp.so*
