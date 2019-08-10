@@ -130,7 +130,6 @@ FILES += install/include/xed-util.h
 FILES += install/include/xed-version.h
 FILES += install/lib/libxed.a
 FILES += install/lib/libxed-ild.a
-FILES += install/LICENSE
 FILES += install/mbuild/mbuild/arar.py
 FILES += install/mbuild/mbuild/base.py
 FILES += install/mbuild/mbuild/build_env.py
@@ -148,7 +147,13 @@ FILES += install/mbuild/mbuild/util.py
 FILES += install/mbuild/mbuild/work_queue.py
 FILES += install/misc/cdata.txt
 FILES += install/misc/idata.txt
-FILES += install/README.md
+
+FILES += install/include/xed-encode-check.h
+FILES += install/include/xed-encode-direct.h
+FILES += install/examples/xed-enc2-3.c
+FILES += install/examples/xed-enc2-1.c
+FILES += install/examples/xed-enc2-2.c
+FILES += install/examples/xed-rc-template.txt
 
 include find.lua
 ifeq (y,$(BUILD_XED))

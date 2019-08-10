@@ -16,3 +16,5 @@ tup.rule(forall(function()
     output = 'crashes.%t.%i.log', serialize = true,
   }
 end), '^o Concatinated %o^ cat %f > %o', 'crashes.log')
+
+serialfinal()

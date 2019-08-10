@@ -1,4 +1,5 @@
 include_rules
 
-: stable/stable.out | <s_2_post> val/<out> |> \
-  ^o Constructed final output bundle^ ./tarcat.sh %o %f %<out> %<s_2_post> |> all.txz
+: stable/stable.out | <s_2_post> val/<out> <s_3_post> |> \
+  ^o Constructed final output bundle^ ./tarcat.sh %o \
+  %f %<out> %<s_2_post> %<s_3_post> |> all.txz
