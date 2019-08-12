@@ -33,7 +33,7 @@ for _,d in ipairs{
   '../latest/elfutils', '../latest/dyninst', '../annotated/dyninst',
   '../latest/hpctoolkit', '../annotated/hpctoolkit', '../reference/elfutils',
   '../reference/dyninst', '../reference/hpctoolkit', '../annotated/elfutils',
-  '../serial/dyninst', '../serial/hpctoolkit',
+  '../reference/micro', '../latest/micro', '../annotated/micro',
 } do
   table.insert(alldeps, cwd..d..'/<build>')
 end
@@ -75,7 +75,6 @@ tests = {
       [false] = cwd..'../latest/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
       ann = cwd..'../annotated/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
       ref = cwd..'../reference/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
-      ser = cwd..'../serial/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin'
     },
     args = '-j%T --jobs-symtab %T -o %o %f',
     outclean = [=[sed -e 's/i="[[:digit:]]\+"/i="NNNNN"/g' %f > %o]=],
@@ -90,24 +89,22 @@ tests = {
   --   unstable = true,  -- TODO: outclean = 'nm -a ...',
   -- },
   { id = 'micro-symtab', nooutput = true,
-    size = 1,
+    size = 1, grouped = true,
     env = 'OMP_NUM_THREADS=%T',
     modes = {
-      [false] = cwd..'src/micro-symtab',
-      ann = cwd..'src/micro-symtab-ann',
-      ref = cwd..'src/micro-symtab-ref',
-      ser = cwd..'src/micro-symtab-ser'
+      [false] = cwd..'../latest/micro/micro-symtab',
+      ann = cwd..'../annotated/micro/micro-symtab',
+      ref = cwd..'../reference/micro/micro-symtab',
     },
     args = '%f',
   },
   { id = 'micro-parse', nooutput = true,
-    size = 1,
+    size = 1, grouped = true,
     env = 'OMP_NUM_THREADS=%T',
     modes = {
-      [false] = cwd..'src/micro-parse',
-      ann = cwd..'src/micro-parse-ann',
-      ref = cwd..'src/micro-parse-ref',
-      ser = cwd..'src/micro-parse-ser',
+      [false] = cwd..'../latest/micro/micro-parse',
+      ann = cwd..'../annotated/micro/micro-parse',
+      ref = cwd..'../reference/micro/micro-parse',
     },
     args = '%f',
   },
