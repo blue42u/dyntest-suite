@@ -2,7 +2,7 @@
 
 sclass = 1
 
-tup.rule(forall(function(i, t)
+tup.rule(forall(function(_, t)
   if t.nooutput then return end
   local runs = {}
   for idx,c in ipairs{1,2,4,8,16,32} do
@@ -30,6 +30,6 @@ end, function(ins, i, t)
   ins.extra_inputs = serialend()
   tup.rule(ins, '^o Generated %o^ ./diffout.sh '..i.id..' '..t.id..' %f > %o', o)
   return {o}
-end), '^o Concatinated %o^ cat %f > %o', {'stable.out', '../<s_1_post>'})
+end), '^o Concatinated %o^ cat %f > %o', {'stable.out', serialpost()})
 
 serialfinal()

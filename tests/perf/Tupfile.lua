@@ -60,7 +60,7 @@ for _,f in ipairs(detailed) do
   tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<build>',
     'struct/<out>', serialend()}},
     '^o Prof %o^ ./hpcprof.sh %f %o '..structs,
-    {f:gsub('measurements/', 'detailed/'), '../<s_2_post>'})
+    {f:gsub('measurements/', 'detailed/'), serialpost()})
 end
 end
 
@@ -76,7 +76,7 @@ for _,x in ipairs(coarse) do
   end
   lats.extra_inputs = {'../../external/lua/luaexec'}
   tup.rule(lats, '^o Dump %o^ ./hpcdump.sh %o %f',
-    {'stats/'..t.id..'.'..i.id..'.lua', '../<s_2_post>'})
+    {'stats/'..t.id..'.'..i.id..'.lua', serialpost()})
 end
 
 serialfinal()

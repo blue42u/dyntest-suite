@@ -61,10 +61,11 @@ inputs = {
     size = 3,
   },
 }
-for _,f in ipairs(tup.glob(cwd..'/extras/*')) do
+for _,f in ipairs(tup.glob(cwd..'/../inputs/*')) do
   local id = f:match '[^/]+$'
   if id ~= '.gitignore' then table.insert(inputs, {id=id, fn=f, size=10}) end
 end
+table.sort(inputs, function(a,b) return a.id < b.id end)
 
 -- List of tests to test with
 tests = {
@@ -113,9 +114,25 @@ tests = {
 local ti,tm = table.insert,tup.append_table
 
 local lastsg
+local function minihash(s)
+  local bs = { [0] =
+    'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P',
+    'Q','R','S','T','U','V','W','X','Y','Z','a','b','c','d','e','f',
+    'g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v',
+    'w','x','y','z','0','1','2','3','4','5','6','7','8','9','+','-',
+  }
+
+  local byte, rep = string.byte, string.rep
+  local pad = 2 - ((#s-1) % 3)
+  s = (s..rep('\0', pad)):gsub("...", function(cs)
+    local a, b, c = byte(cs, 1, 3)
+    return bs[a>>2] .. bs[(a&3)<<4|b>>4] .. bs[(b&15)<<2|c>>6] .. bs[c&63]
+  end)
+  return s:sub(1, #s-pad) .. rep('=', pad)
+end
 function serialend()
-  return lastsg and cwd..('<s_%d_%d>'):format(sclass, lastsg)
-    or sclass == 1 and cwd..'<s_init>' or cwd..('<s_%d_post>'):format(sclass-1)
+  return lastsg and 'order/'..lastsg or
+    (sclass == 1 and cwd..'<pre>' or cwd..('<s_%d>'):format(sclass-1))
 end
 
 -- The actual rule-creation command, that handles any little oddities
@@ -123,7 +140,6 @@ function forall(harness, post)
   local cnt = 0
   local clusters, is, ts = {},{},{}
   for _,i in ipairs(inputs) do for _,t in ipairs(tests) do
-    if t.id ~= 'unstrip' or i.id ~= 'libasm' and i.id ~= 'libdw' then
     local single = {}
     for _,h in ipairs{harness(i, t)} do
       local repl = {
@@ -149,14 +165,16 @@ function forall(harness, post)
 
       if h.deps then tm(ins.extra_inputs, h.deps) end
 
-      local outs = {out, '^\\.hpctrace$', '^\\.hpcrun$', '^core$'}
+      local fakeaccess = ''
+
+      local outs = {out, '^\\.hpctrace$', '^\\.hpcrun$', extra_outputs={}}
       if h.serialize then
         ti(ins.extra_inputs, serialend())
-        lastsg = (lastsg or 0) + 1
-        ti(outs, serialend())
-      else ti(outs, cwd..'<s_init>') end
+        lastsg = minihash(name)
+        ti(outs.extra_outputs, serialend())
+        fakeaccess = 'touch '..serialend()..' && '..fakeaccess
+      else ti(outs, cwd..'<pre>') end
 
-      local fakeaccess = ''
       if h.fakeout then fakeaccess = 'touch %o && '..fakeaccess end
 
       tup.rule(ins, name..fakeaccess..cmd, outs)
@@ -167,7 +185,7 @@ function forall(harness, post)
     table.insert(clusters, single)
     is[#clusters], ts[#clusters] = i, t
     end
-  end end
+  end
   local allouts = {}
   for i,c in ipairs(clusters) do
     tm(allouts, post and (post(c, is[i], ts[i]) or {}) or c)
@@ -175,8 +193,10 @@ function forall(harness, post)
   return allouts
 end
 
+function serialpost() return '<post>' end
+
 function serialfinal()
-  tup.rule(serialend(),
+  tup.rule({serialend(), serialpost()},
     '^o Serialization bridge^ touch %o',
-    {'order_post', cwd..('<s_%d_post>'):format(sclass)})
+    {'order_post', (cwd..'<s_%d>'):format(sclass)})
 end

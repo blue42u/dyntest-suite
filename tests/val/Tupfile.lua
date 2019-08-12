@@ -26,7 +26,7 @@ tup.rule(forall(function(i)
   return {
     id = 'Memcheck', mode = 'ann',
     threads = 32,
-    cmd = com..' --tool=memcheck %C',
+    cmd = com..' --tool=memcheck %C || :',
     redirect = '/dev/null',
     output = 'mc/%t.%i.log', fakeout = true,
     deps = {'../../external/valgrind/<build>'},
@@ -41,7 +41,7 @@ tup.rule(forall(function(i, t)
   return {
     id = 'Helgrind', mode = 'ann',
     threads = 32,
-    cmd = llp..com..' --tool=helgrind %C',
+    cmd = llp..com..' --tool=helgrind %C || :',
     redirect = '/dev/null',
     output = 'hg/%t.%i.log', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
@@ -55,7 +55,7 @@ tup.rule(forall(function(i)
   return {
     id = 'DRD', mode = 'ann',
     threads = 32,
-    cmd = llp..com..' --tool=drd %C',
+    cmd = llp..com..' --tool=drd %C || :',
     redirect = '/dev/null',
     output = 'drd/%t.%i.log', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
@@ -70,7 +70,7 @@ local massif = forall(function(i, t)
   local o = {
     id = 'Massif', mode = 'ann',
     threads = 32,
-    cmd = val..' -q --massif-out-file=%o --tool=massif %C',
+    cmd = val..' -q --massif-out-file=%o --tool=massif %C || :',
     redirect = '/dev/null',
     output = 'massif/%t.%i.out', fakeout = true,
     deps = {'../../external/valgrind/<build>'},
@@ -96,7 +96,7 @@ local callgrind = forall(function(i, t)
     id = 'Callgrind', mode = 'ann',
     threads = 32,
     cmd = val..' -q --callgrind-out-file=%o --tool=callgrind --dump-instr=yes'
-      ..' --collect-systime=yes --collect-bus=yes --fair-sched=yes %C',
+      ..' --collect-systime=yes --collect-bus=yes --fair-sched=yes %C || :',
     redirect = '/dev/null',
     output = 'cg/callgrind.out.%t.%i', fakeout = true,
     deps = {'../../external/valgrind/<build>'},

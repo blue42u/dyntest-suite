@@ -15,6 +15,6 @@ tup.rule(forall(function()
     cmd = './rep.sh '..rep..' %o %C', redirect = '/dev/null',
     output = 'crashes.%t.%i.log', serialize = true,
   }
-end), '^o Concatinated %o^ cat %f > %o', 'crashes.log')
+end), '^o Concatinated %o^ cat %f > %o', {'crashes.log', serialpost()})
 
 serialfinal()
