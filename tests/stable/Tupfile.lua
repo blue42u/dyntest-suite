@@ -7,8 +7,9 @@ tup.rule(forall(function(i, t)
   local runs = {}
   for idx,c in ipairs{1,2,4,8,16,32} do
     runs[idx] = {
-      id = 'Stable ('..c..')', threads = c, cmd = '%C',
-      output = '%t.%i/run.'..c, serialize = true,
+      id = 'Stable ('..c..')', threads = c,
+      cmd = '%C || echo "==FAILURE==" > %o',
+      output = '%t.%i/run.'..c, serialize = c > 1,
     }
   end
   return {

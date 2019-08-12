@@ -12,7 +12,9 @@ echo "Test $tid.$iid:"
 for run in "$@"; do
   threads="${run##*run.}"
   threads="${threads%%.clean}"
-  if cmp -s "$ref" "$run"; then
+  if [ "`head -1 "$run"`" = "==FAILURE==" ]; then
+    printf '  %02d: FAILED (subprocess error)\n' "$threads"
+  elif cmp -s "$ref" "$run"; then
     printf '  %02d: OK\n' "$threads"
   elif [ -z "$first" ]; then
     printf '  %02d: FAILED (diff dumped)\n' "$threads"
@@ -23,13 +25,6 @@ for run in "$@"; do
   fi
 done
 if [ "$first" ]; then
-  diff -d --unchanged-group-format='' \
-    --new-group-format='Additional/bogus %dN lines:
-%>' \
-    --old-group-format='Missing %dn lines:
-%<' \
-    --changed-group-format='Replaced %dn lines with %dN:
-%<%>' \
-    --old-line-format='-%L' --new-line-format='+%L' "$ref" "$first"
+  diff -d -U 1 "$ref" "$first"
 fi
 echo
