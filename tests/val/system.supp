@@ -51,14 +51,12 @@
 {
   libtbb (inlined)
   Helgrind:Race
-  ...
-  fun:__TBB*
+  fun:__TBB_*
 }
 {
   libtbb (inlined)
   drd:ConflictingAccess
-  ...
-  fun:*__TBB*
+  fun:__TBB_*
 }
 
 {
@@ -124,6 +122,13 @@
   libgomp
   Helgrind:Misc
   fun:futex_wake
+}
+
+{
+  libgomp
+  Helgrind:Misc
+  ...
+  fun:gomp_sem_wait
 }
 
 {
