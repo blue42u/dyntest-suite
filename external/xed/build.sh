@@ -18,7 +18,7 @@ mv kits/* ../install
 # Cleanup some oddities and arrange to match what HPCToolkit expects
 # NOTE: It feels really wrong to have to do this, someone should fix that.
 cd ../install
-rmdir bin
+rmdir bin doc extlib
 mv include/xed/* include/
 rmdir include/xed
 
