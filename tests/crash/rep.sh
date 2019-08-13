@@ -13,7 +13,7 @@ for ((i=0; i<"$REP"; i++)); do
   # In our case, we assume the process will crash when it segfaults rather than
   # using the output to check. Not quite right, but close enough.
   TOTAL=$((TOTAL+1))
-  if catchsegv "$@" >> "$OUT" 2>/dev/null
+  if catchsegv "$@" >> "$OUT" 2>> "$OUT" 3>> "$OUT"
   then GOOD=$((GOOD+1))
   else
     BAD=$((BAD+1))
@@ -21,8 +21,8 @@ for ((i=0; i<"$REP"; i++)); do
   fi
 done
 
-printf "SUMMARY: %${#REP}d / %d passed, %s lines of trace.\n" $GOOD $TOTAL \
+printf "SUMMARY: %d / %d passed, %s lines of trace.\n" $GOOD $TOTAL \
   $((`wc -l < "$OUT"` - 2)) >&2
 
-printf "=== %s\nSUMMARY: %${#REP}d / %d passed.\n" "$*" $GOOD $TOTAL \
+printf "=== %s\nSUMMARY: %${#REP}d / %${#REP}d passed.\n" "$*" $GOOD $TOTAL \
   | dd status=none conv=notrunc bs=1 of="$OUT"

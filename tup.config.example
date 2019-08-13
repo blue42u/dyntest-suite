@@ -38,6 +38,9 @@
 # because normally Valgrind will give nicer results in the end.
 #CONFIG_CRASH_REP=0
 
+# Disable all the internal inputs, leaving only the ones in /inputs*.
+#CONFIG_ONLY_EXTERNAL=n
+
 # Debugging options. Unless something goes horribly wrong (and/or you want to
 # do some development on the build system), you don't need these.
 #CONFIG_DEBUG_CONFIGURE=y

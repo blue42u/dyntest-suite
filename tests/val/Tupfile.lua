@@ -20,7 +20,7 @@ end
 
 if not enabled('TEST_VAL', true) then return end
 
-if sz > 0 and enabled('TEST_MEMCHECK', true) then
+if sz > 1 and enabled('TEST_MEMCHECK', true) then
 tup.rule(forall(function(i)
   if i.size > sz-1 then return end
   return {
