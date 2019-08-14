@@ -26,7 +26,7 @@ tup.rule(forall(function(i)
   return {
     id = 'Memcheck', mode = 'ann',
     threads = 32,
-    cmd = com..' --tool=memcheck %C || :',
+    cmd = com..' --tool=memcheck --track-origins=yes %C || :',
     redirect = '/dev/null',
     output = 'mc/%t.%i.log', fakeout = true,
     deps = {'../../external/valgrind/<build>'},
@@ -41,7 +41,7 @@ tup.rule(forall(function(i, t)
   return {
     id = 'Helgrind', mode = 'ann',
     threads = 32,
-    cmd = llp..com..' --tool=helgrind %C || :',
+    cmd = llp..com..' --tool=helgrind --free-is-write=yes %C || :',
     redirect = '/dev/null',
     output = 'hg/%t.%i.log', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
@@ -55,7 +55,7 @@ tup.rule(forall(function(i)
   return {
     id = 'DRD', mode = 'ann',
     threads = 32,
-    cmd = llp..com..' --tool=drd %C || :',
+    cmd = llp..com..' --tool=drd --free-is-write=yes %C || :',
     redirect = '/dev/null',
     output = 'drd/%t.%i.log', fakeout = true,
     deps = { '../../external/valgrind/<build>'},

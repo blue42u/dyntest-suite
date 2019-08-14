@@ -17,4 +17,7 @@ int main(int argc, char **argv) {
     sts = new SymtabCodeSource(argv[1]);
     co = new CodeObject(sts);
     co->parse();
+
+    delete co;
+    delete sts;
 }

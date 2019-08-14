@@ -25,5 +25,7 @@ int main(int argc, const char** argv) {
   }
 
   symtab->parseTypesNow();
+
+  delete symtab;
   return 0;
 }
