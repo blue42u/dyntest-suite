@@ -18,7 +18,6 @@
 # Individual toggles for Valgrind testing, in the event that not all are useful
 # for a particular use case. Those that are useful more of the time are enabled
 # by default, those that are more specific are disabled by default.
-#CONFIG_TEST_VAL=y
 #CONFIG_TEST_MEMCHECK=y
 #CONFIG_TEST_HELGRIND=y
 #CONFIG_TEST_DRD=y

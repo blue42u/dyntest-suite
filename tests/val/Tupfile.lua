@@ -18,8 +18,6 @@ if tup.getconfig 'VAL_CLASS' ~= '' then
     'Configuration option VAL_CLASS must be a valid integer!')
 end
 
-if not enabled('TEST_VAL', true) then return end
-
 if sz > 0 and enabled('TEST_MEMCHECK', true) then
 local t = forall(function(i)
   if i.size > sz then return end
