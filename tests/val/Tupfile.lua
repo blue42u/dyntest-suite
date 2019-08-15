@@ -20,9 +20,9 @@ end
 
 if not enabled('TEST_VAL', true) then return end
 
-if sz > 1 and enabled('TEST_MEMCHECK', true) then
-tup.rule(forall(function(i)
-  if i.size > sz-1 then return end
+if sz > 0 and enabled('TEST_MEMCHECK', true) then
+local t = forall(function(i)
+  if i.size > sz then return end
   return {
     id = 'Memcheck', mode = 'ann',
     threads = 32,
@@ -31,11 +31,12 @@ tup.rule(forall(function(i)
     output = 'mc/%t.%i.log', fakeout = true,
     deps = {'../../external/valgrind/<build>'},
   }
-end), '^o Concat %o^ cat %f > %o', {'memcheck.log', '<out>'})
+end)
+if #t > 0 then tup.rule(t, '^o Concat %o^ cat %f > %o', {'memcheck.log', '<out>'}) end
 end
 
 if sz > 1 and enabled('TEST_HELGRIND', true) then
-tup.rule(forall(function(i, t)
+local t = forall(function(i, t)
   if i.size > sz-1 then return end
   if t.id == 'hpcstruct' and i.id == 'libdw' then return end
   return {
@@ -46,11 +47,12 @@ tup.rule(forall(function(i, t)
     output = 'hg/%t.%i.log', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
   }
-end), '^o Concat %o^ cat %f > %o', {'helgrind.log', '<out>'})
+end)
+if #t > 0 then tup.rule(t, '^o Concat %o^ cat %f > %o', {'helgrind.log', '<out>'}) end
 end
 
 if sz > 2 and enabled('TEST_DRD', true) then
-tup.rule(forall(function(i)
+local t = forall(function(i)
   if i.size > sz-2 then return end
   return {
     id = 'DRD', mode = 'ann',
@@ -60,7 +62,8 @@ tup.rule(forall(function(i)
     output = 'drd/%t.%i.log', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
   }
-end), '^o Concat %o^ cat %f > %o', {'drd.log', '<out>'})
+end)
+if #t > 0 then tup.rule(t, '^o Concat %o^ cat %f > %o', {'drd.log', '<out>'}) end
 end
 
 if sz > 0 and enabled('TEST_MASSIF', false) then
