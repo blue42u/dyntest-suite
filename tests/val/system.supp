@@ -73,6 +73,17 @@
 {
   libtbb (inlined)
   Helgrind:Race
+  src:concurrent_vector.h
+}
+{
+  libtbb (inlined)
+  drd:ConflictingAccess
+  src:concurrent_vector.h
+}
+
+{
+  libtbb (inlined)
+  Helgrind:Race
   src:_tbb_hash_compare_impl.h
 }
 {
@@ -140,4 +151,55 @@
   boost (thread_detail)
   drd:ConflictingAccess
   fun:*5boost13thread_detail*
+}
+
+#
+# A handful of inlinings are horrid enough to warrent more specific suppressions
+#
+
+{
+  libtbb (inlined)
+  Helgrind:Race
+  ...
+  fun:Hint
+  fun:push_back
+  fun:_ZN7Dyninst8ParseAPI16SymtabCodeSource10init_hintsERNS_14dyn_c_hash_mapIPvPNS0_10CodeRegionEEEPNS1_9hint_filtE*
+}
+{
+  libtbb (inlined)
+  drd:ConflictingAccess
+  ...
+  fun:Hint
+  fun:push_back
+  fun:_ZN7Dyninst8ParseAPI16SymtabCodeSource10init_hintsERNS_14dyn_c_hash_mapIPvPNS0_10CodeRegionEEEPNS1_9hint_filtE*
+}
+
+{
+  libtbb (inlined)
+  Helgrind:Race
+  ...
+  fun:push_back
+  fun:_ZN7Dyninst8ParseAPI17StandardParseData11record_funcEPNS0_8FunctionE
+}
+{
+  libtbb (inlined)
+  drd:ConflictingAccess
+  ...
+  fun:push_back
+  fun:_ZN7Dyninst8ParseAPI17StandardParseData11record_funcEPNS0_8FunctionE
+}
+
+{
+  libtbb (inlined)
+  Helgrind:Race
+  ...
+  fun:push_back
+  fun:_ZN7Dyninst8ParseAPI6Parser13parse_vanillaEv*
+}
+{
+  libtbb (inlined)
+  drd:ConflictingAccess
+  ...
+  fun:push_back
+  fun:_ZN7Dyninst8ParseAPI6Parser13parse_vanillaEv*
 }
