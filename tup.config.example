@@ -9,20 +9,15 @@
 # number of cores on the machine will be used, which may not be what you want.
 #CONFIG_MAX_THREADS=NN
 
-# Representative size-class for Valgrind test inputs, approximately from 1-3.
-# Technically this is the maximum size-class for Memcheck and Massif, Helgrind
-# is one less and DRD is two less. So 1 will do very little, 3 will run the
-# minimal DRD, and 5 will run everything available (except extra inputs).
-#CONFIG_VAL_CLASS=2
-
-# Individual toggles for Valgrind testing, in the event that not all are useful
-# for a particular use case. Those that are useful more of the time are enabled
-# by default, those that are more specific are disabled by default.
-#CONFIG_TEST_MEMCHECK=y
-#CONFIG_TEST_HELGRIND=y
-#CONFIG_TEST_DRD=y
-#CONFIG_TEST_MASSIF=n
-#CONFIG_TEST_CALLGRIND=n
+# Size-classes for Valgrind test inputs, approximately from 1-3. 0 disables the
+# test completely (since inputs have size-classes >= 1). Defaults are set to
+# run Memcheck a lot and Helgrind a bit, DRD takes forever and the others are
+# more specific.
+#CONFIG_VAL_MC=2
+#CONFIG_VAL_HEL=1
+#CONFIG_VAL_DRD=0
+#CONFIG_VAL_MASSIF=0
+#CONFIG_VAL_CALLGRIND=0
 
 # Repeatitions of the coarse performance testing to try and get better results.
 # More data can be better, but too large and this takes forever.

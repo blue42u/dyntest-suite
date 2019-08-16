@@ -62,13 +62,12 @@ inputs = {
   },
 }
 if enabled('ONLY_EXTERNAL', false) then inputs = {} end
-for _,f in ipairs(tup.glob(cwd..'/../inputs/*')) do
-  local id = f:match '[^/]+$'
-  if id ~= '.gitignore' then table.insert(inputs, {id=id, fn=f, size=3}) end
-end
-for _,f in ipairs(tup.glob(cwd..'/../inputs-big/*')) do
-  local id = f:match '[^/]+$'
-  if id ~= '.gitignore' then table.insert(inputs, {id=id, fn=f, size=10}) end
+for _,s in ipairs{'1', '2', '3', 'huge'} do
+  local sz = tonumber(s) or math.huge
+  for _,f in ipairs(tup.glob(cwd..'/../inputs/'..s..'/*')) do
+    local id = f:match '[^/]+$'
+    if id ~= '.gitignore' then table.insert(inputs, {id=id, fn=f, size=sz}) end
+  end
 end
 table.sort(inputs, function(a,b) return a.id < b.id end)
 
