@@ -766,6 +766,7 @@ local function make(fn, ruleset)
     elseif c == 'touch $@' then handled[i] = 'Make: touch of output file'
     elseif c:find '^@?$%(MKDIR_P%)' then handled[i] = 'Make: dir creation'
     elseif ex:find '^:' then handled[i] = 'Make: clever do-nothing command'
+    elseif ex:find 'mkdir%s+%-p' then handled[i] = 'Make: dir creation'
     elseif c:find '^@?test %-f $@ ||' then
       handled[i] = 'Autotools: timestamp management'
       check(c:find 'stamp%-h1')
@@ -888,6 +889,25 @@ local function make(fn, ruleset)
       handled[i] = 'HPCToolkit: manfile install script'
       check(not info.kind)
       info.kind,info.dstdir = 'install', dir(path(r.expand '$(man1dir)').path)
+    elseif c == ([[for m in $(modules); do $(INSTALL_PROGRAM) libebl_$${m}.so
+    $(DESTDIR)$(libdir)/$(LIBEBL_SUBDIR)/libebl_$${m}-$(PACKAGE_VERSION).so; ln
+    -fs libebl_$${m}-$(PACKAGE_VERSION).so
+    $(DESTDIR)$(libdir)/$(LIBEBL_SUBDIR)/libebl_$${m}.so;
+    done]]):gsub('\n%s*', ' ') then
+      handled[i] = 'Elfutils: libebl module install script'
+      check(not info.kind)
+      info.kind = 'loopinstall'
+      info.subs = {}
+      local d = dir(path(r.expand '$(DESTDIR)$(libdir)/$(LIBEBL_SUBDIR)').path)
+      local v = r.expand '$(PACKAGE_VERSION)'
+      for m in r.expand '$(modules)':gmatch '%g+' do
+        local s = {}
+        s.deps = {make(path(r.cwd..'libebl_'..m..'.so'), ruleset)}
+        s.src = s.deps[1].ltso or s.deps[1].path
+        s.dst = d..'libebl_'..m..'-'..v..'.so'
+        s.links = {{'libebl_'..m..'.so', s.dst}}
+        table.insert(info.subs, s)
+      end
     elseif c:find '$%(COMPILE%.?o?s?%)' or c:find '$%(C[CX]X?%)' then
       handled[i] = 'CC: Autotools-style compile command'
       check(not info.kind)
@@ -1158,14 +1178,24 @@ function translations.install(info)
       end
       local d = info.dstdir..(f.ltso or f.path):match '[^/]+$'
       if not instdedup[d] then  -- Hack for HPCToolkit
-      instdedup[d] = true
-      tup.rule({f.ltso or f.path, extra_inputs=ei},
-        '^o Install %o^ '..topcwd..'install.sh %f %o'..pelf,
-        {d, '<build>'})
-      if f.ltar then
-        tup.rule(f.ltar, '^o Install %o^ '..topcwd..'install.sh %f %o',
-          {info.dstdir..f.ltar:match '[^/]+$', '<build>'})
-      end
+        instdedup[d] = true
+        tup.rule({f.ltso or f.path, extra_inputs=ei},
+          '^o Install %o^ '..topcwd..'install.sh %f %o'..pelf,
+          {d, '<build>'})
+        if f.ltar then
+          tup.rule(f.ltar, '^o Install %o^ '..topcwd..'install.sh %f %o',
+            {info.dstdir..f.ltar:match '[^/]+$', '<build>'})
+        end
+        if info.linkchain and info.linkchain[f] then
+          local last = (f.ltso or f.path):match '[^/]+$'
+          local ins = {info.dstdir..last}
+          for _,ln in ipairs(info.linkchain[f]) do
+            tup.rule(ins, '^o Symlink %o^ ln -s '..last..' %o',
+              {info.dstdir..ln, '<build>'})
+            last = ln
+            table.insert(ins, info.dstdir..ln)
+          end
+        end
       end
     end
   else
@@ -1186,6 +1216,13 @@ function translations.install(info)
       tup.rule({t:match '(.-)[^/]+$'..f}, '^o Symlink %o^ ln -s '..f..' %o',
         {t, '<build>'})
     end end
+  end
+end
+
+function translations.loopinstall(info)
+  -- Effectively a loop of translations.install, for Elfutils
+  for _,i in ipairs(info.subs) do
+    translations.install(i)
   end
 end
 
