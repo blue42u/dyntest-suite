@@ -766,7 +766,7 @@ local function make(fn, ruleset)
     elseif c == 'touch $@' then handled[i] = 'Make: touch of output file'
     elseif c:find '^@?$%(MKDIR_P%)' then handled[i] = 'Make: dir creation'
     elseif ex:find '^:' then handled[i] = 'Make: clever do-nothing command'
-    elseif ex:find 'mkdir%s+%-p' then handled[i] = 'Make: dir creation'
+    elseif ex:find '^[@-]*mkdir%s+%-p' then handled[i] = 'Make: dir creation'
     elseif c:find '^@?test %-f $@ ||' then
       handled[i] = 'Autotools: timestamp management'
       check(c:find 'stamp%-h1')
@@ -896,8 +896,7 @@ local function make(fn, ruleset)
     done]]):gsub('\n%s*', ' ') then
       handled[i] = 'Elfutils: libebl module install script'
       check(not info.kind)
-      info.kind = 'loopinstall'
-      info.subs = {}
+      info.kind, info.subs = 'loopinstall', {}
       local d = dir(path(r.expand '$(DESTDIR)$(libdir)/$(LIBEBL_SUBDIR)').path)
       local v = r.expand '$(PACKAGE_VERSION)'
       for m in r.expand '$(modules)':gmatch '%g+' do
@@ -907,6 +906,18 @@ local function make(fn, ruleset)
         s.dst = d..'libebl_'..m..'-'..v..'.so'
         s.links = {{'libebl_'..m..'.so', s.dst}}
         table.insert(info.subs, s)
+      end
+    elseif c == ([[-for file in $(PLUGIN_CONFIG_FILES) ; do cp -f
+    "$(plugin_srcdir)/$$file" "$(DESTDIR)$(plugin_instdir)/$$file" ;
+    done]]):gsub('\n%s*', ' ') then
+      handled[i] = 'HPCToolkit: plugins install script'
+      check(not info.kind)
+      assert(#info.deps == 0)
+      info.kind = 'install'
+      info.dstdir = dir(path(r.expand '$(DESTDIR)$(plugin_instdir)').path)
+      local d = dir(r.expand '$(plugin_srcdir)')
+      for file in r.expand '$(PLUGIN_CONFIG_FILES)':gmatch '%g+' do
+        table.insert(info.deps, make(path(d..file, r.cwd), ruleset))
       end
     elseif c:find '$%(COMPILE%.?o?s?%)' or c:find '$%(C[CX]X?%)' then
       handled[i] = 'CC: Autotools-style compile command'
