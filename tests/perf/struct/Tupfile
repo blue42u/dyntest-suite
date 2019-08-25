@@ -1,6 +1,7 @@
 include_rules
 
-!struct = | ../../../reference/hpctoolkit/<build> ../../../external/lzma/<build> |> \
+!struct = | ../../../reference/hpctoolkit/<build> \
+  ../../../external/lzma/<build> ../../../reference/elfutils/<build> |> \
   ^o STRUCT %o^ \
   ../../../reference/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin \
   -o %o |>
