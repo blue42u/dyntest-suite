@@ -11,6 +11,7 @@ case "`stat -c%F "$1"`" in
 "regular file")
   cp -d "$1" "$2"
   if [ -z "$3" ]; then exit 0; fi
+  if readelf -d "$2" | grep -q 'There is no dynamic section'; then exit 0; fi
   OLD="`readelf -d "$2" | grep '(RU\?N\?PATH)' | sed 's/.*\[\(.*\)\].*/\1/'`"
   "$PATCHELF" --set-rpath "$OLD:$3" "$2"
   ;;

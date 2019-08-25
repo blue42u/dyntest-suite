@@ -152,7 +152,11 @@ local function getopt(str, opts, handlers)
   repeat local done = true
     str = str:gsub('([^\\])([`"\'])(.*)', function(p,q,rest)
       local s,extra = rest:match('^(.-[^\\])'..q..'(.*)')
-      assert(s, 'Unfinished quoted string!')
+      if not s then
+        -- Check that its not just empty
+        if rest:sub(1,1) == q then s,extra = '', rest:sub(2)
+        else error('Unfinished quoted string in `'..str..'`!') end
+      end
       s = s:gsub('\\'..q, q)  -- Any escaped chars can live unescaped
       if q ~= '`' then q = '' end  -- Normal strings will be folded together
       done = false
@@ -904,7 +908,7 @@ local function make(fn, ruleset)
         s.deps = {make(path(r.cwd..'libebl_'..m..'.so'), ruleset)}
         s.src = s.deps[1].ltso or s.deps[1].path
         s.dst = d..'libebl_'..m..'-'..v..'.so'
-        s.links = {{'libebl_'..m..'.so', s.dst}}
+        s.links = {{d..'libebl_'..m..'.so', 'libebl_'..m..'-'..v..'.so'}}
         table.insert(info.subs, s)
       end
     elseif c == ([[-for file in $(PLUGIN_CONFIG_FILES) ; do cp -f
@@ -947,6 +951,7 @@ local function make(fn, ruleset)
     elseif c:find '%-P cmake_install%.cmake%f[%s\0]' then
       handled[i] = 'CMake: install script'
       check(not info.kind)
+      info.ruleset = ruleset
       info.kind = 'cmakeinstall'
     elseif ex:find '^ln' then
       if info.kind == 'ld' then
@@ -1096,7 +1101,7 @@ function translations.compile(info)  -- Compilation command
   end
   local r = {inputs={extra_inputs={'<_gen>'}}, outputs={}}
   r.command = '^o CC %o^ '..cd..shell(getopt(info.cmd,
-    'D:I:std:W;w,f:g,O;c,o:l:pthread,', {
+    'D:I:std:W;w,f:g,O;c,o:l:pthread,m:no-pie,pie,', {
     [false] = function(p)
       p = p:gsub('^`test %-f.-`/?', '')
       table.insert(r.inputs, pmatch(p))
@@ -1131,7 +1136,7 @@ function translations.ld(info)  -- Linking command
   end
   local r = {inputs={extra_inputs={}}, outputs={extra_outputs={}}}
   r.command = getopt(info.cmd,
-    'o:std:W;g,O;shared,l:D:f:L:I:pthread,', {
+    'o:std:W;g,O;shared,l:D:f:L:I:pthread,m:no-pie,pie,static,', {
     [false] = function(p)
       local e
       p,e = pmatch(p)
@@ -1148,7 +1153,8 @@ function translations.ld(info)  -- Linking command
       if x:find '^l,' then
         return '?',(x:gsub(',%-%-?rpath[^,]*,([^,]*)', function(ps)
           return ',-rpath-link,'..ps:gsub('[^;:]+', function(p)
-            p = dir(path(p, info.cwd).path)
+            p = path(p, info.cwd)
+            p = dir(p.path or p.absolute)
             if p:find '^install/' then return '' end
             return p
           end)
@@ -1163,6 +1169,7 @@ function translations.ld(info)  -- Linking command
     end,
     D = function(x) return '?',(x:gsub(unmagic(tmpdir), '')) end,
     I = false,  -- Includes do nothing when just linking
+    static = function() info.ldstatic = true end,
   })
   r.command = '^o LD %o^ '..shell(r.command)..(info.assert or '')
   if info.linkto then
@@ -1196,16 +1203,6 @@ function translations.install(info)
         if f.ltar then
           tup.rule(f.ltar, '^o Install %o^ '..topcwd..'install.sh %f %o',
             {info.dstdir..f.ltar:match '[^/]+$', '<build>'})
-        end
-        if info.linkchain and info.linkchain[f] then
-          local last = (f.ltso or f.path):match '[^/]+$'
-          local ins = {info.dstdir..last}
-          for _,ln in ipairs(info.linkchain[f]) do
-            tup.rule(ins, '^o Symlink %o^ ln -s '..last..' %o',
-              {info.dstdir..ln, '<build>'})
-            last = ln
-            table.insert(ins, info.dstdir..ln)
-          end
         end
       end
     end
@@ -1252,7 +1249,7 @@ function translations.cmakeld(info)
   end end
 end
 function translations.cmakeinstall()
-  local parsecache,dedup = {},{}
+  local parsecache,dedup,odedup = {},{},{}
   local function parse(fn)
     if parsecache[fn] then return end
     parsecache[fn] = true
@@ -1284,10 +1281,21 @@ function translations.cmakeinstall()
             assert(a:find '"', a)
             a = a:gsub('"', ''):gsub('${CMAKE_INSTALL_PREFIX}', 'install/')
             a = path(a).path
-            if not a:find '%.cmake$' and not a:find '%.txt$'
-              and not a:find '%.pdf$' then
-              table.insert(ins, a)
+            -- Hacks for Dyninst, mostly.
+            if a:find '%.cmake$' or a:find '%.txt$' then
+              if not odedup[a] then
+                odedup[a] = true
+                local d = tmpdir
+                if not stestexec{'stat', d..a, onlyout=true, reout=false} then
+                  d = fullsrcdir
+                end
+                local b64 = slexec{{'gzip', '-n', rein=d..a}, {'base64', '-w0'}}
+                tup.rule('^o Copy %o^ '..shell{
+                  {'echo', b64}, {'base64', '-d'}, {'gzip', '-d', reout='%o'}
+                }, {a, '<_gen>'})
+              end
             end
+            if not a:find '%.pdf$' then table.insert(ins, a) end
           end
         end
         if #ins > 0 and ty ~= 'DIRECTORY' then
