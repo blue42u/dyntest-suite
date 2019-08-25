@@ -1096,7 +1096,7 @@ function translations.compile(info)  -- Compilation command
   end
   local r = {inputs={extra_inputs={'<_gen>'}}, outputs={}}
   r.command = '^o CC %o^ '..cd..shell(getopt(info.cmd,
-    'D:I:std:W;w,f:g,O;c,o:l:', {
+    'D:I:std:W;w,f:g,O;c,o:l:pthread,', {
     [false] = function(p)
       p = p:gsub('^`test %-f.-`/?', '')
       table.insert(r.inputs, pmatch(p))
@@ -1131,7 +1131,7 @@ function translations.ld(info)  -- Linking command
   end
   local r = {inputs={extra_inputs={}}, outputs={extra_outputs={}}}
   r.command = getopt(info.cmd,
-    'o:std:W;g,O;shared,l:D:f:L:I:', {
+    'o:std:W;g,O;shared,l:D:f:L:I:pthread,', {
     [false] = function(p)
       local e
       p,e = pmatch(p)
