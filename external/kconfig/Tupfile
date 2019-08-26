@@ -1,0 +1,18 @@
+include_rules
+
+FILES += install/bin/kconfig-conf
+FILES += install/bin/kconfig-mconf
+FILES += install/bin/kconfig-nconf
+FILES += install/lib/libkconfig-parser.so
+FILES += install/lib/libkconfig-parser.la
+FILES += install/lib/pkgconfig/kconfig-parser.pc
+FILES += install/lib/libkconfig-parser-4.11.0.so
+FILES += install/include/kconfig/expr.h
+FILES += install/include/kconfig/list.h
+FILES += install/include/kconfig/lkc_proto.h
+FILES += install/include/kconfig/lkc.h
+FILES += install/share/doc/kconfig-frontends/kconfig-language.txt
+FILES += install/share/doc/kconfig-frontends/kconfig.txt
+
+# We always build kconfig, because why not after all
+: |> ^o Built KConfig^ ./build.sh |> $(FILES) <build>

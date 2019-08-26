@@ -1,0 +1,77 @@
+mainmenu "Dyntest Suite Configuration File"
+
+config ENABLE_OMP_DEBUG
+  string "Path to a Valgrind-compatible OpenMP implementation"
+  ---help---
+    Set to enable proper OpenMP debugging for Valgrind tests. Most OpenMP
+    implementations use custom synchronization primitives for barriers,
+    so a separate slower implementation is often nessesary.
+    For GCC, configure with --disable-linux-futex.
+
+
+config MAX_THREADS
+  int "Maximum threads to use for performance runs"
+  default 0
+  ---help---
+    If unset or 0, defaults to the number of cores on the machine.
+
+menu "Valgrind-specific test settings"
+
+config VAL_MC
+  int "Maximum size-class for Memcheck"
+  range 0 3
+  default 2
+
+config VAL_HEL
+  int "Maximum size-class for Helgrind"
+  range 0 3
+  default 1
+
+config VAL_DRD
+  int "Maximum size-class for DRD"
+  range 0 3
+  default 0
+
+config VAL_MASSIF
+  int "Maximum size-class for Massif"
+  range 0 3
+  default 0
+
+config VAL_CALLGRIND
+  int "Maximum size-class for Callgrind"
+  range 0 3
+  default 0
+
+endmenu
+
+menu "Performance-specific test settings"
+
+config PERF_REP
+  int "Coarse performance testing repeatitions"
+  default 3
+
+config PERF_DETAIL
+  bool "Enable detailed performance runs"
+  default y
+
+endmenu
+
+config CRASH_REP
+  int "Crash testing repeatitions"
+  default 0
+
+config ONLY_EXTERNAL
+  bool "Disable all internal input binaries"
+  default n
+
+menu "Build system debugging"
+
+config DEBUG_CONFIGURE
+  bool "Dump outputs from configure-time"
+  default n
+
+config DEBUG_MAKE_TRANSLATION
+  bool "Dump entire make translations"
+  default n
+
+endmenu

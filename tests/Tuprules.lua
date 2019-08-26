@@ -11,7 +11,7 @@ function enabled(n, default)
   else error('Configuration option '..n..' must be y/Y or n/N!') end
 end
 
-if tup.getconfig 'MAX_THREADS' ~= '' then
+if not ({['']=true, ['0']=true})[tostring(tup.getconfig 'MAX_THREADS')] then
   maxthreads = assert(math.tointeger(tup.getconfig 'MAX_THREADS'),
     'Configuration option MAX_THREADS must be a valid integer!')
 else
