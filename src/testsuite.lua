@@ -8,7 +8,8 @@ function testsuite(o) return build {
     -DDyninst_SRC_DIR=src/dyninst
     -DDyninst_ROOT=@]]..o.dyninst..[[@
     -DElfUtils_ROOT_DIR=@]]..o.elfutils..[[@
-    -DTBB_ROOT_DIR=@external/tbb@
-    -DBoost_ROOT_DIR=@external/boost@
+    -DTBB_ROOT_DIR=@/external/tbb@
+    -DBoost_ROOT_DIR=@/external/boost@
+    -DLibXml2_ROOT=@/external/libxml@
   ]]..(o.cfg or ''),
 } end
