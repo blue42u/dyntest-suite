@@ -15,6 +15,7 @@ make --quiet > /dev/null
 make --quiet install > /dev/null
 
 # A file or two are optional, depending on the exact system.
+mkdir -p zzz/share/kconfig-frontends zzz/bin
 touch zzz/share/kconfig-frontends/gconf.glade
 touch zzz/bin/kconfig-gconf
 touch zzz/bin/kconfig-qconf
