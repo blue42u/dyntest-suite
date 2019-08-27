@@ -11,5 +11,5 @@ TMP="`mktemp -d`"
 
 export LD_LIBRARY_PATH=../../external/tbb/install/lib
 export LD_PRELOAD="$LD_PRELOAD":../../external/tbb/install/lib/libtbbmalloc_proxy.so
-./hpcrun -e REALTIME@"$RATE" -t -o "$TMP" "$@"
+../../reference/hpctoolkit/install/bin/hpcrun.real -e REALTIME@"$RATE" -t -o "$TMP" "$@"
 tar -C "$TMP" -cf "$OUT" .
