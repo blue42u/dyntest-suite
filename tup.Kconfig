@@ -28,6 +28,9 @@ config TEST_UNSTRIP
 config TEST_MICRO
   bool "Enable microbenchmark testing"
   default y
+config TEST_HPCPROF
+  bool "Enable hpcprof testing (HPCToolkit component)"
+  default n
 endmenu
 
 menu "Valgrind-specific test settings"

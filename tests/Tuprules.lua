@@ -74,6 +74,13 @@ table.sort(inputs, function(a,b) return a.id < b.id end)
 
 -- List of tests to test with
 tests = {}
+local function mexpand(patt)
+  return {
+    [false] = patt:gsub('%%S', cwd..'../latest/'),
+    ann = patt:gsub('%%S', cwd..'../annotated/'),
+    ref = patt:gsub('%%S', cwd..'../reference/'),
+  }
+end
 local function add_test(base)
   if base.fnstem then
     base.modes = {
@@ -115,6 +122,16 @@ add_test { id = 'micro-parse', size = 1, grouped = true, cfg = 'MICRO',
   args = '%f',
   nooutput = true,
 }
+add_test { id = 'hpcprof', size = 3, grouped = true, cfg = '!HPCPROF',
+  env = 'OMP_NUM_THREADS=%T '..cwd..'tartrans.sh',
+  fnstem = 'hpctoolkit/install/bin/hpcprof.real',
+  args = '-o @@%o @%f',
+  nooutput = true,
+  input = mexpand('^o Generated base profile %o^ '
+    ..cwd..'tartrans.sh %Shpctoolkit/install/bin/hpcrun.real '
+    ..'-o @@%o -t -e REALTIME@100 '
+    ..'../../reference/hpctoolkit/install/bin/hpcstruct.real -o /dev/null -j 8 %f')
+}
 
 local ti,tm = table.insert,tup.append_table
 
@@ -151,15 +168,23 @@ function forall(harness, post)
         T = ('%d'):format(h.threads or 1),
       }
       local ins = {extra_inputs=table.move(alldeps, 1,#alldeps, 1,{})}
-      local tfn,env = t.modes[false], t.env or ''
-      if h.mode then tfn = assert(t.modes[h.mode]) end
+      local tfn,env = assert(t.modes[h.mode or false]), t.env or ''
 
       env = env:gsub('%%(.)', repl)
       local args = (t.args or ''):gsub('%%(.)', repl)
       if h.redirect then args = args:gsub('%%o', h.redirect) end
-      if i.grouped then args = args:gsub('%%f', i.fn)
-      else table.insert(ins, i.fn) end
       if not t.grouped then table.insert(ins.extra_inputs, tfn) end
+
+      local ifn = i.fn
+      if t.input then
+        local x,y = assert(t.input[h.mode or false]), {ifn}
+        if i.grouped then x,y = x:gsub('%%f', ifn), {} end
+        y.extra_inputs = table.move(alldeps, 1,#alldeps, 1,{})
+        ifn = tup.rule(y, x, {'inputs/'..minihash(t.id..i.id), cwd..'<pre>'})[1]
+        if i.grouped then ti(ins.extra_inputs, ifn) end
+      end
+      if i.grouped then args = args:gsub('%%f', ifn)
+      else table.insert(ins, ifn) end
 
       local out = h.output:gsub('%%(.)', { t = t.id, i = i.id })
       local cmd = env..' '..h.cmd:gsub('%%(.)', {
@@ -174,6 +199,7 @@ function forall(harness, post)
 
       local outs = {out, '^\\.hpctrace$', '^\\.hpcrun$', extra_outputs={}}
       if h.serialize then
+        ti(ins.extra_inputs, cwd..'<pre>')
         ti(ins.extra_inputs, serialend())
         lastsg = minihash(name)
         ti(outs.extra_outputs, serialend())

@@ -42,13 +42,11 @@ forall(function(i)
 end, function(c, i, t) if #c > 0 then table.insert(coarse, {c, i, t}) end end)
 end
 
-if enabled('PERF_DETAIL', true) then
 for _,f in ipairs(detailed) do
   tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<build>',
     'struct/<out>', serialend()}},
     '^o Prof %o^ ./hpcprof.sh %f %o '..structs,
     {f:gsub('measurements/', 'detailed/'), serialpost()})
-end
 end
 
 for _,x in ipairs(coarse) do
