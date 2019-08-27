@@ -21,10 +21,6 @@ local function szclass(name, sz)
   return sz
 end
 
-local function ruleif(ins, ...)
-  if #ins > 0 then tup.rule(ins, ...) end
-end
-
 ruleif(forall(function(i)
   if i.size > szclass('MC', 2) then return end
   return {

@@ -1,5 +1,5 @@
 include_rules
 
-: stable/stable.out | crash/<post> val/<out> perf/<post> |> \
+: stable/<post> crash/<post> val/<out> perf/<post> |> \
   ^o Constructed final output bundle^ ./tarcat.sh %o \
-  %f %<out> %<post> |> all.txz
+  %<out> %<post> |> all.txz

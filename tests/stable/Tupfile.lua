@@ -2,7 +2,7 @@
 
 sclass = 1
 
-tup.rule(forall(function(_, t)
+ruleif(forall(function(_, t)
   if t.nooutput then return end
   local runs = {}
   for idx,c in ipairs{1,2,4,8,16,32} do

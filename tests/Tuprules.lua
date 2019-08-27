@@ -11,6 +11,10 @@ function enabled(n, default)
   else error('Configuration option '..n..' must be y/Y or n/N!') end
 end
 
+function ruleif(ins, ...)
+  if #ins > 0 then tup.rule(ins, ...) end
+end
+
 if not ({['']=true, ['0']=true})[tostring(tup.getconfig 'MAX_THREADS')] then
   maxthreads = assert(math.tointeger(tup.getconfig 'MAX_THREADS'),
     'Configuration option MAX_THREADS must be a valid integer!')
@@ -180,7 +184,7 @@ function forall(harness, post)
         local x,y = assert(t.input[h.mode or false]), {ifn}
         if i.grouped then x,y = x:gsub('%%f', ifn), {} end
         y.extra_inputs = table.move(alldeps, 1,#alldeps, 1,{})
-        ifn = tup.rule(y, x, {'inputs/'..minihash(t.id..i.id), cwd..'<pre>'})[1]
+        ifn = tup.rule(y, x, {cwd..'inputs/'..minihash(t.id..i.id), cwd..'<pre>'})[1]
         if i.grouped then ti(ins.extra_inputs, ifn) end
       end
       if i.grouped then args = args:gsub('%%f', ifn)
@@ -199,7 +203,6 @@ function forall(harness, post)
 
       local outs = {out, '^\\.hpctrace$', '^\\.hpcrun$', extra_outputs={}}
       if h.serialize then
-        ti(ins.extra_inputs, cwd..'<pre>')
         ti(ins.extra_inputs, serialend())
         lastsg = minihash(name)
         ti(outs.extra_outputs, serialend())
