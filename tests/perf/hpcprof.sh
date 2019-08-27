@@ -16,6 +16,6 @@ stat "$SRC" > /dev/null
 LD_PRELOAD= tar -C "$TMPA" -xf "$SRC"
 
 rmdir "$TMPB"
-../../reference/hpctoolkit/install/libexec/hpctoolkit/hpcprof-bin \
+../../reference/hpctoolkit/install/bin/hpcprof.real \
  "$@" -o "$TMPB" "$TMPA"
 tar -C "$TMPB" -cf "$DST" .

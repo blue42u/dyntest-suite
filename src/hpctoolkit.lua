@@ -35,5 +35,11 @@ function hpctoolkit(o)
     -e "/^hash_value=/chash_value='no'"
     %f > %o && chmod +x %o]]):gsub('\n%s*', ' '),
     {'install/bin/hpcrun.real', '<build>'})
+  tup.rule('install/libexec/hpctoolkit/hpcprof-bin',
+    '^o Linked %o^ ln -s ../libexec/hpctoolkit/hpcprof-bin %o',
+    {'install/bin/hpcprof.real', '<build>'})
+  tup.rule('install/libexec/hpctoolkit/hpcstruct-bin',
+    '^o Linked %o^ ln -s ../libexec/hpctoolkit/hpcstruct-bin %o',
+    {'install/bin/hpcstruct.real', '<build>'})
   return table.unpack(r)
 end

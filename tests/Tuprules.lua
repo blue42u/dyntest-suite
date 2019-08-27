@@ -93,7 +93,7 @@ local function add_test(base)
 end
 
 add_test { id = 'hpcstruct', size = 3, grouped = true, cfg = 'HPCSTRUCT',
-  fnstem = 'hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
+  fnstem = 'hpctoolkit/install/bin/hpcstruct.real',
   args = '-j%T --jobs-symtab %T -o %o %f',
   outclean = [=[sed -e 's/i="[[:digit:]]\+"/i="NNNNN"/g' %f > %o]=],
 }
