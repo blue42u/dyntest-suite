@@ -14,5 +14,9 @@ FILES += install/include/kconfig/lkc.h
 FILES += install/share/doc/kconfig-frontends/kconfig-language.txt
 FILES += install/share/doc/kconfig-frontends/kconfig.txt
 
+FILES += install/share/kconfig-frontends/gconf.glade
+FILES += install/bin/kconfig-gconf
+FILES += install/bin/kconfig-qconf
+
 # We always build kconfig, because why not after all
 : |> ^o Built KConfig^ ./build.sh |> $(FILES) <build>

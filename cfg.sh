@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 if [ "$#" != 1 ]; then
   echo "Usage: $0 [m|n]conf" >&2
   exit 1
