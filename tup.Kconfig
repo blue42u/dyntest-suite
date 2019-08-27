@@ -15,6 +15,21 @@ config MAX_THREADS
   ---help---
     If unset or 0, defaults to the number of cores on the machine.
 
+menu "Test toggle switches"
+config TEST_HPCSTRUCT
+  bool "Enable hpcstruct testing (HPCToolkit component)"
+  default y
+config TEST_UNSTRIP
+  bool "Enable unstrip testing (Dyninst example program)"
+  default n
+  ---help---
+    Note: Old code that may or may not work. May not provide any useful results
+    in the long run.
+config TEST_MICRO
+  bool "Enable microbenchmark testing"
+  default y
+endmenu
+
 menu "Valgrind-specific test settings"
 
 config VAL_MC

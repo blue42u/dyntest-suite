@@ -73,47 +73,47 @@ end
 table.sort(inputs, function(a,b) return a.id < b.id end)
 
 -- List of tests to test with
-tests = {
-  { id = 'hpcstruct',
-    size = 3, grouped = true,
-    env = 'OMP_NUM_THREADS=%T',
-    modes = {
-      [false] = cwd..'../latest/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
-      ann = cwd..'../annotated/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
-      ref = cwd..'../reference/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
-    },
-    args = '-j%T --jobs-symtab %T -o %o %f',
-    outclean = [=[sed -e 's/i="[[:digit:]]\+"/i="NNNNN"/g' %f > %o]=],
-  },
-  -- { id = 'unstrip',
-  --   size = 2, grouped = true,
-  --   env = 'OMP_NUM_THREADS=%T',
-  --   fn = cwd..'../latest/dyninst/install/bin/unstrip',
-  --   annfn = cwd..'../annotated/dyninst/install/bin/unstrip',
-  --   reffn = cwd..'../reference/dyninst/install/bin/unstrip',
-  --   args = '-f %f -o %o',
-  --   unstable = true,  -- TODO: outclean = 'nm -a ...',
-  -- },
-  { id = 'micro-symtab', nooutput = true,
-    size = 1, grouped = true,
-    env = 'OMP_NUM_THREADS=%T',
-    modes = {
-      [false] = cwd..'../latest/micro/micro-symtab',
-      ann = cwd..'../annotated/micro/micro-symtab',
-      ref = cwd..'../reference/micro/micro-symtab',
-    },
-    args = '%f',
-  },
-  { id = 'micro-parse', nooutput = true,
-    size = 1, grouped = true,
-    env = 'OMP_NUM_THREADS=%T',
-    modes = {
-      [false] = cwd..'../latest/micro/micro-parse',
-      ann = cwd..'../annotated/micro/micro-parse',
-      ref = cwd..'../reference/micro/micro-parse',
-    },
-    args = '%f',
-  },
+tests = {}
+local function add_test(base)
+  if base.fnstem then
+    base.modes = {
+      [false] = cwd..'../latest/'..base.fnstem,
+      ann = cwd..'../annotated/'..base.fnstem,
+      ref = cwd..'../reference/'..base.fnstem,
+    }
+    base.fnstem = nil
+  end
+  if base.cfg then
+    local default = true
+    if base.cfg:find '^!' then default,base.cfg = false, base.cfg:sub(2) end
+    if not enabled('TEST_'..base.cfg, default) then return end
+    base.cfg = nil
+  end
+  table.insert(tests, base)
+end
+
+add_test { id = 'hpcstruct', size = 3, grouped = true, cfg = 'HPCSTRUCT',
+  fnstem = 'hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
+  args = '-j%T --jobs-symtab %T -o %o %f',
+  outclean = [=[sed -e 's/i="[[:digit:]]\+"/i="NNNNN"/g' %f > %o]=],
+}
+add_test { id = 'unstrip', size = 2, grouped = true, cfg = '!UNSTRIP',
+  env = 'OMP_NUM_THREADS=%T',
+  fnstem = 'dyninst/install/bin/unstrip',
+  args = '-f %f -o %o',
+  nooutput = true,  -- TODO: outclean = 'nm -a ...',
+}
+add_test { id = 'micro-symtab', size = 1, grouped = true, cfg = 'MICRO',
+  env = 'OMP_NUM_THREADS=%T',
+  fnstem = 'micro/micro-symtab',
+  args = '%f',
+  nooutput = true,
+}
+add_test { id = 'micro-parse', size = 1, grouped = true, cfg = 'MICRO',
+  env = 'OMP_NUM_THREADS=%T',
+  fnstem = 'micro/micro-parse',
+  args = '%f',
+  nooutput = true,
 }
 
 local ti,tm = table.insert,tup.append_table

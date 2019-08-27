@@ -14,7 +14,6 @@ detailed = forall(function(i)
   if i.size < 3 then return end
   return {
     id = 'Perf (detailed)', threads = maxthreads,
-    deps = {'hpcrun'},
     cmd = './hpcrun.sh 100 %o %C',
     output = 'measurements/%t.%i.tar', serialize = true, redirect = '/dev/null',
   }
