@@ -28,7 +28,7 @@ end
 
 local cwd = tup.getcwd():gsub('[^/]$', '%0/')
 
-local alldeps = {}
+alldeps = {}
 for _,d in ipairs{
   '../external/lzma', '../external/tbb', '../external/boost',
   '../external/monitor', '../external/dwarf', '../external/unwind',
@@ -130,17 +130,17 @@ add_test { id = 'hpcprof', size = 3, grouped = true, cfg = '!HPCPROF',
   env = 'OMP_NUM_THREADS=%T '..cwd..'tartrans.sh',
   fnstem = 'hpctoolkit/install/bin/hpcprof.real',
   args = '-o @@%o @%f',
-  nooutput = true,
+  outclean = 'tar xOf %f ./experiment.xml > %o',
   input = mexpand('^o Generated base profile %o^ '
     ..cwd..'tartrans.sh %Shpctoolkit/install/bin/hpcrun.real '
     ..'-o @@%o -t -e REALTIME@100 '
-    ..'../../reference/hpctoolkit/install/bin/hpcstruct.real -o /dev/null -j 8 %f')
+    ..cwd..'../reference/hpctoolkit/install/bin/hpcstruct.real -o /dev/null %f')
 }
 
 local ti,tm = table.insert,tup.append_table
 
 local lastsg
-local function minihash(s)
+function minihash(s)
   local bs = { [0] =
     'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P',
     'Q','R','S','T','U','V','W','X','Y','Z','a','b','c','d','e','f',
@@ -179,16 +179,11 @@ function forall(harness, post)
       if h.redirect then args = args:gsub('%%o', h.redirect) end
       if not t.grouped then table.insert(ins.extra_inputs, tfn) end
 
-      local ifn = i.fn
       if t.input then
-        local x,y = assert(t.input[h.mode or false]), {ifn}
-        if i.grouped then x,y = x:gsub('%%f', ifn), {} end
-        y.extra_inputs = table.move(alldeps, 1,#alldeps, 1,{})
-        ifn = tup.rule(y, x, {cwd..'inputs/'..minihash(t.id..i.id), cwd..'<pre>'})[1]
-        if i.grouped then ti(ins.extra_inputs, ifn) end
-      end
-      if i.grouped then args = args:gsub('%%f', ifn)
-      else table.insert(ins, ifn) end
+        table.insert(ins.extra_inputs, cwd..'<inputs>')
+        args = args:gsub('%%f', cwd..'inputs/'..minihash(t.id..i.id..(h.mode or '')))
+      elseif i.grouped then args = args:gsub('%%f', i.fn)
+      else table.insert(ins, i.fn) end
 
       local out = h.output:gsub('%%(.)', { t = t.id, i = i.id })
       local cmd = env..' '..h.cmd:gsub('%%(.)', {
