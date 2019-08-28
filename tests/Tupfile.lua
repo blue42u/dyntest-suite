@@ -3,11 +3,13 @@
 -- For each test that has a special input, we do the processing up front
 for _,t in ipairs(tests) do if t.input then
   for _,i in ipairs(inputs) do
-    for m,cmd in pairs(t.input) do
+    local cmds = type(t.input) == 'string' and {[false]=t.input} or t.input
+    for m,cmd in pairs(cmds) do
       local ins = {i.fn, extra_inputs=alldeps}
       if i.grouped then cmd, ins[1] = cmd:gsub('%%f', i.fn), nil end
       local fn = 'inputs/'..minihash(t.id..i.id..(m or ''))
-      tup.rule(ins, cmd, {fn, '<inputs>'})
+      tup.rule(ins, '^o Transformed '..i.id..' for '..t.id
+        ..(m and '('..m..')' or '')..'^ '..cmd, {fn, '<inputs>'})
     end
   end
 end end

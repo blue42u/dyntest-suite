@@ -3,7 +3,7 @@
 tup.include '../build/build.lua'
 function hpctoolkit(o)
   local r = {build {
-    srcdir = 'src/hpctoolkit',
+    srcdir = 'src/'..(o.ref and 'ref-' or '')..'hpctoolkit',
     builddir = o.builddir,
     cfgflags = [[
       --with-boost=@/external/boost@

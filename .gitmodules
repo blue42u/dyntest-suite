@@ -28,3 +28,6 @@
 [submodule "src/testsuite"]
 	path = src/testsuite
 	url = https://github.com/blue42u/testsuite.git
+[submodule "src/ref-hpctoolkit"]
+	path = src/ref-hpctoolkit
+	url = https://github.com/blue42u/hpctoolkit.git

@@ -112,7 +112,9 @@ add_test { id = 'unstrip', size = 2, grouped = true, cfg = '!UNSTRIP',
   env = 'OMP_NUM_THREADS=%T',
   fnstem = 'dyninst/install/bin/unstrip',
   args = '-f %f -o %o',
-  nooutput = true,  -- TODO: outclean = 'nm -a ...',
+  input = 'strip -So %o %f',
+  --nooutput = true,  -- TODO: outclean = 'nm -a ...',
+  outclean = 'nm -a %f > %o',
 }
 add_test { id = 'micro-symtab', size = 1, grouped = true, cfg = 'MICRO',
   env = 'OMP_NUM_THREADS=%T',
@@ -131,8 +133,7 @@ add_test { id = 'hpcprof', size = 3, grouped = true, cfg = '!HPCPROF',
   fnstem = 'hpctoolkit/install/bin/hpcprof.real',
   args = '-o @@%o @%f',
   outclean = 'tar xOf %f ./experiment.xml > %o',
-  input = mexpand('^o Generated base profile %o^ '
-    ..cwd..'tartrans.sh %Shpctoolkit/install/bin/hpcrun.real '
+  input = mexpand(cwd..'tartrans.sh %Shpctoolkit/install/bin/hpcrun.real '
     ..'-o @@%o -t -e REALTIME@100 '
     ..cwd..'../reference/hpctoolkit/install/bin/hpcstruct.real -o /dev/null %f')
 }
@@ -181,7 +182,8 @@ function forall(harness, post)
 
       if t.input then
         table.insert(ins.extra_inputs, cwd..'<inputs>')
-        args = args:gsub('%%f', cwd..'inputs/'..minihash(t.id..i.id..(h.mode or '')))
+        args = args:gsub('%%f', cwd..'inputs/'..minihash(t.id..i.id
+          ..(type(t.input) ~= 'string' and h.mode or '')))
       elseif i.grouped then args = args:gsub('%%f', i.fn)
       else table.insert(ins, i.fn) end
 
