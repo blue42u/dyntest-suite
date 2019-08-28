@@ -78,13 +78,13 @@ table.sort(inputs, function(a,b) return a.id < b.id end)
 
 -- List of tests to test with
 tests = {}
-local function mexpand(patt)
-  return {
-    [false] = patt:gsub('%%S', cwd..'../latest/'),
-    ann = patt:gsub('%%S', cwd..'../annotated/'),
-    ref = patt:gsub('%%S', cwd..'../reference/'),
-  }
-end
+-- local function mexpand(patt)
+--   return {
+--     [false] = patt:gsub('%%S', cwd..'../latest/'),
+--     ann = patt:gsub('%%S', cwd..'../annotated/'),
+--     ref = patt:gsub('%%S', cwd..'../reference/'),
+--   }
+-- end
 local function add_test(base)
   if base.fnstem then
     base.modes = {
@@ -113,7 +113,6 @@ add_test { id = 'unstrip', size = 2, grouped = true, cfg = '!UNSTRIP',
   fnstem = 'dyninst/install/bin/unstrip',
   args = '-f %f -o %o',
   input = 'strip -So %o %f',
-  --nooutput = true,  -- TODO: outclean = 'nm -a ...',
   outclean = 'nm -a %f > %o',
 }
 add_test { id = 'micro-symtab', size = 1, grouped = true, cfg = 'MICRO',
@@ -132,10 +131,13 @@ add_test { id = 'hpcprof', size = 3, grouped = true, cfg = '!HPCPROF',
   env = 'OMP_NUM_THREADS=%T '..cwd..'tartrans.sh',
   fnstem = 'hpctoolkit/install/bin/hpcprof.real',
   args = '-o @@%o @%f',
-  outclean = 'tar xOf %f ./experiment.xml > %o',
-  input = mexpand(cwd..'tartrans.sh %Shpctoolkit/install/bin/hpcrun.real '
+  outclean = 'tar xOf %f ./experiment.xml | sed '
+    ..[=[-e 's/\(db-m[ia][nx]-time\)="[[:digit:]]\+"/\1="TTTT"/g' ]=]
+    ..[=[-e 's/i="[[:digit:]]\+"/i="NNNN"/g' ]=]
+    ..' > %o',
+  input = cwd..'tartrans.sh '..cwd..'../reference/hpctoolkit/install/bin/hpcrun.real '
     ..'-o @@%o -t -e REALTIME@100 '
-    ..cwd..'../reference/hpctoolkit/install/bin/hpcstruct.real -o /dev/null %f')
+    ..cwd..'../latest/hpctoolkit/install/bin/hpcstruct.real -o /dev/null -j 8 %f'
 }
 
 local ti,tm = table.insert,tup.append_table
