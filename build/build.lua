@@ -351,6 +351,11 @@ local function cfgbool(n, d)
   end
   error('CONFIG_'..n..' must be y/n (default is '..(d and 'y' or 'n')..')')
 end
+local function c_slines(...)
+  local s = shell(...)
+  if cfgbool 'DEBUG_CONFIGURE' then print('CFG:', s) end
+  return plines(s)
+end
 
 -- Step 1: Figure out the build system in use and let it do its thing.
 if glob(srcdir..'configure.ac') then  -- Its an automake thing
@@ -361,18 +366,18 @@ if glob(srcdir..'configure.ac') then  -- Its an automake thing
     REALLDD = lexec 'which ldd',
     CFLAGS = '-g', CXXFLAGS = '-g',
   }
-  for l in slines({'autoreconf', '-fis', fullsrcdir, onlyout=true, env=env}) do
+  for l in c_slines({'autoreconf', '-fis', fullsrcdir, onlyout=true, env=env}) do
     if cfgbool 'DEBUG_CONFIGURE' then print(l) end
   end
   -- Run configure too while everything is arranged accordingly
-  for l in slines({'cd', tmpdir}, {env=env, realsrcdir..'configure',
+  for l in c_slines({'cd', tmpdir}, {env=env, realsrcdir..'configure',
     '--prefix='..realbuilddir..'install',
     '--disable-dependency-tracking',
     cfgflags, onlyout=true}) do
     if cfgbool 'DEBUG_CONFIGURE' then print(l) end
   end
 elseif glob(srcdir..'CMakeLists.txt') then  -- Negligably nicer CMake thing
-  for l in slines({'cmake', '-G', 'Unix Makefiles', cfgflags,
+  for l in c_slines({'cmake', '-G', 'Unix Makefiles', cfgflags,
     '-DCMAKE_INSTALL_PREFIX='..realbuilddir..'install',
     '-DCMAKE_BUILD_TYPE=RelWithDebInfo',
     '-DCMAKE_MODULE_PATH='..topdir..'build',
