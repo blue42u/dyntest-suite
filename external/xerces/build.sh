@@ -23,6 +23,11 @@ xercesc/util/Transcoders/MacOSUnicodeConverter/MacOSUnicodeConverter.hpp
 xercesc/util/Transcoders/Iconv/IconvTransService.hpp
 xercesc/util/Transcoders/Win32/Win32TransService.hpp
 xercesc/util/Transcoders/IconvGNU/IconvGNUTransService.hpp
+xercesc/util/NetAccessors/Curl/CurlNetAccessor.hpp
+xercesc/util/NetAccessors/Curl/CurlURLInputStream.hpp
+xercesc/util/NetAccessors/BinHTTPInputStreamCommon.hpp
+xercesc/util/NetAccessors/Socket/SocketNetAccessor.hpp
+xercesc/util/NetAccessors/Socket/UnixHTTPURLInputStream.hpp
 EOF
 
 # Copy everything back home

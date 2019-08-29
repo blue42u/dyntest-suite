@@ -498,6 +498,9 @@ FILES += install/lib/libxerces-c.la
 FILES += install/lib/libxerces-c.so
 FILES += install/lib/pkgconfig/xerces-c.pc
 
+FILES += install/include/xercesc/util/NetAccessors/Curl/CurlURLInputStream.hpp
+FILES += install/include/xercesc/util/NetAccessors/Curl/CurlNetAccessor.hpp
+
 include find.lua
 ifeq (y,$(BUILD_XERCES))
 : |> ^o Built Xerces^ ./build.sh |> $(FILES) <build>
