@@ -279,7 +279,7 @@ local realbuilddir = topdir..fullbuilddir
 local exdeps,exhandled,transforms,runpath = {},{},{},{realbuilddir..'install/lib'}
 local cfgflags = {}
 for f in opts.cfgflags:gmatch '%g+' do
-  f = f:gsub('@([^@]+)@', function(ed)
+  f = f:gsub('@@/', topdir):gsub('@([^@]+)@', function(ed)
     local ret = true
     if ed:sub(1,1) == '!' then ret,ed = false,ed:sub(2) end
     local path = ed:sub(1,1) ~= '/' and dir(ed)

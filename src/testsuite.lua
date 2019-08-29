@@ -5,7 +5,7 @@ function testsuite(o) return build {
   srcdir = 'src/testsuite',
   builddir = o.builddir,
   cfgflags = [[
-    -DDyninst_SRC_DIR=src/dyninst
+    -DDyninst_SRC_DIR=@@/src/dyninst
     -DDyninst_ROOT=@]]..o.dyninst..[[@
     -DElfUtils_ROOT_DIR=@]]..o.elfutils..[[@
     -DTBB_ROOT_DIR=@/external/tbb@
