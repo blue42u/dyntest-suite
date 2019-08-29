@@ -377,11 +377,11 @@ if glob(srcdir..'configure.ac') then  -- Its an automake thing
     if cfgbool 'DEBUG_CONFIGURE' then print(l) end
   end
 elseif glob(srcdir..'CMakeLists.txt') then  -- Negligably nicer CMake thing
-  for l in c_slines({'cmake', '-G', 'Unix Makefiles', cfgflags,
+  for l in c_slines({'cd', tmpdir}, {'cmake', '-G', 'Unix Makefiles', cfgflags,
     '-DCMAKE_INSTALL_PREFIX='..realbuilddir..'install',
     '-DCMAKE_BUILD_TYPE=RelWithDebInfo',
     '-DCMAKE_MODULE_PATH='..topdir..'build',
-    '-S', fullsrcdir, '-B', tmpdir}) do
+    realsrcdir}) do
     if cfgbool 'DEBUG_CONFIGURE' then print(l) end
   end
 else error("Unable to determine build system!") end
