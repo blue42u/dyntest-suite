@@ -682,6 +682,12 @@ local function findrule(fn, ruleset)
       return 'XXX'
     elseif cmd == '$(AR) t ../libdwelf/libdwelf.a' then
       return 'XXX'
+    elseif cmd == '$(AR) t ../libebl/libebl.a' then
+      return 'XXX'
+    elseif cmd == '$(AR) t ../backends/libebl_backends.a' then
+      return 'XXX'
+    elseif cmd == '$(AR) t ../libcpu/libcpu.a' then
+      return 'XXX'
     else error('Unhandled shell: '..cmd) end
   end
   function funcs.call(_, cmd)
@@ -911,6 +917,43 @@ local function make(fn, ruleset)
         s.links = {{d..'libebl_'..m..'.so', 'libebl_'..m..'-'..v..'.so'}}
         table.insert(info.subs, s)
       end
+    elseif c == ([[@list1='$(dist_man1_MANS)'; list2=''; test -n "$(man1dir)" &&
+    test -n "`echo $$list1$$list2`" || exit 0; echo " $(MKDIR_P)
+    '$(DESTDIR)$(man1dir)'"; $(MKDIR_P) "$(DESTDIR)$(man1dir)" || exit 1; { for
+    i in $$list1; do echo "$$i"; done; if test -n "$$list2"; then for i in
+    $$list2; do echo "$$i"; done | sed -n '/\.1[a-z]*$$/p'; fi; } | while read
+    p; do if test -f $$p; then d=; else d="$(srcdir)/"; fi; echo "$$d$$p"; echo
+    "$$p"; done | sed -e 'n;s,.*/,,;p;h;s,.*\.,,;s,^[^1][0-9a-z]*$$,1,;x' -e
+    's,\.[0-9a-z]*$$,,;$(transform);G;s,\n,.,' | sed 'N;N;s,\n, ,g' | { list=;
+    while read file base inst; do if test "$$base" = "$$inst"; then list="$$list
+    $$file"; else echo " $(INSTALL_DATA) '$$file'
+    '$(DESTDIR)$(man1dir)/$$inst'"; $(INSTALL_DATA) "$$file"
+    "$(DESTDIR)$(man1dir)/$$inst" || exit $$?; fi; done; for i in $$list; do
+    echo "$$i"; done | $(am__base_list) | while read files; do test -z "$$files"
+    || { echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(man1dir)'"; $(INSTALL_DATA)
+    $$files "$(DESTDIR)$(man1dir)" || exit $$?; }; done; }]])
+    :gsub('\n%s*', ' ') then
+      handled[i] = 'Elfutils: manfile install script'
+      check(not info.kind)
+      info.kind, info.dstdir = 'install', dir(path(r.expand '$(DESTDIR)$(man1dir)').path)
+    elseif c == ([[@list1='$(notrans_dist_man3_MANS)'; list2=''; test -n
+    "$(man3dir)" && test -n "`echo $$list1$$list2`" || exit 0; echo " $(MKDIR_P)
+    '$(DESTDIR)$(man3dir)'"; $(MKDIR_P) "$(DESTDIR)$(man3dir)" || exit 1; { for
+    i in $$list1; do echo "$$i"; done; if test -n "$$list2"; then for i in
+    $$list2; do echo "$$i"; done | sed -n '/\.3[a-z]*$$/p'; fi; } | while read
+    p; do if test -f $$p; then d=; else d="$(srcdir)/"; fi; echo "$$d$$p"; echo
+    "$$p"; done | sed 'n;s,.*/,,;p;s,\.[^3][0-9a-z]*$$,.3,' | sed 'N;N;s,\n, ,g'
+    | { list=; while read file base inst; do if test "$$base" = "$$inst"; then
+    list="$$list $$file"; else echo " $(INSTALL_DATA) '$$file'
+    '$(DESTDIR)$(man3dir)/$$inst'"; $(INSTALL_DATA) "$$file"
+    "$(DESTDIR)$(man3dir)/$$inst" || exit $$?; fi; done; for i in $$list; do
+    echo "$$i"; done | $(am__base_list) | while read files; do test -z "$$files"
+    || { echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(man3dir)'"; $(INSTALL_DATA)
+    $$files "$(DESTDIR)$(man3dir)" || exit $$?; }; done; }]])
+    :gsub('\n%s*', ' ') then
+      handled[i] = 'Elfutils: manfile install script'
+      check(not info.kind)
+      info.kind, info.dstdir = 'install', dir(path(r.expand '$(DESTDIR)$(man3dir)').path)
     elseif c == ([[-for file in $(PLUGIN_CONFIG_FILES) ; do cp -f
     "$(plugin_srcdir)/$$file" "$(DESTDIR)$(plugin_instdir)/$$file" ;
     done]]):gsub('\n%s*', ' ') then
@@ -1125,6 +1168,7 @@ function translations.compile(info)  -- Compilation command
   info.outputs = r.outputs
   tup.frule(r)
 end
+local extrald = {}
 function translations.ld(info)  -- Linking command
   local function pmatch(p)
     for _,a in ipairs(info.deps) do
@@ -1135,12 +1179,21 @@ function translations.ld(info)  -- Linking command
     return p.path, p.external
   end
   local r = {inputs={extra_inputs={}}, outputs={extra_outputs={}}}
+  local searchpaths,libs = {},{}
+
+  local elibs = {}
+  local function link(f)
+    local e = extrald[f]
+    if e then table.move(e, 1,#e, #elibs, elibs) end
+    return not not e
+  end
+
   r.command = getopt(info.cmd,
     'o:std:W;g,O;shared,l:D:f:L:I:pthread,m:no-pie,pie,static,', {
     [false] = function(p)
       local e
       p,e = pmatch(p)
-      if not e then table.insert(r.inputs, p) end
+      if not e then table.insert(r.inputs, p); link(p) end
       return p
     end,
     o = function(p)
@@ -1154,6 +1207,7 @@ function translations.ld(info)  -- Linking command
         return '?',(x:gsub(',%-%-?rpath[^,]*,([^,]*)', function(ps)
           return ',-rpath-link,'..ps:gsub('[^;:]+', function(p)
             p = path(p, info.cwd)
+            if p.build then table.insert(searchpaths, p) end
             p = dir(p.path or p.absolute)
             if p:find '^install/' then return '' end
             return p
@@ -1165,24 +1219,35 @@ function translations.ld(info)  -- Linking command
     end,
     L = function(p)
       p = path(p, info.cwd)
+      if p.build then table.insert(searchpaths, p) end
       return '?',p.path and #p.path == 0 and '.' or p.path or p.absolute
     end,
     D = function(x) return '?',(x:gsub(unmagic(tmpdir), '')) end,
     I = false,  -- Includes do nothing when just linking
     static = function() info.ldstatic = true end,
+    l = function(x) table.insert(libs, 'lib'..x..'.so') end,
   })
+  for _,l in ipairs(libs) do for _,p in ipairs(searchpaths) do
+    if link(dir(p.path)..l) then break end
+  end end
+  for i=#r.inputs+1,#info.deps do if not info.deps[i].external then
+    table.insert(r.inputs.extra_inputs, info.deps[i].path)
+    if info.deps[i].kind == 'ld' then link(info.deps[i].path)
+    elseif info.deps[i].ltmode == 'link' then link(info.deps[i].ltso) end
+  end end
+  table.move(elibs, 1,#elibs, #r.inputs.extra_inputs+1, r.inputs.extra_inputs)
+  table.move(exdeps, 1,#exdeps, #r.inputs.extra_inputs+1, r.inputs.extra_inputs)
+
   r.command = '^o LD %o^ '..shell(r.command)..(info.assert or '')
+  extrald[r.outputs[1]] = elibs
+  table.insert(elibs, r.outputs[1])
   if info.linkto then
     r.command = r.command..' && ln -s '..r.outputs[1]:match '[^/]+$'..' '..info.linkto
     r.outputs.extra_outputs[1] = info.linkto
-    table.insert(r.outputs, '<libs>')
-  else
-    table.insert(r.inputs.extra_inputs, '<libs>')
+    extrald[info.linkto] = elibs
+    table.insert(elibs, info.linkto)
   end
-  table.move(exdeps, 1,#exdeps, #r.inputs.extra_inputs+1, r.inputs.extra_inputs)
-  for i=#r.inputs+1,#info.deps do if not info.deps[i].external then
-    table.insert(r.inputs.extra_inputs, info.deps[i].path)
-  end end
+
   tup.frule(r)
 end
 local instdedup = {}
