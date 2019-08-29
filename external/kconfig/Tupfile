@@ -19,4 +19,4 @@ FILES += install/bin/kconfig-gconf
 FILES += install/bin/kconfig-qconf
 
 # We always build kconfig, because why not after all
-: |> ^o Built KConfig^ ./build.sh |> $(FILES) <build>
+: ../gperf/<build> |> ^o Built KConfig^ ./build.sh |> $(FILES) <build>

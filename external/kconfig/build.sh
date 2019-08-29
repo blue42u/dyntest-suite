@@ -8,6 +8,9 @@ git clone git://ymorin.is-a-geek.org/kconfig-frontends kconfig
 cd kconfig
 autoreconf -fis &> /dev/null
 
+# We need access to gperf, so stick it in the PATH
+export PATH="$INSTALL"/../../gperf/install/bin:"$PATH"
+
 # The usual configure-make-install
 ./configure --prefix="`realpath zzz`" --quiet \
   --disable-utils --disable-kconfig  > /dev/null
