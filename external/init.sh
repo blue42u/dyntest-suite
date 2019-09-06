@@ -32,11 +32,14 @@ else
 fi
 
 # Check the checksums
-if which md5sum >/dev/null 2>/dev/null
-then echo "$3  dl.tar.ball" | md5sum -c --quiet -; CHECKED=md5
-fi
-if which shasum >/dev/null 2>/dev/null
-then echo "$2  dl.tar.ball" | shasum -qca 256 -; CHECKED=sha
+CHECKED=
+if [ "$#" -gt 1 ]; then
+  if which md5sum >/dev/null 2>/dev/null
+  then echo "$3  dl.tar.ball" | md5sum -c --quiet -; CHECKED=md5
+  fi
+  if which shasum >/dev/null 2>/dev/null
+  then echo "$2  dl.tar.ball" | shasum -qca 256 -; CHECKED=sha
+  fi
 fi
 if [ -z "$CHECKED" ]
 then echo "WARNING: No checksum program available, not checking download!"
