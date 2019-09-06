@@ -3,10 +3,11 @@
 tup.include '../external/serpent.lua'
 
 -- Handy functions for handling subprocesses
-local function pclose(f)
+local function pclose(f, o)
   local ok,kind,code = f:close()
   if not kind then return
   elseif not ok then
+    if o then io.stderr:write(o,'\n') end
     if kind == 'exit' then error('Subprocess exited with code '..code)
     elseif kind == 'signal' then error('Subprocess was killed by signal '..code)
     else error('Subprocess exited in a weird way... '..tostring(kind)..'+'..tostring(code))
@@ -16,16 +17,18 @@ end
 local function exec(cmd)
   local p = io.popen(cmd, 'r')
   local o = p:read 'a'
-  pclose(p)
+  pclose(p, o)
   return o
 end
 local function lexec(cmd) return (exec(cmd):gsub('%s+$', '')) end
 local function plines(cmd, fmt)
   local p = io.popen(cmd, 'r')
   local f,s,v = p:lines(fmt or 'l')
+  local bits = {}
   return function(...)
     local x = f(...)
-    if x == nil then pclose(p) end
+    if x == nil then pclose(p, table.concat(bits, '\n'))
+    else table.insert(bits, x) end
     return x
   end, s, v
 end
