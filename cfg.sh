@@ -16,7 +16,14 @@ if [ "$#" = 1 ]; then
 fi
 
 cd "$(realpath "$(dirname "$0")")"
-./build.sh external/kconfig
+
+if which kconfig-"$CONF" &> /dev/null
+then KCONFIG=kconfig-"$CONF"
+else
+  ./build.sh external/kconfig
+  KCONFIG=./external/kconfig/install/bin/kconfig-"$CONF"
+fi
+
 LD_LIBRARY_PATH="`pwd`"/external/kconfig/install/lib:"$LD_LIBRARY_PATH" \
 KCONFIG_CONFIG=tup.config \
-./external/kconfig/install/bin/kconfig-"$CONF" tup.Kconfig
+"$KCONFIG" tup.Kconfig

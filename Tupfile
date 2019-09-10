@@ -1,12 +1,1 @@
 include_rules
-
-ifeq (y,@(LIMITED_MODE))
-# Concatinate together the buildscripts for each of the build.tups
-BOOTSTRAP += latest/elfutils/bootstrap.sh reference/elfutils/bootstrap.sh
-BOOTSTRAP += latest/dyninst/bootstrap.sh reference/dyninst/bootstrap.sh
-BOOTSTRAP += latest/hpctoolkit/bootstrap.sh reference/hpctoolkit/bootstrap.sh
-: foreach $(BOOTSTRAP) |> ^o Transformed %f -> %o^ \
-  (echo "cd `dirname %f`"; cat %f; echo; echo "cd `dirname %f | sed -E 's/[^/]+/../g'`") \
-  > %o |> %f.real {strap}
-: {strap} |> ^ Concatinated %o^ (echo "set -e"; cat %f) > %o && chmod +x %o |> bootstrap.sh
-endif

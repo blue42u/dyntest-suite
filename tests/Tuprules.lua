@@ -76,15 +76,19 @@ for _,s in ipairs{'1', '2', '3', 'huge'} do
 end
 table.sort(inputs, function(a,b) return a.id < b.id end)
 
+-- List of available input transformations
+intrans = {
+  -- Makes a tarball with the output from hpcrun
+  hpcrun = { grouped = true, cmd = cwd..'tartrans.sh '
+    ..cwd..'../reference/hpctoolkit/install/bin/hpcrun.real '
+      ..'-o @@%o -t -e REALTIME@100 '
+    ..cwd..'../latest/hpctoolkit/install/bin/hpcstruct.real '
+      ..'-o /dev/null -j 8 %f',
+  },
+}
+
 -- List of tests to test with
 tests = {}
--- local function mexpand(patt)
---   return {
---     [false] = patt:gsub('%%S', cwd..'../latest/'),
---     ann = patt:gsub('%%S', cwd..'../annotated/'),
---     ref = patt:gsub('%%S', cwd..'../reference/'),
---   }
--- end
 local function add_test(base)
   if base.fnstem then
     base.modes = {
@@ -92,6 +96,10 @@ local function add_test(base)
       ann = cwd..'../annotated/'..base.fnstem,
       ref = cwd..'../reference/'..base.fnstem,
     }
+    if base.nofn then
+      for _,k in ipairs(base.nofn) do base.modes[k] = nil end
+      base.nofn = nil
+    end
     base.fnstem = nil
   end
   if base.cfg then
@@ -130,14 +138,16 @@ add_test { id = 'micro-parse', size = 1, grouped = true, cfg = 'MICRO',
 add_test { id = 'hpcprof', size = 3, grouped = true, cfg = '!HPCPROF',
   env = 'OMP_NUM_THREADS=%T '..cwd..'tartrans.sh',
   fnstem = 'hpctoolkit/install/bin/hpcprof.real',
-  args = '-o @@%o @%f',
+  args = '-o @@%o @%f', inputtrans = 'hpcrun',
   outclean = 'tar xOf %f ./experiment.xml | sed '
     ..[=[-e 's/\(db-m[ia][nx]-time\)="[[:digit:]]\+"/\1="TTTT"/g' ]=]
     ..[=[-e 's/i="[[:digit:]]\+"/i="NNNN"/g' ]=]
     ..' > %o',
-  input = cwd..'tartrans.sh '..cwd..'../reference/hpctoolkit/install/bin/hpcrun.real '
-    ..'-o @@%o -t -e REALTIME@100 '
-    ..cwd..'../latest/hpctoolkit/install/bin/hpcstruct.real -o /dev/null -j 8 %f'
+}
+add_test { id = 'hpcprofmock', size = 1, grouped = true, cfg = 'HPCPROFMOCK',
+  env = 'OMP_NUM_THREADS=%T '..cwd..'tartrans.sh',
+  fnstem = 'hpctoolkit/install/bin/hpcprofmock.real', nofn = {'ref'},
+  args = '@%f > %o', inputtrans = 'hpcrun',
 }
 
 local ti,tm = table.insert,tup.append_table
@@ -182,10 +192,9 @@ function forall(harness, post)
       if h.redirect then args = args:gsub('%%o', h.redirect) end
       if not t.grouped then table.insert(ins.extra_inputs, tfn) end
 
-      if t.input then
+      if t.inputtrans then
         table.insert(ins.extra_inputs, cwd..'<inputs>')
-        args = args:gsub('%%f', cwd..'inputs/'..minihash(t.id..i.id
-          ..(type(t.input) ~= 'string' and h.mode or '')))
+        args = args:gsub('%%f', cwd..'inputs/'..minihash(t.inputtrans..i.id))
       elseif i.grouped then args = args:gsub('%%f', i.fn)
       else table.insert(ins, i.fn) end
 

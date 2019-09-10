@@ -4,6 +4,7 @@ sclass = 1
 
 ruleif(forall(function(_, t)
   if t.nooutput then return end
+  if not t.modes.ref then return end
   local runs = {}
   for idx,c in ipairs{1,2,4,8,16,32} do
     runs[idx] = {

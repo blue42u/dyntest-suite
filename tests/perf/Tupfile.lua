@@ -8,13 +8,18 @@ for i,s in ipairs(structs) do
 end
 structs = table.concat(structs, ' ')
 
+local tbblib = '../../external/tbb/install/lib/'
+local tbbpreload = 'LD_LIBRARY_PATH='..tbblib
+  ..' LD_PRELOAD="$LD_PRELOAD":'..tbblib..'libtbbmalloc_proxy.so '
+local hpcrun = '../../reference/hpctoolkit/install/bin/hpcrun.real'
+
 local detailed = {}
 if enabled('PERF_DETAIL', true) then
 detailed = forall(function(i)
   if i.size < 3 then return end
   return {
     id = 'Perf (detailed)', threads = maxthreads,
-    cmd = './hpcrun.sh 100 %o %C',
+    cmd = tbbpreload..'../tartrans.sh '..hpcrun..' -e REALTIME@100 -t -o @@%o %C',
     output = 'measurements/%t.%i.tar', serialize = true, redirect = '/dev/null',
   }
 end)
@@ -34,7 +39,8 @@ forall(function(i)
   for r=1,rep do
     table.insert(outs, {
       id = 'Perf (coarse, rep '..r..')', threads=maxthreads,
-      cmd = './hpcrun.sh 2000 %o %C', redirect = '/dev/null',
+      cmd = tbbpreload..'../tartrans.sh '..hpcrun..' -e REALTIME@2000 -t -o @@%o %C',
+      redirect = '/dev/null',
       output = 'measurements/%t.%i.'..r..'.tar', serialize = true,
     })
   end
@@ -42,25 +48,27 @@ forall(function(i)
 end, function(c, i, t) if #c > 0 then table.insert(coarse, {c, i, t}) end end)
 end
 
+local prof = '../../reference/hpctoolkit/install/bin/hpcprof.real'
+
 for _,f in ipairs(detailed) do
-  tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<build>',
-    'struct/<out>', serialend()}},
-    '^o Prof %o^ ./hpcprof.sh %f %o '..structs,
+  tup.rule({f, extra_inputs={'struct/<out>', serialend()}},
+    '^o Prof %o^ ../tartrans.sh '..prof..' '..structs..' -o @@%o @%f ',
     {f:gsub('measurements/', 'detailed/'), serialpost()})
 end
 
 for _,x in ipairs(coarse) do
   local c,i,t = x[1], x[2], x[3]
-  local lats = {}
+  local lats,tlats = {},{}
   for _,f in ipairs(c) do
     local o = f:gsub('measurements/', 'coarse/')
-    tup.rule({f, extra_inputs={'../../reference/hpctoolkit/<build>',
-      'struct/<out>', serialend()}},
-      '^o Prof %o^ ./hpcprof.sh %f %o '..structs, o)
+    tup.rule({f, extra_inputs={'struct/<out>', serialend()}},
+      '^o Prof %o^ ../tartrans.sh '..prof..' '..structs..' -o @@%o @%f ', o)
     table.insert(lats, o)
+    table.insert(tlats, '@'..o)
   end
   lats.extra_inputs = {'../../external/lua/luaexec'}
-  tup.rule(lats, '^o Dump %o^ ./hpcdump.sh %o %f',
+  tup.rule(lats, '^o Dump %o^ ../tartrans.sh ../../external/lua/luaexec '
+    ..'hpcdump.lua %o '..table.concat(tlats, ' '),
     {'stats/'..t.id..'.'..i.id..'.lua', serialpost()})
 end
 
