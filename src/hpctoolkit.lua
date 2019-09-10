@@ -38,6 +38,11 @@ function hpctoolkit(o)
   tup.rule('install/libexec/hpctoolkit/hpcprof-bin',
     '^o Linked %o^ ln -s ../libexec/hpctoolkit/hpcprof-bin %o',
     {'install/bin/hpcprof.real', '<build>'})
+  if not o.ref then
+  tup.rule('install/libexec/hpctoolkit/hpcprofmock-bin',
+    '^o Linked %o^ ln -s ../libexec/hpctoolkit/hpcprofmock-bin %o',
+    {'install/bin/hpcprofmock.real', '<build>'})
+  end
   tup.rule('install/libexec/hpctoolkit/hpcstruct-bin',
     '^o Linked %o^ ln -s ../libexec/hpctoolkit/hpcstruct-bin %o',
     {'install/bin/hpcstruct.real', '<build>'})

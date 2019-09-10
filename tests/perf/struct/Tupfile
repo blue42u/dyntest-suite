@@ -23,4 +23,5 @@ include_rules
 : ../../../latest/dyninst/<build> |> !struct ../../../latest/elfutils/install/lib/libelf-0.177.so |> libelf-0.177.so.struct <out>
 : ../../../latest/hpctoolkit/<build> |> !struct ../../../latest/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin |> hpcstruct-bin.struct <out>
 : ../../../latest/hpctoolkit/<build> |> !struct ../../../latest/hpctoolkit/install/libexec/hpctoolkit/hpcprof-bin |> hpcprof-bin.struct <out>
+: ../../../latest/hpctoolkit/<build> |> !struct ../../../latest/hpctoolkit/install/libexec/hpctoolkit/hpcprofmock-bin |> hpcprofmock-bin.struct <out>
 : ../../../reference/hpctoolkit/<build> |> !struct ../../../reference/hpctoolkit/install/lib/hpctoolkit/libhpcrun.so |> libhpcrun.so.struct <out>
