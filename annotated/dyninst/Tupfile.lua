@@ -7,5 +7,5 @@ dyninst {
   cfg = [[
     -DADD_VALGRIND_ANNOTATIONS=ON
     -DValgrind_ROOT_DIR=@/external/valgrind@
-  ]],
+  ]]..ompcfg,
 }

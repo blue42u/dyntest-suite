@@ -7,10 +7,13 @@ local function pclose(f, o)
   local ok,kind,code = f:close()
   if not kind then return
   elseif not ok then
-    if o then io.stderr:write(o,'\n') end
-    if kind == 'exit' then error('Subprocess exited with code '..code)
+    if kind == 'exit' then
+      if o then io.stderr:write(o,'\n') end
+      error('Subprocess exited with code '..code)
     elseif kind == 'signal' then error('Subprocess was killed by signal '..code)
-    else error('Subprocess exited in a weird way... '..tostring(kind)..'+'..tostring(code))
+    else
+      if o then io.stderr:write(o,'\n') end
+      error('Subprocess exited in a weird way... '..tostring(kind)..'+'..tostring(code))
     end
   end
 end
@@ -283,17 +286,24 @@ local exdeps,exhandled,transforms,runpath = {},{},{},{realbuilddir..'install/lib
 local cfgflags = {}
 for f in opts.cfgflags:gmatch '%g+' do
   f = f:gsub('@@/', topdir):gsub('@([^@]+)@', function(ed)
-    local ret = true
+    local ret,raw = true,false
     if ed:sub(1,1) == '!' then ret,ed = false,ed:sub(2) end
-    local path = ed:sub(1,1) ~= '/' and dir(ed)
+    if ed:sub(1,1) == '!' then raw,ed = true,ed:sub(2) end
+    local path = raw and '//'..dir(ed)
+      or ed:sub(1,1) ~= '/' and dir(ed)
       or dir(canonicalize(topcwd..'..'..ed))
-    local rpath = ed:sub(1,1) == '/' and dir(topdir..ed:sub(2))
+    local rpath = raw and dir(ed)
+      or ed:sub(1,1) == '/' and dir(topdir..ed:sub(2))
       or dir(canonicalize(realbuilddir..ed))
     if not exhandled[path] then
-      table.insert(exdeps, path..'<build>')
-      transforms[rpath..'dummy'] = path..'install'
+      if raw then
+        table.insert(runpath, rpath)
+      else
+        table.insert(exdeps, path..'<build>')
+        transforms[rpath..'dummy'] = path..'install'
+        table.insert(runpath, rpath..'install/lib')
+      end
       exhandled[path] = true
-      table.insert(runpath, rpath..'install/lib')
     end
     return ret and rpath..'dummy' or ''
   end)

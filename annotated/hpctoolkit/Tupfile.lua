@@ -9,5 +9,5 @@ hpctoolkit {
     --enable-openmp
     --enable-valgrind-annotations
     --with-valgrind=@/external/valgrind@
-  ]],
+  ]]..ompcfg,
 }
