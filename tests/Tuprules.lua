@@ -25,6 +25,7 @@ else
   end
   assert(maxthreads ~= 0, 'Error getting thread count!')
 end
+local overthreads = math.ceil(maxthreads * 1.5)
 
 local cwd = tup.getcwd():gsub('[^/]$', '%0/')
 
@@ -79,11 +80,11 @@ table.sort(inputs, function(a,b) return a.id < b.id end)
 -- List of available input transformations
 intrans = {
   -- Makes a tarball with the output from hpcrun
-  hpcrun = { grouped = true, cmd = cwd..'tartrans.sh '
+  hpcrun = { grouped = true, serialize = true, cmd = cwd..'tartrans.sh '
     ..cwd..'../reference/hpctoolkit/install/bin/hpcrun.real '
       ..'-o @@%o -t -e REALTIME@100 '
     ..cwd..'../latest/hpctoolkit/install/bin/hpcstruct.real '
-      ..'-o /dev/null -j 8 %f',
+      ..'-o /dev/null -j '..overthreads..' --jobs-symtab '..overthreads..' %f',
   },
 }
 
