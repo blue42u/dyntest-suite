@@ -194,7 +194,7 @@ function forall(harness, post)
 
       if t.inputtrans then
         table.insert(ins.extra_inputs, cwd..'<inputs>')
-        args = args:gsub('%%f', cwd..'inputs/'..minihash(t.inputtrans..i.id))
+        args = args:gsub('%%f', cwd..'inputs/'..t.inputtrans..'.'..i.id)
       elseif i.grouped then args = args:gsub('%%f', i.fn)
       else table.insert(ins, i.fn) end
 

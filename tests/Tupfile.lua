@@ -25,7 +25,7 @@ local function transrule(t, i)
   o.command = t.cmd
   if t.grouped then o.command,o.inputs[1] = o.command:gsub('%%f', i.fn), nil end
   o.command = '^o Transformed '..t.id..' '..i.id..'^ '..o.command
-  o.outputs = {'inputs/'..minihash(t.id..i.id), '<inputs>'}
+  o.outputs = {'inputs/'..t.id..'.'..i.id, '<inputs>'}
   return o
 end
 
