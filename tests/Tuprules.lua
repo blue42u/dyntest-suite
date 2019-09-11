@@ -25,7 +25,6 @@ else
   end
   assert(maxthreads ~= 0, 'Error getting thread count!')
 end
-local overthreads = math.ceil(maxthreads * 1.5)
 
 local cwd = tup.getcwd():gsub('[^/]$', '%0/')
 
@@ -84,7 +83,7 @@ intrans = {
     ..cwd..'../reference/hpctoolkit/install/bin/hpcrun.real '
       ..'-o @@%o -t -e REALTIME@100 '
     ..cwd..'../latest/hpctoolkit/install/bin/hpcstruct.real '
-      ..'-o /dev/null -j '..overthreads..' --jobs-symtab '..overthreads..' %f',
+      ..'-o /dev/null -j '..maxthreads..' --jobs-symtab '..maxthreads..' %f',
   },
 }
 
