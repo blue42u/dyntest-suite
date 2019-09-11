@@ -10,11 +10,15 @@ make -srf build/Makefile.tbbmalloc tbb_root="$TMP" cfg=release malloc
 make -srf build/Makefile.tbbproxy tbb_root="$TMP" cfg=release tbbproxy
 make -srf build/Makefile.tbb tbb_root="$TMP" cfg=preview tbb_cpf=1
 
+# Construct the RPATH for the files. Makes preloading easier.
+RP="`realpath "$INSTALL"/lib`"
+IS="$INSTALL"/../../../build/install.sh
+
 # Copy out the built .so's first
-tupify cp "$TMP"/libtbb.so.2 "$INSTALL"/lib
-tupify cp "$TMP"/libtbbmalloc.so.2 "$INSTALL"/lib
-tupify cp "$TMP"/libtbbmalloc_proxy.so.2 "$INSTALL"/lib
-tupify cp "$TMP"/libtbb_preview.so.2 "$INSTALL"/lib
+tupify "$IS" "$TMP"/libtbb.so.2 "$INSTALL"/lib/libtbb.so.2 "$RP"
+tupify "$IS" "$TMP"/libtbbmalloc.so.2 "$INSTALL"/lib/libtbbmalloc.so.2 "$RP"
+tupify "$IS" "$TMP"/libtbbmalloc_proxy.so.2 "$INSTALL"/lib/libtbbmalloc_proxy.so.2 "$RP"
+tupify "$IS" "$TMP"/libtbb_preview.so.2 "$INSTALL"/lib/libtbb_preview.so.2 "$RP"
 
 # Copy out the headers next
 tupify cp -r "$TMP"/include/tbb "$INSTALL"/include

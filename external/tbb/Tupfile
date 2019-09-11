@@ -125,5 +125,5 @@ FILES += install/lib/libtbb.so.2
 
 include find.lua
 ifeq (y,$(BUILD_TBB))
-: |> ^o Built TBB^ ./build.sh |> $(FILES) <build>
+: ../patchelf/<build> |> ^o Built TBB^ ./build.sh |> $(FILES) <build>
 endif
