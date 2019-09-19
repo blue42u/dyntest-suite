@@ -2,6 +2,7 @@
 
 sclass = 1
 
+if enabled('STABLE', true) then
 ruleif(forall(function(_, t)
   if t.nooutput then return end
   if not t.modes.ref then return end
@@ -32,5 +33,6 @@ end, function(ins, i, t)
   tup.rule(ins, '^o Generated %o^ ./diffout.sh '..i.id..' '..t.id..' %f > %o', o)
   return {o}
 end), '^o Concatinated %o^ cat %f > %o', {'stable.out', serialpost()})
+end
 
 serialfinal()

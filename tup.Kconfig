@@ -65,6 +65,10 @@ config VAL_CALLGRIND
 
 endmenu
 
+config STABLE
+  bool "Enable stability testing runs"
+  default y
+
 menu "Performance-specific test settings"
 
 config PERF_REP
