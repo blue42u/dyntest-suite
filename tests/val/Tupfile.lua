@@ -26,7 +26,7 @@ ruleif(forall(function(i)
   return {
     id = 'Memcheck', mode = 'ann',
     threads = 32,
-    cmd = com..' --tool=memcheck --track-origins=yes %C || :',
+    cmd = com..' --tool=memcheck --track-origins=yes --leak-check=full --show-leak-kinds=all %C || :',
     redirect = '/dev/null',
     output = 'mc/%t.%i.log', fakeout = true,
     deps = {'../../external/valgrind/<build>'},
