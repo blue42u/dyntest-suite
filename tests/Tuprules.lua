@@ -140,7 +140,8 @@ add_test { id = 'hpcprof', size = 3, grouped = true, cfg = '!HPCPROF',
   fnstem = 'hpctoolkit/install/bin/hpcprof.real',
   args = '-o @@%o @%f', inputtrans = 'hpcrun',
   outclean = 'tar xOf %f ./experiment.xml | sed '
-    ..[=[-e 's/\(db-m[ia][nx]-time\)="[[:digit:]]\+"/\1="TTTT"/g' ]=]
+    ..[=[-e 's/partner="[[:digit:]]\+"/partner="NNNN"/g' ]=]
+    ..[=[-e 's/$[[:digit:]]\+/$NNNN/g' ]=]
     ..[=[-e 's/i="[[:digit:]]\+"/i="NNNN"/g' ]=]
     ..' > %o',
 }
