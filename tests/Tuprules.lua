@@ -28,7 +28,7 @@ end
 
 local cwd = tup.getcwd():gsub('[^/]$', '%0/')
 
-alldeps = {}
+alldeps = {cwd..'../external/lua/luaexec'}
 for _,d in ipairs{
   '../external/lzma', '../external/tbb', '../external/boost',
   '../external/monitor', '../external/dwarf', '../external/unwind',
@@ -139,11 +139,8 @@ add_test { id = 'hpcprof', size = 3, grouped = true, cfg = '!HPCPROF',
   env = 'OMP_NUM_THREADS=%T '..cwd..'tartrans.sh',
   fnstem = 'hpctoolkit/install/bin/hpcprof.real',
   args = '-o @@%o @%f', inputtrans = 'hpcrun',
-  outclean = 'tar xOf %f ./experiment.xml | sed '
-    ..[=[-e 's/partner="[[:digit:]]\+"/partner="NNNN"/g' ]=]
-    ..[=[-e 's/$[[:digit:]]\+/$NNNN/g' ]=]
-    ..[=[-e 's/i="[[:digit:]]\+"/i="NNNN"/g' ]=]
-    ..' > %o',
+  outclean = 'tar xOf %f ./experiment.xml | ../../external/lua/luaexec '
+    ..cwd..'profclean.lua > %o',
 }
 add_test { id = 'hpcprofmock', size = 1, grouped = true, cfg = 'HPCPROFMOCK',
   env = 'OMP_NUM_THREADS=%T '..cwd..'tartrans.sh',
