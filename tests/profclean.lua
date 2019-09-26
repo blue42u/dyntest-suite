@@ -5,6 +5,13 @@ local cwd, outfn = ...
 package.path = cwd:gsub('/?$', '/')..'../external/slaxml/?.lua;'..package.path
 local slax = require 'slaxdom'
 
+-- Getter for the simpler attribute format
+local function aget(tag, k)
+  for _,a in ipairs(tag.attr) do
+    if a.name == k then return a.value end
+  end
+end
+
 -- Helper for walking around XML structures. Had it lying around.
 local xtrav
 do
@@ -14,15 +21,15 @@ do
   local function xmatch(tag, where)
     if type(where) == 'string' then where = {_name=where} end
     for k,v in pairs(where) do
-      local t = tag.attr
-      if k:match '^_' then k,t = k:match '^_(.*)', tag end
-      if not t[k] then return false end
+      local t = function(x) return aget(tag, x) end
+      if k:match '^_' then k,t = k:match '^_(.*)', function(x) return tag[x] end end
+      if not t(k) then return false end
       if type(v) == 'string' then
-        if not string.match(t[k], '^'..v..'$') then return false end
+        if not string.match(t(k), '^'..v..'$') then return false end
       elseif type(v) == 'table' then
         local matchedone = false
         for _,v2 in ipairs(v) do
-          if string.match(t[k], '^'..v2..'$') then matchedone = true end
+          if string.match(t(k), '^'..v2..'$') then matchedone = true end
         end
         if not matchedone then return false end
       end
@@ -112,7 +119,7 @@ local dom
 do
   local xml = io.stdin:read 'a'
   xml = xml:gsub('<!DOCTYPE[^\n]-%[.-%]>', '')
-  dom = slax:dom(xml, {stripWhitespace=true})
+  dom = slax:dom(xml, {stripWhitespace=true, simple=true})
 end
 
 -- 0. Nab some useful tags from the DOM for future reference.
@@ -132,11 +139,12 @@ for _,t in ipairs{
   local outt = {}
   trans[t.name] = outt
   local tag = xtrav(header, t.xml)()
-  table.sort(tag.kids, function(a,b) return a.attr.n < b.attr.n end)
+  table.sort(tag.kids, function(a,b) return aget(a, 'n') < aget(b, 'n') end)
   for sub in xtrav(tag, t.sub) do
-    assert(not outt[sub.attr.i], 'Duplicate '..t.sub..' id '..sub.attr.i)
-    outt[sub.attr.i] = t.code..minihash(sub.attr.n)
+    assert(not outt[aget(sub, 'i')])
+    outt[aget(sub, 'i')] = t.code..minihash(aget(sub, 'n'))
   end
+  collectgarbage()
 end
 
 -- 2. Update the header components with the updated values.
@@ -149,6 +157,7 @@ end
 xasub(header, 'LoadModuleTable', 'LoadModule', 'i', trans.module)
 xasub(header, 'FileTable', 'File', 'i', trans.file)
 xasub(header, 'ProcedureTable', 'Procedure', 'i', trans.procedure)
+collectgarbage()
 
 -- 3. Walk through the CCT and update the keys, then sort based on those.
 local function cctupdate(tag)
@@ -156,7 +165,7 @@ local function cctupdate(tag)
     if sub.name == 'M' then
       asub(sub, 'n', trans.metric)
     else
-      assert(({PF=1,Pr=1,L=1,C=1,S=1,F=1,P=1,LM=1,A=1})[sub.name], sub.name)
+      assert(({PF=1,Pr=1,L=1,C=1,S=1,F=1,P=1,LM=1,A=1})[sub.name])
       asub(sub, 'n', trans.procedure)
       asub(sub, 'lm', trans.module)
       asub(sub, 'f', trans.file)
@@ -167,17 +176,22 @@ local function cctupdate(tag)
     end
   end
   table.sort(tag.kids, function(a,b)
-    if a.name ~= b.name then return a.name < b.name end
+    if a.name ~= b.name then
+      if a.name == 'M' then return true
+      elseif b.name == 'M' then return false
+      else return a.name < b.name end
+    end
     for k in ('n,lm,f,l,a,v,it'):gmatch '[^,]+' do
-      if a.attr[k] ~= b.attr[k] then return (a.attr[k] or '') < (b.attr[k] or '') end
+      if aget(a,k) ~= aget(b,k) then return (aget(a,k) or '') < (aget(b,k) or '') end
     end
     return false
   end)
+  collectgarbage('step', 100)
 end
 cctupdate(cct)
 
 -- Spit it back out, as XML
-local outxml = slax:xml(dom, {indent=2, sort=true})
+local outxml = slax:xml(dom, {indent=2, sort=false})
 local f = io.open(outfn, 'w')
 f:write(outxml)
 f:close()
