@@ -2,6 +2,14 @@
 
 sclass = 1
 
+local function deepcopy(t)
+  if type(t) == 'table' then
+    local o = {}
+    for k,v in pairs(t) do o[k] = deepcopy(v) end
+    return o
+  else return t end
+end
+
 if enabled('STABLE', true) then
 ruleif(forall(function(_, t)
   if t.nooutput then return end
@@ -22,10 +30,25 @@ end, function(ins, i, t)
   if #ins == 0 then return end
   if t.unstable then return end
   if t.outclean then
+    local r
+    if type(t.outclean) == 'string' then
+      r = {inputs={extra_inputs={serialend()}}, command=t.outclean, outputs={}}
+    else
+      r = deepcopy(t.outclean)
+      r.inputs = r.inputs or {}
+      r.outputs = r.outputs or {}
+      assert(#r.inputs == 0 and #r.outputs == 0)
+      r.inputs.extra_inputs = r.inputs.extra_inputs or {}
+      table.insert(r.inputs.extra_inputs, 1, serialend())
+    end
+    if not r.command:find '^%s*^' then
+      r.command = '^o Cleaned %f^ '..r.command
+    end
     for idx, f in ipairs(ins) do
-      local o = f..'.clean'
-      tup.rule({f, extra_inputs=serialend()}, '^o Cleaned %f^ '..t.outclean, o)
-      ins[idx] = o
+      r.inputs[1] = f
+      r.outputs[1] = f..'.clean'
+      tup.frule(r)
+      ins[idx] = r.outputs[1]
     end
   end
   local o = t.id..'.'..i.id..'.out'

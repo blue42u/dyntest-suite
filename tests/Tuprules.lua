@@ -139,8 +139,11 @@ add_test { id = 'hpcprof', size = 3, grouped = true, cfg = '!HPCPROF',
   env = 'OMP_NUM_THREADS=%T '..cwd..'tartrans.sh',
   fnstem = 'hpctoolkit/install/bin/hpcprof.real',
   args = '-o @@%o @%f', inputtrans = 'hpcrun',
-  outclean = 'tar xOf %f ./experiment.xml | ../../external/lua/luaexec '
-    ..cwd..'profclean.lua > %o',
+  outclean = {
+    inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
+    command='tar xOf %f ./experiment.xml | '..cwd..'../external/lua/luaexec '
+      ..cwd..'profclean.lua '..cwd..' %o',
+  },
 }
 add_test { id = 'hpcprofmock', size = 1, grouped = true, cfg = 'HPCPROFMOCK',
   env = 'OMP_NUM_THREADS=%T '..cwd..'tartrans.sh',
