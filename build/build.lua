@@ -1483,9 +1483,14 @@ function translations.stringify(info)
       return '?', '%f'
     end,
     ['>'] = function(p)
-      p = path(p); assert(p.source)
-      if p.path == info.mvfrom then p = path(info.mvto); assert(p.source) end
-      r.outputs[1] = p.stem
+      p = path(p)
+      if p.path == info.mvfrom then p = path(info.mvto) end
+      if p.source then  -- We move this file into the build tree
+        r.outputs[1] = p.stem
+      else
+        assert(p.build, p.absolute)
+        r.outputs[1] = p.path
+      end
       return '?', '%o'
     end,
   }))
