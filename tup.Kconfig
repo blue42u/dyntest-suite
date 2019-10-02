@@ -65,9 +65,10 @@ config VAL_CALLGRIND
 
 endmenu
 
-config STABLE
-  bool "Enable stability testing runs"
-  default y
+config STABLE_SZ
+  int "Maximum size-class for stability tests, -1 = \infty"
+  range -1 3
+  default -1
 
 menu "Performance-specific test settings"
 

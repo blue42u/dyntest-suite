@@ -10,10 +10,17 @@ local function deepcopy(t)
   else return t end
 end
 
-if enabled('STABLE', true) then
-ruleif(forall(function(_, t)
+local maxsz = tup.getconfig('STABLE_SZ')
+if maxsz ~= '' then
+  maxsz = assert(math.tointeger(maxsz),
+    'Configuration option STABLE_SZ must be a valid integer!')
+  if maxsz == -1 then maxsz = math.huge end
+else maxsz = math.huge end
+
+ruleif(forall(function(i, t)
   if t.nooutput then return end
   if not t.modes.ref then return end
+  if i.size > maxsz then return end
   local runs = {}
   for idx,c in ipairs{1,2,4,8,16,32} do
     runs[idx] = {
@@ -56,6 +63,5 @@ end, function(ins, i, t)
   tup.rule(ins, '^o Generated %o^ ./diffout.sh '..i.id..' '..t.id..' %f > %o', o)
   return {o}
 end), '^o Concatinated %o^ cat %f > %o', {'stable.out', serialpost()})
-end
 
 serialfinal()
