@@ -159,7 +159,24 @@ xasub(header, 'FileTable', 'File', 'i', trans.file)
 xasub(header, 'ProcedureTable', 'Procedure', 'i', trans.procedure)
 collectgarbage()
 
--- 3. Walk through the CCT and update the keys, then sort based on those.
+-- 3. Walk through the CCT and "hash" up the metrics in the subtree of each tag.
+local taghash = {}
+local function ccthash(tag)
+  assert(math.maxinteger == 0x7fffffffffffffff)
+  local hash = 0
+  for _,sub in ipairs(tag.kids) do
+    if sub.name == 'M' then
+      hash = hash + tonumber(aget(sub, 'v'))
+    else
+      hash = hash + ccthash(sub)
+    end
+  end
+  taghash[tag] = hash
+  return hash
+end
+ccthash(cct)
+
+-- 4. Walk through the CCT and update the keys, then sort based on those.
 local function cctupdate(tag)
   for _,sub in ipairs(tag.kids) do
     if sub.name == 'M' then
@@ -181,6 +198,7 @@ local function cctupdate(tag)
       elseif b.name == 'M' then return false
       else return a.name < b.name end
     end
+    if taghash[a] ~= taghash[b] then return taghash[a] < taghash[b] end
     for k in ('n,lm,f,l,a,v,it'):gmatch '[^,]+' do
       if aget(a,k) ~= aget(b,k) then return (aget(a,k) or '') < (aget(b,k) or '') end
     end
@@ -191,7 +209,7 @@ end
 cctupdate(cct)
 
 -- Spit it back out, as XML
-local outxml = slax:xml(dom, {indent=2, sort=false})
+local outxml = slax:xml(dom, {indent=2, sort=true})
 local f = io.open(outfn, 'w')
 f:write(outxml)
 f:close()

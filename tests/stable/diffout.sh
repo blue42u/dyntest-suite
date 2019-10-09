@@ -25,6 +25,6 @@ for run in "$@"; do
   fi
 done
 if [ "$first" ]; then
-  diff -U 1 "$ref" "$first"
+  diff -ZbEU 1 "$ref" "$first"
 fi
 echo

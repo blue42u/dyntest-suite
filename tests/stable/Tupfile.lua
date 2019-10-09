@@ -39,23 +39,26 @@ end, function(ins, i, t)
   if t.outclean then
     local r
     if type(t.outclean) == 'string' then
-      r = {inputs={extra_inputs={serialend()}}, command=t.outclean, outputs={}}
+      r = {inputs={extra_inputs={}}, command=t.outclean, outputs={}}
     else
       r = deepcopy(t.outclean)
       r.inputs = r.inputs or {}
       r.outputs = r.outputs or {}
       assert(#r.inputs == 0 and #r.outputs == 0)
       r.inputs.extra_inputs = r.inputs.extra_inputs or {}
-      table.insert(r.inputs.extra_inputs, 1, serialend())
     end
     if not r.command:find '^%s*^' then
       r.command = '^o Cleaned %f^ '..r.command
     end
     for idx, f in ipairs(ins) do
-      r.inputs[1] = f
-      r.outputs[1] = f..'.clean'
-      tup.frule(r)
-      ins[idx] = r.outputs[1]
+      local rr = deepcopy(r)
+      rr.inputs[1] = f
+      rr.outputs[1] = f..'.clean'
+      if idx > 2 then
+        table.insert(rr.inputs.extra_inputs, serialend())
+      end
+      ins[idx] = rr.outputs[1]
+      tup.frule(rr)
     end
   end
   local o = t.id..'.'..i.id..'.out'

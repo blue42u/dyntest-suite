@@ -8,9 +8,11 @@ local llp = ''
 if tup.getconfig 'ENABLE_OMP_DEBUG' ~= '' then
   llp = 'LD_LIBRARY_PATH="'..tup.getconfig 'ENABLE_OMP_DEBUG'..'" '
 end
-local com = val..' --log-file=%o --suppressions=system.supp'
+local comopts = '--suppressions=system.supp'
   ..' --fair-sched=yes'
   ..' --soname-synonyms=somalloc=\\*tbbmalloc\\*'
+  ..' --merge-recursive-frames=1'
+local com = val..' --log-file=%o '..comopts
 
 local function szclass(name, sz)
   local cfg = tup.getconfig('VAL_'..name)
@@ -64,7 +66,7 @@ do
     local o = {
       id = 'Massif', mode = 'ann',
       threads = 32,
-      cmd = val..' -q --massif-out-file=%o --tool=massif %C || :',
+      cmd = val..' -q --massif-out-file=%o --tool=massif '..comopts..' %C || :',
       redirect = '/dev/null',
       output = 'massif/%t.%i.out', fakeout = true,
       deps = {'../../external/valgrind/<build>'},
@@ -91,7 +93,7 @@ do
       id = 'Callgrind', mode = 'ann',
       threads = 32,
       cmd = val..' -q --callgrind-out-file=%o --tool=callgrind --dump-instr=yes'
-        ..' --collect-systime=yes --collect-bus=yes --fair-sched=yes %C || :',
+        ..' --collect-systime=yes --collect-bus=yes '..comopts..' %C || :',
       redirect = '/dev/null',
       output = 'cg/callgrind.out.%t.%i', fakeout = true,
       deps = {'../../external/valgrind/<build>'},
