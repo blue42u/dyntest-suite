@@ -39,13 +39,18 @@ end, function(ins, i, t)
   if t.outclean then
     local r
     if type(t.outclean) == 'string' then
-      r = {inputs={extra_inputs={}}, command=t.outclean, outputs={}}
+      r = {
+        inputs={extra_inputs={}},
+        command=t.outclean,
+        outputs={extra_outputs={}},
+      }
     else
       r = deepcopy(t.outclean)
       r.inputs = r.inputs or {}
       r.outputs = r.outputs or {}
       assert(#r.inputs == 0 and #r.outputs == 0)
       r.inputs.extra_inputs = r.inputs.extra_inputs or {}
+      r.outputs.extra_outputs = r.outputs.extra_outputs or {}
     end
     if not r.command:find '^%s*^' then
       r.command = '^o Cleaned %f^ '..r.command
@@ -56,6 +61,8 @@ end, function(ins, i, t)
       rr.outputs[1] = f..'.clean'
       if idx > 2 then
         table.insert(rr.inputs.extra_inputs, serialend())
+      else
+        table.insert(rr.outputs.extra_outputs, '../<pre>')
       end
       ins[idx] = rr.outputs[1]
       tup.frule(rr)
