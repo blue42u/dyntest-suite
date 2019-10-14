@@ -192,18 +192,31 @@ local function cctupdate(tag)
       cctupdate(sub)
     end
   end
-  table.sort(tag.kids, function(a,b)
+  local function comp(a, b)
+    local function lcomp(x,y)
+      if x == y then return 0
+      elseif x < y then return 1
+      else return -1 end
+    end
     if a.name ~= b.name then
-      if a.name == 'M' then return true
-      elseif b.name == 'M' then return false
-      else return a.name < b.name end
+      if a.name == 'M' then return 1
+      elseif b.name == 'M' then return -1
+      else return lcomp(a.name, b.name) end
     end
-    if taghash[a] ~= taghash[b] then return taghash[a] < taghash[b] end
+    if taghash[a] ~= taghash[b] then return lcomp(taghash[a], taghash[b]) end
     for k in ('n,lm,f,l,a,v,it'):gmatch '[^,]+' do
-      if aget(a,k) ~= aget(b,k) then return (aget(a,k) or '') < (aget(b,k) or '') end
+      if aget(a,k) ~= aget(b,k) then return lcomp(aget(a,k) or '', aget(b,k) or '') end
     end
-    return false
-  end)
+    if #a.kids ~= #b.kids then return lcomp(#a.kids, #b.kids) end
+    for i,ak in ipairs(a.kids) do
+      local bk = b.kids[i]
+      local c = comp(ak, bk)
+      if c ~= 0 then return c end
+    end
+    return 0
+  end
+  table.sort(tag.kids, function(x,y) return comp(x,y) == 1 end)
+  table.insert(tag.attr, {name='taghash', value=tostring(taghash[tag])})
   collectgarbage('step', 100)
 end
 cctupdate(cct)
