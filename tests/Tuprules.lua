@@ -1,91 +1,12 @@
 -- luacheck: std lua53, no global (Tup-Lua)
 
-tup.creategitignore()
-
-function enabled(n, default)
-  assert(default ~= nil)
-  n = tup.getconfig(n)
-  if n == 'y' or n == 'Y' then return true
-  elseif n == 'n' or n == 'N' then return false
-  elseif n == '' then return not not default
-  else error('Configuration option '..n..' must be y/Y or n/N!') end
-end
-
-function ruleif(ins, ...)
-  if #ins > 0 then tup.rule(ins, ...) end
-end
-
-if not ({['']=true, ['0']=true})[tostring(tup.getconfig 'MAX_THREADS')] then
-  maxthreads = assert(math.tointeger(tup.getconfig 'MAX_THREADS'),
-    'Configuration option MAX_THREADS must be a valid integer!')
-else
-  maxthreads = 0
-  for l in io.lines '/proc/cpuinfo' do
-    if l:find '^processor%s*:' then maxthreads = maxthreads + 1 end
-  end
-  assert(maxthreads ~= 0, 'Error getting thread count!')
-end
-
 local cwd = tup.getcwd():gsub('[^/]$', '%0/')
 
-alldeps = {cwd..'../external/lua/luaexec'}
-for _,d in ipairs{
-  '../external/lzma', '../external/tbb', '../external/boost',
-  '../external/monitor', '../external/dwarf', '../external/unwind',
-  '../external/papi', '../external/zlib', '../external/bzip',
-  '../external/gcc',
-  '../latest/elfutils', '../latest/dyninst', '../annotated/dyninst',
-  '../latest/hpctoolkit', '../annotated/hpctoolkit', '../reference/elfutils',
-  '../reference/dyninst', '../reference/hpctoolkit', '../annotated/elfutils',
-  '../reference/micro', '../latest/micro', '../annotated/micro',
-  '../latest/testsuite',
-} do
-  table.insert(alldeps, cwd..d..'/<build>')
-end
+alldeps = table.move(allbuilds, 1,#allbuilds,
+  3, {cwd..'../external/lua/luaexec', cwd..'../inputs/<all>'})
 
--- List of inputs to test against
-inputs = {
-  { id = 'libasm', grouped = true,
-    fn = cwd..'../latest/elfutils/install/lib/libasm.so',
-    size = 1,
-  },
-  { id = 'libdw', grouped = true,
-    fn = cwd..'../latest/elfutils/install/lib/libdw.so',
-    size = 1,
-  },
-  { id = 'libcommon', grouped = true,
-    fn = cwd..'../latest/dyninst/install/lib/libcommon.so',
-    size = 2,
-  },
-  { id = 'libdyninst', grouped = true,
-    fn = cwd..'../latest/dyninst/install/lib/libdyninstAPI.so',
-    size = 3,
-  },
-  { id = 'hpcstruct', grouped = true,
-    fn = cwd..'../latest/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin',
-    size = 3,
-  },
-}
-if enabled('ONLY_EXTERNAL', false) then inputs = {} end
-for _,s in ipairs{'1', '2', '3', 'huge'} do
-  local sz = tonumber(s) or math.huge
-  for _,f in ipairs(tup.glob(cwd..'/../inputs/'..s..'/*')) do
-    local id = f:match '[^/]+$'
-    if id ~= '.gitignore' then table.insert(inputs, {id=id, fn=f, size=sz}) end
-  end
-end
-table.sort(inputs, function(a,b) return a.id < b.id end)
-
--- List of available input transformations
-intrans = {
-  -- Makes a tarball with the output from hpcrun
-  hpcrun = { grouped = true, serialize = true, cmd = cwd..'tartrans.sh '
-    ..cwd..'../reference/hpctoolkit/install/bin/hpcrun.real '
-      ..'-o @@%o -t -e REALTIME@100 '
-    ..cwd..'../latest/hpctoolkit/install/bin/hpcstruct.real '
-      ..'-o /dev/null -j '..maxthreads..' --jobs-symtab '..maxthreads..' %f',
-  },
-}
+-- Inputs are collected and constructed in /inputs
+tup.include '../inputs/inputs.lua'
 
 -- List of tests to test with
 tests = {}
@@ -112,33 +33,33 @@ local function add_test(base)
 end
 
 add_test { id = 'hpcstruct', size = 3, grouped = true, cfg = 'HPCSTRUCT',
+  inkind = 'binary',
   fnstem = 'hpctoolkit/install/bin/hpcstruct.real',
   args = '-j%T --jobs-symtab %T -o %o %f',
   outclean = [=[sed -e 's/i="[[:digit:]]\+"/i="NNNNN"/g' %f > %o]=],
 }
 add_test { id = 'unstrip', size = 2, grouped = true, cfg = '!UNSTRIP',
-  env = 'OMP_NUM_THREADS=%T',
+  inkind = 'binary',
   fnstem = 'dyninst/install/bin/unstrip',
-  args = '-f %f -o %o',
-  input = 'strip -So %o %f',
-  outclean = 'nm -a %f > %o',
+  env = 'OMP_NUM_THREADS=%T', args = '-f %f -o %o',
+  input = 'strip -So %o %f', outclean = 'nm -a %f > %o',
 }
 add_test { id = 'micro-symtab', size = 1, grouped = true, cfg = 'MICRO',
-  env = 'OMP_NUM_THREADS=%T',
+  inkind = 'binary',
   fnstem = 'micro/micro-symtab',
-  args = '%f',
+  env = 'OMP_NUM_THREADS=%T', args = '%f',
   nooutput = true,
 }
 add_test { id = 'micro-parse', size = 1, grouped = true, cfg = 'MICRO',
-  env = 'OMP_NUM_THREADS=%T',
+  inkind = 'binary',
   fnstem = 'micro/micro-parse',
-  args = '%f',
+  env = 'OMP_NUM_THREADS=%T', args = '%f',
   nooutput = true,
 }
 add_test { id = 'hpcprof', size = 3, grouped = true, cfg = '!HPCPROF',
-  env = 'OMP_NUM_THREADS=%T '..cwd..'tartrans.sh',
+  inkind = 'trace',
   fnstem = 'hpctoolkit/install/bin/hpcprof.real',
-  args = '-o @@%o @%f', inputtrans = 'hpcrun',
+  env = 'OMP_NUM_THREADS=%T '..cwd..'../tartrans.sh', args = '-o @@%o @%f',
   outclean = {
     inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
     command='tar xOf %f ./experiment.xml | '..cwd..'../external/lua/luaexec '
@@ -146,9 +67,9 @@ add_test { id = 'hpcprof', size = 3, grouped = true, cfg = '!HPCPROF',
   },
 }
 add_test { id = 'hpcprofmock', size = 1, grouped = true, cfg = 'HPCPROFMOCK',
-  env = 'OMP_NUM_THREADS=%T '..cwd..'tartrans.sh',
+  inkind = 'trace',
   fnstem = 'hpctoolkit/install/bin/hpcprofmock.real', nofn = {'ref'},
-  args = '@%f > %o', inputtrans = 'hpcrun',
+  env = 'OMP_NUM_THREADS=%T '..cwd..'../tartrans.sh', args = '@%f > %o',
 }
 
 local ti,tm = table.insert,tup.append_table
@@ -179,7 +100,7 @@ end
 function forall(harness, post)
   local cnt = 0
   local clusters, is, ts = {},{},{}
-  for _,i in ipairs(inputs) do for _,t in ipairs(tests) do
+  for _,i in ipairs(inputs) do for _,t in ipairs(tests) do if t.inkind == i.kind then
     local single = {}
     for _,h in ipairs{harness(i, t)} do
       local repl = {
@@ -193,13 +114,11 @@ function forall(harness, post)
       if h.redirect then args = args:gsub('%%o', h.redirect) end
       if not t.grouped then table.insert(ins.extra_inputs, tfn) end
 
-      if t.inputtrans then
-        table.insert(ins.extra_inputs, cwd..'<inputs>')
-        args = args:gsub('%%f', cwd..'inputs/'..t.inputtrans..'.'..i.id)
-      elseif i.grouped then args = args:gsub('%%f', i.fn)
-      else table.insert(ins, i.fn) end
+      local ifn = assert(i.modes[h.mode or false])
+      if i.grouped then args = args:gsub('%%f', ifn)
+      else table.insert(ins, ifn) end
 
-      local out = h.output:gsub('%%(.)', { t = t.id, i = i.id })
+      local out = h.output:gsub('%%(.)', { t = t.id:gsub('/','.'), i = i.id:gsub('/','.') })
       local cmd = env..' '..h.cmd:gsub('%%(.)', {
         T=tfn, A=args, C=tfn..' '..args,
       })
@@ -227,8 +146,7 @@ function forall(harness, post)
     end
     table.insert(clusters, single)
     is[#clusters], ts[#clusters] = i, t
-    end
-  end
+  end end end
   local allouts = {}
   for i,c in ipairs(clusters) do
     tm(allouts, post and (post(c, is[i], ts[i]) or {}) or c)

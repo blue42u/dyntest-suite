@@ -20,7 +20,7 @@ for a in "$@"; do
     ;;
   @*)  # Input file, decompress now before anything happens
     TMP="`mktemp -d`"
-    LD_PRELOAD= tar -xf "${a#@}" -C "$TMP"
+    LD_PRELOAD= tar -xaf "${a#@}" -C "$TMP"
     TMPDIRS+=("$TMP")
     CMD+=("$TMP")
     ;;

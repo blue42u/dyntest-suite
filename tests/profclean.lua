@@ -216,7 +216,7 @@ local function cctupdate(tag)
     return 0
   end
   table.sort(tag.kids, function(x,y) return comp(x,y) == 1 end)
-  table.insert(tag.attr, {name='taghash', value=tostring(taghash[tag])})
+  -- table.insert(tag.attr, {name='taghash', value=tostring(taghash[tag])})
   collectgarbage('step', 100)
 end
 cctupdate(cct)

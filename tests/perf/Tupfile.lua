@@ -19,7 +19,7 @@ detailed = forall(function(i)
   if i.size < 3 then return end
   return {
     id = 'Perf (detailed)', threads = maxthreads,
-    cmd = tbbpreload..'../tartrans.sh '..hpcrun..' -e REALTIME@100 -t -o @@%o %C',
+    cmd = tbbpreload..'../../tartrans.sh '..hpcrun..' -e REALTIME@100 -t -o @@%o %C',
     output = 'measurements/%t.%i.tar', serialize = true, redirect = '/dev/null',
   }
 end)
@@ -39,7 +39,7 @@ forall(function(i)
   for r=1,rep do
     table.insert(outs, {
       id = 'Perf (coarse, rep '..r..')', threads=maxthreads,
-      cmd = tbbpreload..'../tartrans.sh '..hpcrun..' -e REALTIME@2000 -t -o @@%o %C',
+      cmd = tbbpreload..'../../tartrans.sh '..hpcrun..' -e REALTIME@2000 -t -o @@%o %C',
       redirect = '/dev/null',
       output = 'measurements/%t.%i.'..r..'.tar', serialize = true,
     })
@@ -52,7 +52,7 @@ local prof = '../../reference/hpctoolkit/install/bin/hpcprof.real'
 
 for _,f in ipairs(detailed) do
   tup.rule({f, extra_inputs={'struct/<out>', serialend()}},
-    '^o Prof %o^ ../tartrans.sh '..prof..' '..structs..' -o @@%o @%f ',
+    '^o Prof %o^ ../../tartrans.sh '..prof..' '..structs..' -o @@%o @%f ',
     {f:gsub('measurements/', 'detailed/'), serialpost()})
 end
 
@@ -62,12 +62,12 @@ for _,x in ipairs(coarse) do
   for _,f in ipairs(c) do
     local o = f:gsub('measurements/', 'coarse/')
     tup.rule({f, extra_inputs={'struct/<out>', serialend()}},
-      '^o Prof %o^ ../tartrans.sh '..prof..' '..structs..' -o @@%o @%f ', o)
+      '^o Prof %o^ ../../tartrans.sh '..prof..' '..structs..' -o @@%o @%f ', o)
     table.insert(lats, o)
     table.insert(tlats, '@'..o)
   end
   lats.extra_inputs = {'../../external/lua/luaexec'}
-  tup.rule(lats, '^o Dump %o^ ../tartrans.sh ../../external/lua/luaexec '
+  tup.rule(lats, '^o Dump %o^ ../../tartrans.sh ../../external/lua/luaexec '
     ..'hpcdump.lua %o '..table.concat(tlats, ' '),
     {'stats/'..t.id..'.'..i.id..'.lua', serialpost()})
 end
