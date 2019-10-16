@@ -6,9 +6,13 @@ inputs = {}
 local function add_inputs(t)
   for _,i in ipairs(t) do
     if i.fn then
-      assert(not i.fnstem)
-      i.modes = {[false]=cwd..i.fn, ann=cwd..i.fn, ref=cwd..i.fn}
+      assert(not i.fnstem and not i.fullfn)
+      i.fullfn = cwd..i.fn
       i.fn = nil
+    end
+    if i.fullfn then
+      i.modes = {[false]=i.fullfn, ann=cwd..i.fullfn, ref=cwd..i.fullfn}
+      i.fullfn = nil
     end
     if i.fnstem then
       i.modes = {
@@ -71,7 +75,7 @@ for _,s in ipairs{'1', '2', '3', 'huge'} do
       if testexec('readelf -h inputs/'..s..'/'..id) then k = 'binary'
       elseif testexec('tar --test-label -af inputs/'..s..'/'..id) then k = 'trace'
       else error('Unable to determine kind for inputs/'..s..'/'..id) end
-      add_inputs{{id = id, fn = f, size = sz, kind = k}}
+      add_inputs{{id = id, fullfn = f, size = sz, kind = k}}
     end
   end
 end
