@@ -1444,7 +1444,9 @@ function translations.libtool(info)
       translations.ld(info)
       info.cmd = {}
       getopt(bcmd, 'o:std:W;g,O;shared,l:D:f:L:I:', {
-        [false]=function(x) table.insert(info.cmd, x) end,
+        [false]=function(x)
+          if not x:find '%.a$' then table.insert(info.cmd, x) end
+        end,
       })
       info.cmd = 'ar cr output.a '..table.concat(info.cmd, ' ')
       info.ranlib,info.thin = true,true
