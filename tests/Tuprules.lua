@@ -1,5 +1,7 @@
 -- luacheck: std lua53, no global (Tup-Lua)
 
+tup.include 'common.lua'
+
 local cwd = tup.getcwd():gsub('[^/]$', '%0/')
 
 alldeps = table.move(allbuilds, 1,#allbuilds,
