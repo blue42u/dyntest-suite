@@ -36,5 +36,5 @@ for _,d in ipairs{
   'reference/micro', 'latest/micro', 'annotated/micro',
   'latest/testsuite',
 } do
-  table.insert(allbuilds, tup.getcwd()..'/'..d..'/<build>')
+  table.insert(allbuilds, tup.getcwd()..'/../'..d..'/<build>')
 end
