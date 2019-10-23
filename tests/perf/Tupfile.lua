@@ -69,7 +69,7 @@ for _,x in ipairs(coarse) do
   lats.extra_inputs = {'../../external/lua/luaexec'}
   tup.rule(lats, '^o Dump %o^ ../../tartrans.sh ../../external/lua/luaexec '
     ..'hpcdump.lua %o '..table.concat(tlats, ' '),
-    {'stats/'..t.id..'.'..i.id..'.lua', serialpost()})
+    {'stats/'..(t.id..'.'..i.id..'.lua'):gsub('/','.'), serialpost()})
 end
 
 serialfinal()

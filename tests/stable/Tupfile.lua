@@ -25,7 +25,7 @@ ruleif(forall(function(i, t)
   for idx,c in ipairs{1,2,4,8,16,32} do
     runs[idx] = {
       id = 'Stable ('..c..')', threads = c,
-      cmd = '%C || echo "==FAILURE==" > %o',
+      cmd = '%C || cp failure.txt %o',
       output = '%t.%i/run.'..c, serialize = c > 1,
     }
   end
@@ -53,7 +53,7 @@ end, function(ins, i, t)
       r.outputs.extra_outputs = r.outputs.extra_outputs or {}
     end
     if not r.command:find '^%s*^' then
-      r.command = '^o Cleaned %f^ '..r.command
+      r.command = '^o Cleaned %f^ ./clean.sh %f %o "'..r.command..'"'
     end
     for idx, f in ipairs(ins) do
       local rr = deepcopy(r)
@@ -68,9 +68,9 @@ end, function(ins, i, t)
       tup.frule(rr)
     end
   end
-  local o = t.id..'.'..i.id..'.out'
+  local o = (t.id..'.'..i.id..'.out'):gsub('/','.')
   ins.extra_inputs = serialend()
-  tup.rule(ins, '^o Generated %o^ ./diffout.sh '..i.id..' '..t.id..' %f > %o', o)
+  tup.rule(ins, '^o Generated %o^ ./diffout.sh \''..i.id..'\' \''..t.id..'\' %f > %o', o)
   return {o}
 end), '^o Concatinated %o^ cat %f > %o', {'stable.out', serialpost()})
 

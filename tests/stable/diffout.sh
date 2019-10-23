@@ -11,7 +11,7 @@ echo "Test $tid.$iid:"
 
 # First handle the serial run
 serialdiff=
-if [ "`head -1 "$rone"`" = "==FAILURE==" ]; then
+if cmp --quiet "$rone" failure.txt; then
   printf '  01: FAILED (subprocess error)\n'
 elif cmp -s "$ref" "$rone"; then
   printf '  01: OK\n'
@@ -26,7 +26,7 @@ firstthreads=
 for run in "$@"; do
   threads="${run##*run.}"
   threads="${threads%%.clean}"
-  if [ "`head -1 "$run"`" = "==FAILURE==" ]; then
+  if cmp --quiet "$run" failure.txt; then
     printf '  %02d: FAILED (subprocess error)\n' "$threads"
   elif cmp -s "$ref" "$run"; then
     printf '  %02d: OK\n' "$threads"
