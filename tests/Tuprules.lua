@@ -131,7 +131,7 @@ function forall(harness, post)
 
       local fakeaccess = ''
 
-      local outs = {out, '^\\.hpctrace$', '^\\.hpcrun$', extra_outputs={}}
+      local outs = {out, '^^/tmp/tmp\\.', extra_outputs={}}
       if h.serialize then
         ti(ins.extra_inputs, serialend())
         lastsg = minihash(name)

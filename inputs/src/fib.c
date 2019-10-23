@@ -7,4 +7,5 @@ unsigned int fib(unsigned int n) {
 
 int main() {
   printf("Fib 40: %d\n", fib(40));
+  return 0;
 }
