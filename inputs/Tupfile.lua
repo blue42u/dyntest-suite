@@ -31,13 +31,15 @@ local function hpcrun(c)
 end
 
 -- Compile the little example programs
-for _,f in ipairs{'fib'} do
+for _,f in ipairs{'fib','vecsum'} do
   tup.rule('src/'..f..'.c', 'cc -o %o -O3 -g %f', 'src/'..f)
 end
 
 -- First the ones that don't need to be serialized
 hpcrun{ id = 'fib', mode=false, deps={'src/fib'}, cmd='src/fib > /dev/null' }
 hpcrun{ id = 'fib', mode='ref', deps={'src/fib'}, cmd='src/fib > /dev/null' }
+hpcrun{ id = 'vecsum', mode=false, deps={'src/vecsum'}, cmd='src/vecsum > /dev/null' }
+hpcrun{ id = 'vecsum', mode='ref', deps={'src/vecsum'}, cmd='src/vecsum > /dev/null' }
 hpcrun{ id = 'hpcstruct.libcommon', mode = 'ref',
   cmd = '../reference/hpctoolkit/install/bin/hpcstruct.real -o /dev/null '
       ..'../reference/dyninst/install/lib/libcommon.so',
