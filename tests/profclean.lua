@@ -185,10 +185,11 @@ local function cctupdate(tag)
       assert(({PF=1,Pr=1,L=1,C=1,S=1,F=1,P=1,LM=1,A=1})[sub.name])
       asub(sub, 'n', trans.procedure)
       asub(sub, 'lm', trans.module)
-      asub(sub, 'f', trans.file)
+      asub(sub, 'f', 'srcfile')
       asub(sub, 'i', 'cid')
       asub(sub, 's', 'csid')
       asub(sub, 'it', 'citid')
+      asub(sub, 'l', 'lineno')
       cctupdate(sub)
     end
   end
