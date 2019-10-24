@@ -18,7 +18,7 @@ local function add_inputs(t)
       i.modes = {
         [false]=cwd..'latest/'..i.fnstem,
         ann=cwd..'latest/'..i.fnstem,
-        ref=cwd..'reference/'..i.fnstem,
+        ref=cwd..'latest/'..i.fnstem,
       }
       i.fnstem, i.grouped = nil, true
     end
