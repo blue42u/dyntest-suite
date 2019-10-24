@@ -34,4 +34,5 @@ int main() {
   print(a, n);
   free(a);
   free(b);
+  return 0;
 }
