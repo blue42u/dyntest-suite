@@ -11,7 +11,7 @@ local function add_inputs(t)
       i.fn = nil
     end
     if i.fullfn then
-      i.modes = {[false]=i.fullfn, ann=cwd..i.fullfn, ref=cwd..i.fullfn}
+      i.modes = {[false]=i.fullfn, ann=i.fullfn, ref=i.fullfn}
       i.fullfn = nil
     end
     if i.fnstem then
