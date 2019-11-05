@@ -157,6 +157,7 @@ end
 xasub(header, 'LoadModuleTable', 'LoadModule', 'i', trans.module)
 xasub(header, 'FileTable', 'File', 'i', trans.file)
 xasub(header, 'ProcedureTable', 'Procedure', 'i', trans.procedure)
+xasub(header, 'TraceDBTable', 'TraceDB', 'i', 'id')
 collectgarbage()
 
 -- 3. Walk through the CCT and "hash" up the metrics in the subtree of each tag.

@@ -9,7 +9,15 @@ if tup.getconfig 'CRASH_REP' ~= '' then
 end
 if rep == 0 then return end
 
-tup.rule(forall(function()
+local sz = math.huge
+if tup.getconfig 'CRASH_SZ' ~= '' then
+  sz = assert(math.tointeger(tup.getconfig 'CRASH_SZ'),
+    'Configuration option CRASH_SZ must be a valid integer!')
+end
+if sz == -1 then sz = math.huge end
+
+ruleif(forall(function(i)
+  if i.size > sz then return end
   return {
     id = 'Crash', threads=maxthreads,
     cmd = './rep.sh '..rep..' %o %C', redirect = '/dev/null',

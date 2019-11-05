@@ -1,5 +1,9 @@
 -- luacheck: std lua53, no global
 
+function testsuite() end
+
+do return end
+
 tup.include '../build/build.lua'
 function testsuite(o) return build {
   srcdir = 'src/testsuite',

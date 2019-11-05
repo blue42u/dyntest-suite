@@ -153,6 +153,19 @@
   fun:*5boost13thread_detail*
 }
 
+{
+  glibc (fclose)
+  Helgrind:Race
+  ...
+  fun:fclose@@GLIBC_2.2.5
+}
+{
+  glibc (fclose)
+  drd:ConflictingAccess
+  ...
+  fun:fclose@@GLIBC_2.2.5
+}
+
 #
 # A handful of inlinings are horrid enough to warrent more specific suppressions
 #

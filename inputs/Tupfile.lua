@@ -32,9 +32,9 @@ end
 
 -- Compile the little example programs
 for _,f in ipairs{'fib', 'vecsum', 'parvecsum'} do
-  tup.rule('src/'..f..'.c', 'cc -o %o -O3 -g -pthread %f', 'src/'..f)
+  tup.rule('src/'..f..'.c', 'gcc -o %o -O3 -g -pthread %f', 'src/'..f)
 end
-tup.rule({'src/sort1.cpp','src/sort2.cpp'}, 'c++ -o %o -O1 -g %f', 'src/ssort')
+tup.rule({'src/sort1.cpp','src/sort2.cpp'}, 'g++ -o %o -O1 -g %f', 'src/ssort')
 
 -- First the ones that don't need to be serialized
 hpcrun{ id = 'fib', mode=false, deps={'src/fib'}, cmd='src/fib > /dev/null' }

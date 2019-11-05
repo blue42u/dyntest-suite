@@ -82,9 +82,14 @@ config PERF_DETAIL
 
 endmenu
 
+config CRASH_SZ
+  int "Crash testing maximum size class, -1 = \infty"
+  range -1 3
+  default 0
+
 config CRASH_REP
   int "Crash testing repeatitions"
-  default 0
+  default 50
 
 config ONLY_EXTERNAL
   bool "Disable all internal input binaries"
