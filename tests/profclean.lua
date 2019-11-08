@@ -87,6 +87,7 @@ local function asub(tag, attr, repl)
     if ns[a.name] then
       a.value = r(a.value)
       tag.attr[a.name] = a.value
+      if a.value == nil then error('Nil replacement value for '..tostring(attr)..'!') end
     end
   end
 end

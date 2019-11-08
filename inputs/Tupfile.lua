@@ -34,6 +34,7 @@ end
 for _,f in ipairs{'fib', 'vecsum', 'parvecsum'} do
   tup.rule('src/'..f..'.c', 'gcc -o %o -O3 -g -pthread %f', 'src/'..f)
 end
+tup.rule('src/hello.c', 'gcc -o %o -O0 -g -pthread %f', 'src/hello')
 tup.rule({'src/sort1.cpp','src/sort2.cpp'}, 'g++ -o %o -O1 -g %f', 'src/ssort')
 
 -- First the ones that don't need to be serialized
@@ -45,6 +46,8 @@ hpcrun{ id = 'parvecsum', mode=false, deps={'src/parvecsum'}, cmd='src/parvecsum
 hpcrun{ id = 'parvecsum', mode='ref', deps={'src/parvecsum'}, cmd='src/parvecsum > /dev/null' }
 hpcrun{ id = 'ssort', mode=false, events={'REALTIME@20000'}, deps={'src/ssort'}, cmd='src/ssort > /dev/null' }
 hpcrun{ id = 'ssort', mode='ref', events={'REALTIME@20000'}, deps={'src/ssort'}, cmd='src/ssort > /dev/null' }
+hpcrun{ id = 'hello', mode=false, events={'REALTIME@20000'}, deps={'src/hello'}, cmd='src/hello > /dev/null' }
+hpcrun{ id = 'hello', mode='ref', events={'REALTIME@20000'}, deps={'src/hello'}, cmd='src/hello > /dev/null' }
 hpcrun{ id = 'hpcstruct.libcommon', mode = 'ref',
   cmd = '../reference/hpctoolkit/install/bin/hpcstruct.real -o /dev/null '
       ..'../reference/dyninst/install/lib/libcommon.so',
