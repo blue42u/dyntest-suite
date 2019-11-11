@@ -5,15 +5,21 @@ source ../init.sh http://deb.debian.org/debian/pool/main/k/kconfig-frontends/kco
   3a0a0a8e2a73f52a58864fbc212bb2d9
 
 # Apply a hotfix patch
-patch -p1 < "$INSTALL"/../hotfixes.patch &> /dev/null
+patch -p1 < "$INSTALL"/../hotfixes.patch # &> /dev/null
 
 # We need access to gperf, so stick it in the PATH
 export PATH="$INSTALL"/../../gperf/install/bin:"$PATH"
 
+# We also need access to ncurses, so stick it in the paths
+NCURSES="$INSTALL"/../../ncurses/install
+export CPATH="$NCURSES"/include:"$NCURSES"/include/ncurses
+export LDFLAGS="-Wl,--rpath=$NCURSES/lib -L$NCURSES/lib"
+
 # The usual configure-make-install
 autoreconf -fis &> /dev/null
-./configure --prefix="`realpath zzz`" --quiet \
-  --disable-utils --disable-kconfig  > /dev/null
+./configure --prefix="`realpath zzz`" \
+  --disable-utils --disable-kconfig \
+  --enable-conf --enable-nconf --enable-mconf > /dev/null
 make --quiet > /dev/null
 make --quiet install > /dev/null
 

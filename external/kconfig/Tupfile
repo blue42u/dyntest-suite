@@ -18,7 +18,8 @@ FILES += install/share/kconfig-frontends/gconf.glade
 FILES += install/bin/kconfig-gconf
 FILES += install/bin/kconfig-qconf
 
+export ACLOCAL_PATH
+
 # We always build kconfig, because why not after all
-ifneq (@(DISABLE_KCONFIG),Y)
-: ../gperf/<build> |> ^o Built KConfig^ ./build.sh |> $(FILES) <build>
-endif
+: ../gperf/<build> ../ncurses/<build> |> \
+  ^o Built KConfig^ ./build.sh |> $(FILES) <build>
