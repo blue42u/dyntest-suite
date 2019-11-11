@@ -6,6 +6,7 @@ source ../init.sh ftp://ftp.invisible-island.net/ncurses/ncurses-6.1.tar.gz \
 
 # The usual configure-make-install
 ./configure --prefix="`realpath zzz`" --quiet \
+  --with-terminfo-dirs="$INSTALL"/share/terminfo \
   --without-progs --without-manpages --with-shared &> /dev/null
 make --quiet &> /dev/null
 make --quiet install &> /dev/null

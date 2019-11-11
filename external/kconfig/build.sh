@@ -9,11 +9,13 @@ patch -p1 < "$INSTALL"/../hotfixes.patch # &> /dev/null
 
 # We need access to gperf, so stick it in the PATH
 export PATH="$INSTALL"/../../gperf/install/bin:"$PATH"
+tupify stat "$INSTALL"/../../gperf/install/bin/gperf > /dev/null
 
 # We also need access to ncurses, so stick it in the paths
 NCURSES="$INSTALL"/../../ncurses/install
 export CPATH="$NCURSES"/include:"$NCURSES"/include/ncurses
 export LDFLAGS="-Wl,--rpath=$NCURSES/lib -L$NCURSES/lib"
+tupify stat "$NCURSES"/lib/libncurses.so > /dev/null
 
 # The usual configure-make-install
 autoreconf -fis &> /dev/null
