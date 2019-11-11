@@ -6,7 +6,7 @@
 	url = https://github.com/mxz297/dyninst.git
 [submodule "src/elfutils"]
 	path = src/elfutils
-	url = https://github.com/blue42u/elfutils.git
+	url = git://sourceware.org/git/elfutils.git
 [submodule "src/ref-dyninst"]
 	path = src/ref-dyninst
 	url = https://github.com/dyninst/dyninst.git
