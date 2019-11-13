@@ -283,13 +283,19 @@ local fullbuilddir = dir(opts.builddir)
 local realbuilddir = topdir..fullbuilddir
 
 local exdeps,exhandled,transforms,runpath = {},{},{},{realbuilddir..'install/lib'}
+local cppflags,cxxflags,ldflags = {},{},{}
 local cfgflags = {}
 for f in opts.cfgflags:gmatch '%g+' do
   f = f:gsub('@@/', topdir):gsub('@([^@]+)@', function(ed)
     local ret,raw = true,false
     if ed:sub(1,1) == '!' then ret,ed = false,ed:sub(2) end
-    if ed:sub(1,1) == '!' then raw,ed = true,ed:sub(2) end
-    local path = raw and '//'..dir(ed)
+    if ed:sub(1,1) == '!' then raw,ed = true,ed:sub(2)
+    elseif ed:sub(1,2) == 'I!' then raw,ed = 'I',ed:sub(3)
+    elseif ed:sub(1,2) == 'L!' then raw,ed = 'L',ed:sub(3)
+    elseif ed:sub(1,3) == 'CF!' then raw,ed = 'CF',ed:sub(4)
+    elseif ed:sub(1,5) == 'CXXF!' then raw,ed = 'CXXF',ed:sub(6)
+    elseif ed:sub(1,3) == 'LF!' then raw,ed = 'LF',ed:sub(4) end
+    local path = raw and '/'..dir(ed)
       or ed:sub(1,1) ~= '/' and dir(ed)
       or dir(canonicalize(topcwd..'..'..ed))
     local rpath = raw and dir(ed)
@@ -297,7 +303,12 @@ for f in opts.cfgflags:gmatch '%g+' do
       or dir(canonicalize(realbuilddir..ed))
     if not exhandled[path] then
       if raw then
-        table.insert(runpath, rpath)
+        if raw == true or raw == 'L' then table.insert(runpath, rpath) end
+        if raw == 'I' then table.insert(cppflags, '-I'..rpath)
+        elseif raw == 'L' then table.insert(ldflags, '-L'..rpath)
+        elseif raw == 'CF' then table.insert(cppflags, ed)
+        elseif raw == 'CXXF' then table.insert(cxxflags, ed)
+        elseif raw == 'LF' then table.insert(ldflags, ed) end
       else
         table.insert(exdeps, path..'<build>')
         transforms[rpath..'dummy'] = path..'install'
@@ -310,6 +321,8 @@ for f in opts.cfgflags:gmatch '%g+' do
   table.insert(cfgflags, f)
 end
 runpath = table.concat(runpath, ':')
+cxxflags = table.move(cxxflags,1,#cxxflags,
+  #cppflags+1,table.move(cppflags,1,#cppflags,1,{}))
 transforms[realsrcdir] = srcdir
 transforms[realbuilddir] = ''
 
@@ -1163,6 +1176,10 @@ function translations.compile(info)  -- Compilation command
   local r = {inputs={extra_inputs={'<_gen>'}}, outputs={}}
   r.command = '^o CC %o^ '..cd..shell(getopt(info.cmd,
     'D:I:std:W;w,f:g,O;c,o:l:pthread,m:no-pie,pie,', {
+    [true] = function(cc)
+      if cc:find '%+%+' then return cc,table.unpack(cxxflags)
+      else return cc,table.unpack(cppflags) end
+    end,
     [false] = function(p)
       p = p:gsub('^`test %-f.-`/?', '')
       table.insert(r.inputs, pmatch(p))
@@ -1208,6 +1225,7 @@ function translations.ld(info)  -- Linking command
 
   r.command = getopt(info.cmd,
     'o:std:W;g,O;shared,l:D:f:L:I:pthread,m:no-pie,pie,static,', {
+    [true] = function(cc) return cc,table.unpack(ldflags) end,
     [false] = function(p)
       local e
       p,e = pmatch(p)
@@ -1410,16 +1428,16 @@ function translations.cmakeinstall()
   parse(tmpdir..'cmake_install.cmake')
 end
 
-local ldflags = {}
+local ltldflags = {}
 function translations.libtool(info)
   local mode,bcmd = info.cmd:match '%-%-mode=(%g+)%s+(.+)'
   bcmd = bcmd:gsub('%f[%S]%-rpath%s+(%g+)', '-Wl,-rpath,%1')
   local origp = info.path
   if mode == 'compile' then
-    assert(not ldflags[info.path])
-    ldflags[info.path] = {}
+    assert(not ltldflags[info.path])
+    ltldflags[info.path] = {}
     for w in bcmd:gmatch '%f[%S]%-[lL]%g+%f[%s\0]' do
-      table.insert(ldflags[info.path], w) end
+      table.insert(ltldflags[info.path], w) end
     info.cmd = bcmd:gsub('%-o%s+(%g+)%.lo', '-o %1.o')
     info.path = origp:gsub('%.lo$', '.o')
     translations.compile(info)
@@ -1428,15 +1446,15 @@ function translations.libtool(info)
     translations.compile(info)
     info.ltmode = 'compile'
   elseif mode == 'link' then
-    assert(not ldflags[info.path])
-    ldflags[info.path] = {}
+    assert(not ltldflags[info.path])
+    ltldflags[info.path] = {}
     for _,l in bcmd:gmatch '%g+%.l[oa]' do
-      l = ldflags[l] or {}
-      table.move(l, 1,#l, #ldflags[info.path], ldflags[info.path])
+      l = ltldflags[l] or {}
+      table.move(l, 1,#l, #ltldflags[info.path], ltldflags[info.path])
     end
     for w in bcmd:gmatch '%f[%S]%-[lL]%g+%f[%s\0]' do
-      table.insert(ldflags[info.path], w) end
-    local lf = table.concat(ldflags[info.path], ' ')
+      table.insert(ltldflags[info.path], w) end
+    local lf = table.concat(ltldflags[info.path], ' ')
     if info.path:find '%.la$' then
       info.cmd = bcmd:gsub('%-o%s+(%g+)%.la', '-o %1.so')..' -shared '..lf
       info.path = origp:gsub('%.la$', '.so')

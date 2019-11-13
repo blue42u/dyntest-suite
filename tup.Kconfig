@@ -1,12 +1,16 @@
 mainmenu "Dyntest Suite Configuration File"
 
-config ENABLE_OMP_DEBUG
-  string "Path to a Valgrind-compatible OpenMP implementation"
+config CXX_DEBUG_ROOT
+  string "Path to a Valgrind-compatible C++/GOMP implementation"
   ---help---
-    Set to enable proper OpenMP debugging for Valgrind tests. Most OpenMP
+    Set to enable proper C++/OpenMP debugging for Valgrind tests. Most OpenMP
     implementations use custom synchronization primitives for barriers,
     so a separate slower implementation is often nessesary.
     For GCC, configure with --disable-linux-futex.
+    .
+    Due to rather annoying issues with C++ system headers, please link
+    `.../include/c++/xxx` and `.../include/c++/xxx/archxxx-linux` to
+    `.../include/c++/current` and `.../include/c++/current-arch`, respectively.
 
 
 config MAX_THREADS

@@ -6,5 +6,5 @@ elfutils{
   cfg = [[
     --with-valgrind=@/external/valgrind@/include
     --enable-valgrind-annotations
-  ]],
+  ]]..ompcfg,
 }

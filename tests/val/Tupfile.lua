@@ -4,10 +4,6 @@ tup.include '../../external/valgrind/find.lua'
 
 local val = VALGRIND_CMD
 
-local llp = ''
-if tup.getconfig 'ENABLE_OMP_DEBUG' ~= '' then
-  llp = 'LD_LIBRARY_PATH="'..tup.getconfig 'ENABLE_OMP_DEBUG'..'" '
-end
 local comopts = '--suppressions=system.supp'
   ..' --fair-sched=yes'
   ..' --soname-synonyms=somalloc=\\*tbbmalloc\\*'
@@ -40,7 +36,7 @@ ruleif(forall(function(i)
   return {
     id = 'Helgrind', mode = 'ann',
     threads = 32,
-    cmd = llp..com..' --tool=helgrind --free-is-write=yes %C || :',
+    cmd = com..' --tool=helgrind --free-is-write=yes %C || :',
     redirect = '/dev/null',
     output = 'hg/%t.%i.log', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
@@ -52,7 +48,7 @@ ruleif(forall(function(i)
   return {
     id = 'DRD', mode = 'ann',
     threads = 32,
-    cmd = llp..com..' --tool=drd --free-is-write=yes %C || :',
+    cmd = com..' --tool=drd --free-is-write=yes %C || :',
     redirect = '/dev/null',
     output = 'drd/%t.%i.log', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
