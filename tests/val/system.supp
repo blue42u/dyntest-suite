@@ -143,6 +143,15 @@
 }
 
 {
+  libgomp
+  Memcheck:Leak
+  fun:calloc
+  fun:allocate_dtv
+  fun:_dl_allocate_tls
+  fun:allocate_stack
+}
+
+{
   boost (thread_detail)
   Helgrind:Race
   fun:*5boost13thread_detail*

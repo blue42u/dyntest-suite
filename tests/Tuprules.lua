@@ -5,7 +5,12 @@ tup.include 'common.lua'
 local cwd = tup.getcwd():gsub('[^/]$', '%0/')
 
 alldeps = table.move(allbuilds, 1,#allbuilds,
-  3, {cwd..'../external/lua/luaexec', cwd..'../inputs/<all>'})
+  4, {cwd..'../external/lua/luaexec', cwd..'../inputs/<all>',
+      cwd..'struct/<out>'})
+
+structs = tup.glob(cwd..'struct/*.struct')
+for i,s in ipairs(structs) do structs[i] = '-S '..s end
+structs = table.concat(structs, ' ')
 
 -- Inputs are collected and constructed in /inputs
 tup.include '../inputs/inputs.lua'
@@ -62,6 +67,16 @@ add_test { id = 'hpcprof', size = 3, grouped = true, cfg = '!HPCPROF',
   inkind = 'trace',
   fnstem = 'hpctoolkit/install/bin/hpcprof.real',
   env = 'OMP_NUM_THREADS=%T '..cwd..'../tartrans.sh', args = '-o @@%o @%f',
+  outclean = {
+    inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
+    command='tar xOf %f ./experiment.xml | '..cwd..'../external/lua/luaexec '
+      ..cwd..'profclean.lua '..cwd..' %o',
+  },
+}
+add_test { id = 'hpcprof-struct', size = 3, grouped = true, cfg = '!HPCPROF',
+  inkind = 'trace',
+  fnstem = 'hpctoolkit/install/bin/hpcprof.real',
+  env = 'OMP_NUM_THREADS=%T '..cwd..'../tartrans.sh', args = structs..' -o @@%o @%f',
   outclean = {
     inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
     command='tar xOf %f ./experiment.xml | '..cwd..'../external/lua/luaexec '

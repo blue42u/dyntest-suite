@@ -2,12 +2,6 @@
 
 sclass = 2
 
-local structs = tup.glob 'struct/*.struct'
-for i,s in ipairs(structs) do
-  structs[i] = '-S '..s
-end
-structs = table.concat(structs, ' ')
-
 local tbblib = '../../external/tbb/install/lib/'
 local tbbpreload = 'LD_LIBRARY_PATH='..tbblib
   ..' LD_PRELOAD="$LD_PRELOAD":'..tbblib..'libtbbmalloc_proxy.so '
@@ -51,7 +45,7 @@ end
 local prof = '../../reference/hpctoolkit/install/bin/hpcprof.real'
 
 for _,f in ipairs(detailed) do
-  tup.rule({f, extra_inputs={'struct/<out>', serialend()}},
+  tup.rule({f, extra_inputs={serialend()}},
     '^o Prof %o^ ../../tartrans.sh '..prof..' '..structs..' -o @@%o @%f ',
     {f:gsub('measurements/', 'detailed/'), serialpost()})
 end
@@ -61,7 +55,7 @@ for _,x in ipairs(coarse) do
   local lats,tlats = {},{}
   for _,f in ipairs(c) do
     local o = f:gsub('measurements/', 'coarse/')
-    tup.rule({f, extra_inputs={'struct/<out>', serialend()}},
+    tup.rule({f, extra_inputs={serialend()}},
       '^o Prof %o^ ../../tartrans.sh '..prof..' '..structs..' -o @@%o @%f ', o)
     table.insert(lats, o)
     table.insert(tlats, '@'..o)
