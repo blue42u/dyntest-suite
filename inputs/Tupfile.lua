@@ -31,7 +31,7 @@ local function hpcrun(c)
 end
 
 -- Compile the little example programs
-for _,f in ipairs{'fib', 'vecsum', 'parvecsum'} do
+for _,f in ipairs{'fib', 'parvecsum'} do
   tup.rule('src/'..f..'.c', 'gcc -o %o -O3 -g -pthread %f', {'src/'..f, '<bin>'})
 end
 tup.rule('src/hello.c', 'gcc -o %o -O0 -g -pthread %f', {'src/hello', '<bin>'})
@@ -40,8 +40,6 @@ tup.rule({'src/sort1.cpp','src/sort2.cpp'}, 'g++ -o %o -O1 -g %f', {'src/ssort',
 -- First the ones that don't need to be serialized
 hpcrun{ id = 'fib', mode=false, deps={'src/fib'}, cmd='src/fib > /dev/null' }
 hpcrun{ id = 'fib', mode='ref', deps={'src/fib'}, cmd='src/fib > /dev/null' }
-hpcrun{ id = 'vecsum', mode=false, deps={'src/vecsum'}, cmd='src/vecsum > /dev/null' }
-hpcrun{ id = 'vecsum', mode='ref', deps={'src/vecsum'}, cmd='src/vecsum > /dev/null' }
 hpcrun{ id = 'parvecsum', mode=false, deps={'src/parvecsum'}, cmd='src/parvecsum > /dev/null' }
 hpcrun{ id = 'parvecsum', mode='ref', deps={'src/parvecsum'}, cmd='src/parvecsum > /dev/null' }
 hpcrun{ id = 'ssort', mode=false, events={'REALTIME@20000'}, deps={'src/ssort'}, cmd='src/ssort > /dev/null' }
