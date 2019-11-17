@@ -137,7 +137,7 @@ for _,t in ipairs{
   {name='file', xml='FileTable', sub='File', code='Fx'},
   {name='procedure', xml='ProcedureTable', sub='Procedure', code='Px'},
 } do
-  local outt = {}
+  local outt = {['']=t.code..'0000'}
   trans[t.name] = outt
   local tag = xtrav(header, t.xml)()
   table.sort(tag.kids, function(a,b) return aget(a, 'n') < aget(b, 'n') end)
