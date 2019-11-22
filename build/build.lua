@@ -385,12 +385,17 @@ end
 
 -- Step 1: Figure out the build system in use and let it do its thing.
 if glob(srcdir..'configure.ac') then  -- Its an automake thing
+  local mpicc = tup.getconfig 'MPICC'
+  if mpicc == '' then mpicc = 'mpicc' end
+  local mpicxx = tup.getconfig 'MPICXX'
+  if mpicxx == '' then mpicxx = 'mpic++' end
   docleansrcdir = true
   local env = {
     PATH = topdir..'/build/bin:?',
     AUTOM4TE = topdir..'/build/autom4te-no-cache',
     REALLDD = lexec 'which ldd',
     CFLAGS = '-g', CXXFLAGS = '-g',
+    MPICC=mpicc, MPICXX=mpicxx,
   }
   for l in c_slines({'autoreconf', '-fis', fullsrcdir, onlyout=true, env=env}) do
     if cfgbool 'DEBUG_CONFIGURE' then print(l) end
@@ -1646,9 +1651,9 @@ for _,f in ipairs{
   -- HPCToolkit
   'src/include/hpctoolkit-config.h', 'src/tool/hpcstruct/hpcstruct',
   'src/tool/hpcstruct/dotgraph', 'src/tool/hpcprof/hpcprof',
-  'src/tool/hpcproftt/hpcproftt', '@config/config.guess',
-  'src/tool/hpcrun/scripts/hpcrun', 'src/tool/hpcrun/scripts/hpcsummary',
-  'src/tool/hpcfnbounds/hpcfnbounds',
+  'src/tool/hpcprof-mpi/hpcprof-mpi', 'src/tool/hpcproftt/hpcproftt',
+  '@config/config.guess', 'src/tool/hpcrun/scripts/hpcrun',
+  'src/tool/hpcrun/scripts/hpcsummary', 'src/tool/hpcfnbounds/hpcfnbounds',
 } do
   local d = tmpdir
   if f:sub(1,1) == '@' then d,f = fullsrcdir,f:match '^@(.*)' end

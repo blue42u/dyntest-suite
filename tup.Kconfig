@@ -1,5 +1,6 @@
 mainmenu "Dyntest Suite Configuration File"
 
+menu "System Configuration"
 config CXX_DEBUG_ROOT
   string "Path to a Valgrind-compatible C++/GOMP implementation"
   ---help---
@@ -11,7 +12,13 @@ config CXX_DEBUG_ROOT
     Due to rather annoying issues with C++ system headers, please link
     `.../include/c++/xxx` and `.../include/c++/xxx/archxxx-linux` to
     `.../include/c++/current` and `.../include/c++/current-arch`, respectively.
-
+config MPICC
+  string "Executable for compiling MPI C programs (mpicc)"
+  default "mpicc"
+config MPICXX
+  string "Executable for compiling MPI C++ programs (mpic++)"
+  default "mpic++"
+endmenu
 
 config MAX_THREADS
   int "Maximum threads to use for performance runs"
