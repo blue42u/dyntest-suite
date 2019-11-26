@@ -42,5 +42,5 @@ FILES += install/lib/pkgconfig/libunwind-setjmp.pc
 
 include find.lua
 ifeq (y,$(BUILD_UNWIND))
-: |> ^o Built libUnwind^ ./build.sh |> $(FILES) <build>
+: |> ^o Built libUnwind^ $(ENV) ./build.sh |> $(FILES) <build>
 endif

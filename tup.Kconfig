@@ -18,6 +18,10 @@ config MPICC
 config MPICXX
   string "Executable for compiling MPI C++ programs (mpic++)"
   default "mpic++"
+config TMPDIR
+  string "Path to a temporary directory for very large bits"
+  ---help---
+    Set to use a directory other than $TMPDIR for very large temporaries.
 endmenu
 
 config MAX_THREADS

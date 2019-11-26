@@ -27,5 +27,5 @@ FILES += install/man/man1/bzmore.1
 
 include find.lua
 ifeq (y,$(BUILD_BZIP))
-: |> ^o Built BZip^ ./build.sh |> $(FILES) <build>
+: |> ^o Built BZip^ $(ENV) ./build.sh |> $(FILES) <build>
 endif

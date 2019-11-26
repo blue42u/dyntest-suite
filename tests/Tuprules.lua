@@ -113,6 +113,28 @@ function serialend()
     (sclass == 1 and cwd..'<pre>' or cwd..('<s_%d>'):format(sclass-1))
 end
 
+local function pclose(f, o)
+  local ok,kind,code = f:close()
+  if not kind then return
+  elseif not ok then
+    if kind == 'exit' then
+      if o then io.stderr:write(o,'\n') end
+      error('Subprocess exited with code '..code)
+    elseif kind == 'signal' then error('Subprocess was killed by signal '..code)
+    else
+      if o then io.stderr:write(o,'\n') end
+      error('Subprocess exited in a weird way... '..tostring(kind)..'+'..tostring(code))
+    end
+  end
+end
+local function exec(cmd)
+  local p = io.popen(cmd, 'r')
+  local o = p:read 'a'
+  pclose(p, o)
+  return o
+end
+local function lexec(cmd) return (exec(cmd):gsub('%s+$', '')) end
+
 -- The actual rule-creation command, that handles any little oddities
 function forall(harness, post)
   local cnt = 0
@@ -126,7 +148,12 @@ function forall(harness, post)
       local ins = {extra_inputs=table.move(alldeps, 1,#alldeps, 1,{})}
       local tfn,env = assert(t.modes[h.mode or false]), t.env or ''
 
+      local outs = {nil, '^^/tmp/tmp\\.', extra_outputs={}}
       env = env:gsub('%%(.)', repl)
+      if tup.getconfig 'TMPDIR' ~= '' then
+        env = 'TMPDIR="'..tup.getconfig 'TMPDIR'..'" '..env
+        table.insert(outs, '^^'..lexec('realpath "'..tup.getconfig 'TMPDIR'..'"'))
+      end
       local args = (t.args or ''):gsub('%%(.)', repl)
       if h.redirect then args = args:gsub('%%o', h.redirect) end
       if not t.grouped then table.insert(ins.extra_inputs, tfn) end
@@ -146,7 +173,7 @@ function forall(harness, post)
 
       local fakeaccess = ''
 
-      local outs = {out, '^^/tmp/tmp\\.', extra_outputs={}}
+      outs[1] = out
       if h.serialize then
         ti(ins.extra_inputs, serialend())
         lastsg = minihash(name)

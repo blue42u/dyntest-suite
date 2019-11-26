@@ -95,5 +95,5 @@ FILES += install/share/man/man1/xzmore.1
 
 include find.lua
 ifeq (y,$(BUILD_LZMA))
-: |> ^o Built LZMA^ ./build.sh |> $(FILES) <build>
+: |> ^o Built LZMA^ $(ENV) ./build.sh |> $(FILES) <build>
 endif

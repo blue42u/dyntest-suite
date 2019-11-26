@@ -22,4 +22,4 @@ export ACLOCAL_PATH
 
 # We always build kconfig, because why not after all
 : ../gperf/<build> ../ncurses/<build> |> \
-  ^o Built KConfig^ ./build.sh |> $(FILES) <build>
+  ^o Built KConfig^ $(ENV) ./build.sh |> $(FILES) <build>

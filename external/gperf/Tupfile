@@ -5,4 +5,4 @@ FILES += install/share/doc/gperf.html
 FILES += install/share/info/gperf.info
 FILES += install/share/man/man1/gperf.1
 
-: |> ^o Built Gperf^ ./build.sh |> $(FILES) <build>
+: |> ^o Built Gperf^ $(ENV) ./build.sh |> $(FILES) <build>

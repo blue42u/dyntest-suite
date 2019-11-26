@@ -9,4 +9,4 @@ FILES += install/lib/libmonitor.so.0
 FILES += install/lib/libmonitor.so.0.0.0
 FILES += install/lib/libmonitor_wrap.a
 
-: |> ^o Built Monitor^ ./build.sh |> $(FILES) <build>
+: |> ^o Built Monitor^ $(ENV) ./build.sh |> $(FILES) <build>

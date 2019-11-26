@@ -126,5 +126,5 @@ FILES += install/bin/pem2der
 
 include find.lua
 ifeq (y,$(BUILD_MBEDTLS))
-: |> ^o Built mbedTLS^ ./build.sh |> $(FILES) <build>
+: |> ^o Built mbedTLS^ $(ENV) ./build.sh |> $(FILES) <build>
 endif

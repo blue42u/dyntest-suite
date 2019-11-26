@@ -2797,5 +2797,5 @@ FILES += install/share/terminfo/z/ztx-1-a
 
 include find.lua
 ifeq (y,$(BUILD_NCURSES))
-: |> ^o Built NCurses^ ./build.sh |> $(FILES) <build>
+: |> ^o Built NCurses^ $(ENV) ./build.sh |> $(FILES) <build>
 endif

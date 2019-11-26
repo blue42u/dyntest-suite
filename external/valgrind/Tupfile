@@ -319,5 +319,5 @@ FILES += install/share/man/man1/vgdb.1
 
 include find.lua
 ifeq (y,$(BUILD_VALGRIND))
-: |> ^o Built Valgrind^ ./build.sh |> $(FILES) <build>
+: |> ^o Built Valgrind^ $(ENV) ./build.sh |> $(FILES) <build>
 endif

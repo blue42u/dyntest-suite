@@ -503,5 +503,5 @@ FILES += install/include/xercesc/util/NetAccessors/Curl/CurlNetAccessor.hpp
 
 include find.lua
 ifeq (y,$(BUILD_XERCES))
-: |> ^o Built Xerces^ ./build.sh |> $(FILES) <build>
+: |> ^o Built Xerces^ $(ENV) ./build.sh |> $(FILES) <build>
 endif

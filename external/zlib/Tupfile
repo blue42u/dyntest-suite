@@ -11,5 +11,5 @@ FILES += install/share/man/man3/zlib.3
 
 include find.lua
 ifeq (y,$(BUILD_ZLIB))
-: |> ^o Built ZLib^ ./build.sh |> $(FILES) <build>
+: |> ^o Built ZLib^ $(ENV) ./build.sh |> $(FILES) <build>
 endif

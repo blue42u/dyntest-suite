@@ -1,0 +1,5 @@
+# Common Tupfile bits for externals
+
+ifdef TMPDIR
+  ENV = TMPDIR="@(TMPDIR)"
+endif

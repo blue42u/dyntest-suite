@@ -317,5 +317,5 @@ FILES += install/share/papi/papi_events.csv
 
 include find.lua
 ifeq (y,$(BUILD_PAPI))
-: |> ^o Built PAPI^ ./build.sh |> $(FILES) <build>
+: |> ^o Built PAPI^ $(ENV) ./build.sh |> $(FILES) <build>
 endif

@@ -319,5 +319,5 @@ FILES += install/x86_64-pc-linux-gnu/lib/ldscripts/elf_x86_64.xwe
 
 include find.lua
 ifeq (y,$(BUILD_BINUTILS))
-: |> ^o Built Binutils^ ./build.sh |> $(FILES) <build>
+: |> ^o Built Binutils^ $(ENV) ./build.sh |> $(FILES) <build>
 endif

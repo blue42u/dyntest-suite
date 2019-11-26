@@ -274,5 +274,5 @@ FILES += install/share/man/man3/libxml.3
 
 include find.lua
 ifeq (y,$(BUILD_LIBXML2))
-: |> ^o Built LibXML2^ ./build.sh |> $(FILES) <build>
+: |> ^o Built LibXML2^ $(ENV) ./build.sh |> $(FILES) <build>
 endif

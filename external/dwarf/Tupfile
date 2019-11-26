@@ -15,5 +15,5 @@ FILES += install/share/man/man1/dwarfdump.1
 
 include find.lua
 ifeq (y,$(BUILD_DWARF))
-: |> ^o Built Dwarf^ ./build.sh |> $(FILES) <build>
+: |> ^o Built Dwarf^ $(ENV) ./build.sh |> $(FILES) <build>
 endif

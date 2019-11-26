@@ -157,5 +157,5 @@ FILES += install/examples/xed-rc-template.txt
 
 include find.lua
 ifeq (y,$(BUILD_XED))
-: |> ^o Built Xed^ ./build.sh |> $(FILES) <build>
+: |> ^o Built Xed^ $(ENV) ./build.sh |> $(FILES) <build>
 endif
