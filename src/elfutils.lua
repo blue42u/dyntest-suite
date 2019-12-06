@@ -6,5 +6,6 @@ function elfutils(o) return build {
   builddir = o.builddir,
   cfgflags = [[
     --enable-maintainer-mode --enable-install-elfh
+    --disable-debuginfod
   ]]..(o.cfg or ''),
 } end

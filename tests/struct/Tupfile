@@ -19,8 +19,8 @@ include_rules
 : ../../latest/dyninst/<build> |> !struct ../../latest/dyninst/install/lib/libinstructionAPI.so.10.1.0 |> libinstructionAPI.so.10.1.0.struct <out>
 : ../../latest/dyninst/<build> |> !struct ../../latest/dyninst/install/lib/libparseAPI.so.10.1.0 |> libparseAPI.so.10.1.0.struct <out>
 : ../../latest/dyninst/<build> |> !struct ../../latest/dyninst/install/lib/libsymtabAPI.so.10.1.0 |> libsymtabAPI.so.10.1.0.struct <out>
-: ../../latest/dyninst/<build> |> !struct ../../latest/elfutils/install/lib/libdw-0.177.so |> libdw-0.177.so.struct <out>
-: ../../latest/dyninst/<build> |> !struct ../../latest/elfutils/install/lib/libelf-0.177.so |> libelf-0.177.so.struct <out>
+: ../../latest/dyninst/<build> |> !struct ../../latest/elfutils/install/lib/libdw-0.178.so |> libdw-0.178.so.struct <out>
+: ../../latest/dyninst/<build> |> !struct ../../latest/elfutils/install/lib/libelf-0.178.so |> libelf-0.178.so.struct <out>
 : ../../latest/hpctoolkit/<build> |> !struct ../../latest/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin |> hpcstruct-bin.struct <out>
 : ../../latest/hpctoolkit/<build> |> !struct ../../latest/hpctoolkit/install/libexec/hpctoolkit/hpcprof-bin |> hpcprof-bin.struct <out>
 # : ../../latest/hpctoolkit/<build> |> !struct ../../latest/hpctoolkit/install/libexec/hpctoolkit/hpcprofmock-bin |> hpcprofmock-bin.struct <out>

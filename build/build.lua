@@ -990,6 +990,42 @@ local function make(fn, ruleset)
       handled[i] = 'Elfutils: manfile install script'
       check(not info.kind)
       info.kind, info.dstdir = 'install', dir(path(r.expand '$(DESTDIR)$(man3dir)').path)
+    elseif c == ([[@list1='$(notrans_dist_man1_MANS)'; list2=''; test -n
+    "$(man1dir)" && test -n "`echo $$list1$$list2`" || exit 0; echo " $(MKDIR_P)
+    '$(DESTDIR)$(man1dir)'"; $(MKDIR_P) "$(DESTDIR)$(man1dir)" || exit 1; { for
+    i in $$list1; do echo "$$i"; done; if test -n "$$list2"; then for i in
+    $$list2; do echo "$$i"; done | sed -n '/\.1[a-z]*$$/p'; fi; } | while read
+    p; do if test -f $$p; then d=; else d="$(srcdir)/"; fi; echo "$$d$$p"; echo
+    "$$p"; done | sed 'n;s,.*/,,;p;s,\.[^1][0-9a-z]*$$,.1,' | sed 'N;N;s,\n, ,g'
+    | { list=; while read file base inst; do if test "$$base" = "$$inst"; then
+    list="$$list $$file"; else echo " $(INSTALL_DATA) '$$file'
+    '$(DESTDIR)$(man1dir)/$$inst'"; $(INSTALL_DATA) "$$file"
+    "$(DESTDIR)$(man1dir)/$$inst" || exit $$?; fi; done; for i in $$list; do
+    echo "$$i"; done | $(am__base_list) | while read files; do test -z "$$files"
+    || { echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(man1dir)'"; $(INSTALL_DATA)
+    $$files "$(DESTDIR)$(man1dir)" || exit $$?; }; done; }]])
+    :gsub('\n%s*', ' ') then
+      handled[i] = 'Elfutils: manfile install script'
+      check(not info.kind)
+      info.kind, info.dstdir = 'install', dir(path(r.expand '$(DESTDIR)$(man1dir)').path)
+    elseif c == ([[@list1='$(notrans_dist_man8_MANS)'; list2=''; test -n
+    "$(man8dir)" && test -n "`echo $$list1$$list2`" || exit 0; echo " $(MKDIR_P)
+    '$(DESTDIR)$(man8dir)'"; $(MKDIR_P) "$(DESTDIR)$(man8dir)" || exit 1; { for
+    i in $$list1; do echo "$$i"; done; if test -n "$$list2"; then for i in
+    $$list2; do echo "$$i"; done | sed -n '/\.8[a-z]*$$/p'; fi; } | while read
+    p; do if test -f $$p; then d=; else d="$(srcdir)/"; fi; echo "$$d$$p"; echo
+    "$$p"; done | sed 'n;s,.*/,,;p;s,\.[^8][0-9a-z]*$$,.8,' | sed 'N;N;s,\n, ,g'
+    | { list=; while read file base inst; do if test "$$base" = "$$inst"; then
+    list="$$list $$file"; else echo " $(INSTALL_DATA) '$$file'
+    '$(DESTDIR)$(man8dir)/$$inst'"; $(INSTALL_DATA) "$$file"
+    "$(DESTDIR)$(man8dir)/$$inst" || exit $$?; fi; done; for i in $$list; do
+    echo "$$i"; done | $(am__base_list) | while read files; do test -z "$$files"
+    || { echo " $(INSTALL_DATA) $$files '$(DESTDIR)$(man8dir)'"; $(INSTALL_DATA)
+    $$files "$(DESTDIR)$(man8dir)" || exit $$?; }; done; }]])
+    :gsub('\n%s*', ' ') then
+      handled[i] = 'Elfutils: manfile install script'
+      check(not info.kind)
+      info.kind, info.dstdir = 'install', dir(path(r.expand '$(DESTDIR)$(man8dir)').path)
     elseif c == ([[-for file in $(PLUGIN_CONFIG_FILES) ; do cp -f
     "$(plugin_srcdir)/$$file" "$(DESTDIR)$(plugin_instdir)/$$file" ;
     done]]):gsub('\n%s*', ' ') then
@@ -1646,8 +1682,11 @@ end
 -- Step 6: Some files still aren't handled, outputs from Autotools and CMake.
 -- Use gzip+base64 for storage in Tup's db, and copy over to the output.
 for _,f in ipairs{
-  'config.h', 'config/libelf.pc', 'config/libdw.pc', 'version.h',  -- Elfutils
-  'common/h/dyninstversion.h',  -- Dyninst
+  -- Elfutils
+  'config.h', 'config/libelf.pc', 'config/libdw.pc', 'config/libdebuginfod.pc',
+  'version.h',
+  -- Dyninst
+  'common/h/dyninstversion.h',
   -- HPCToolkit
   'src/include/hpctoolkit-config.h', 'src/tool/hpcstruct/hpcstruct',
   'src/tool/hpcstruct/dotgraph', 'src/tool/hpcprof/hpcprof',
