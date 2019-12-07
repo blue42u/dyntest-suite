@@ -19,10 +19,16 @@ if subp.testexec 'pkg-config --exists valgrind' then
   local rdir = incdir:match '^(.+)include/valgrind/*$'
   if not rdir then return useours() end
   externalProjects.valgrind.rootDir = rdir:gsub('/*$', '/')
-elseif subp.testexec 'stat /usr/include/valgrind/valgrind.h' then
+elseif subp.testexec 'stat /usr/include/valgrind/valgrind.h 2> /dev/null' then
   -- It seems to be on a system path, we can use that.
-  if not subp.testexec 'stat /usr/include/valgrind/helgrind.h' then return useours() end
-  if not subp.testexec 'stat /usr/include/valgrind/drd.h' then return useours() end
+  if not subp.testexec 'stat /usr/include/valgrind/helgrind.h 2> /dev/null' then
+    print('WARNING: valgrind.h present but helgrind.h is not!')
+    return useours()
+  end
+  if not subp.testexec 'stat /usr/include/valgrind/drd.h 2> /dev/null' then
+    print('WARNING: valgrind.h present but helgrind.h is not!')
+    return useours()
+  end
   externalProjects.valgrind.rootDir = '/usr/'
 else return useours() end
 
