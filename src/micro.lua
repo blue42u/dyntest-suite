@@ -12,7 +12,8 @@ local l = '/install/lib'
 
 function micro(o)
   local ex = {boost..b, tbb..b, o.dyninst..b}
-  local cf = '-I'..boost..i..' -I'..tbb..i..' -I'..o.dyninst..i
+  local cf = (o.cppflags or '')..' '..(o.cxxflags or '')
+    ..' -I'..boost..i..' -I'..tbb..i..' -I'..o.dyninst..i
     ..' -L'..o.dyninst..l..' -g -O2'
   local lf = '-Wl,-rpath,`realpath '..boost..l..'`:`realpath '..tbb..l..'`'
     ..':`realpath '..o.dyninst..l..'`'

@@ -5,4 +5,6 @@ micro {
   builddir = 'annotated/micro',
   elfutils = '../elfutils',
   dyninst = '../dyninst',
+  cppflags = ompcppflags,
+  cxxflags = ompcxxflags,
 }
