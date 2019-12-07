@@ -1,129 +1,11 @@
--- luacheck: std lua53, new globals tup serpent
+-- luacheck: std lua53, new globals tup serpent subp
 
 tup.include '../external/serpent.lua'
-
--- Handy functions for handling subprocesses
-local function pclose(f, o)
-  local ok,kind,code = f:close()
-  if not kind then return
-  elseif not ok then
-    if kind == 'exit' then
-      if o then io.stderr:write(o,'\n') end
-      error('Subprocess exited with code '..code)
-    elseif kind == 'signal' then error('Subprocess was killed by signal '..code)
-    else
-      if o then io.stderr:write(o,'\n') end
-      error('Subprocess exited in a weird way... '..tostring(kind)..'+'..tostring(code))
-    end
-  end
-end
-local function exec(cmd)
-  local p = io.popen(cmd, 'r')
-  local o = p:read 'a'
-  pclose(p, o)
-  return o
-end
-local function lexec(cmd) return (exec(cmd):gsub('%s+$', '')) end
-local function plines(cmd, fmt)
-  local p = io.popen(cmd, 'r')
-  local f,s,v = p:lines(fmt or 'l')
-  local bits = {}
-  return function(...)
-    local x = f(...)
-    if x == nil then pclose(p, table.concat(bits, '\n'))
-    else table.insert(bits, x) end
-    return x
-  end, s, v
-end
-local function testexec(cmd)
-  local p = io.popen(cmd, 'r')
-  for _ in p:lines(1024) do end
-  return not not p:close()
-end
 
 -- Unmagic the magic characters within s, for stitching together patterns.
 local function unmagic(s)
   return (s:gsub('[]^$()%%.[*+?-]', '%%%0'))
 end
-
--- Simple command line constructing functions
-local function shell(...)
-  local function shellw(w)
-    if type(w) == 'table' then
-      local x = {}
-      for i,v in ipairs(w) do x[i] = shellw(v) end
-      return table.concat(x, ' ')
-    end
-    -- Fold any subshells out of sight for the time being
-    local subs = {}
-    w = w:gsub('`.-`', function(ss)
-      subs[#subs+1] = ss
-      local id = ('\0%d\0'):format(#subs)
-      subs[id] = ss
-      return id
-    end)
-    local quote
-    w,quote = w:gsub('[\n$"]', '\\%0')
-    if quote == 0 and not w:find '[\\%s]' then quote = false end
-    -- Unfold the subshells
-    w = w:gsub('\0%d+\0', function(id)
-      return quote and subs[id] or '"'..subs[id]..'"'
-    end)
-    return quote and '"'..w..'"' or w
-  end
-  local function pre(c)
-    local prefix = ''
-    if c.env then
-      local ord = {}
-      for k,v in pairs(c.env) do
-        assert(k:find '^[%w_]+$', k)
-        ord[k] = k..'='..shellw(v):gsub('?', '$'..k)
-        table.insert(ord, k)
-      end
-      table.sort(ord)
-      for i,k in ipairs(ord) do ord[i] = ord[k] end
-      prefix = prefix..table.concat(ord, ' ')..' '
-    end
-    return prefix
-  end
-  local function post(c)
-    local postfix = ''
-    if c.onlyout then postfix = postfix..' 2>&1' end
-    if c.rein then postfix = postfix..' < '..c.rein end
-    if c.reout ~= nil then postfix = postfix..' > '..(c.reout or '/dev/null') end
-    if c.reerr ~= nil then postfix = postfix..' 2> '..(c.reerr or '/dev/null') end
-    return postfix
-  end
-
-  local function command(c)
-    local x = {}
-    for i,w in ipairs(c) do x[i] = shellw(w) end
-    return pre(c)..table.concat(x, ' ')..post(c)
-  end
-  local pipeline, sequence
-  function pipeline(cs)
-    if type(cs[1]) == 'string' then return command(cs), true end
-    local x = {}
-    for i,c in ipairs(cs) do
-      local cmd
-      x[i],cmd = sequence(c)
-      if not cmd then x[i] = '('..x[i]..')' end
-    end
-    return table.concat(x, ' | ')
-  end
-  function sequence(cs)
-    if type(cs[1]) == 'string' then return command(cs), true end
-    local x = {}
-    for i,c in ipairs(cs) do x[i] = pipeline(c) end
-    return table.concat(x, ' && ')
-  end
-
-  return sequence{...}
-end
--- local function sexec(...) return exec(shell(...)) end
-local function slexec(...) return lexec(shell(...)) end
-local function stestexec(...) return testexec(shell(...)) end
-local function slines(...) return plines(shell(...)) end
 
 -- Command line argument parser, similar to getopt but better. Option string:
 --  ( <short flag (1-char)>[/<long flag>] | <long flag> ) [,:;]
@@ -268,7 +150,7 @@ local function canonicalize(p, cwd)
 end
 local function dir(path) return path:gsub('([^/])/*$', '%1/') end
 local topcwd = dir(tup.getcwd())
-local topdir = dir(lexec 'pwd')
+local topdir = dir(subp.lexec 'pwd')
 
 -- The main script for building things. Handles everything from CMake to Libtool
 -- and the antiparallelism in Elfutils. Wrapped as a function to allow usage
@@ -361,11 +243,11 @@ end
 -- We're going to use a temporary directory, this xpcall ensures we delete it.
 local tmpdir, docleansrcdir, finalerror
 local function finalize()
-  if tmpdir then exec('rm -rf '..tmpdir) end
-  if docleansrcdir then exec("cd '"..realsrcdir.."' && git clean -fX") end
+  if tmpdir then subp.exec('rm -rf '..tmpdir) end
+  if docleansrcdir then subp.exec("cd '"..realsrcdir.."' && git clean -fX") end
 end
 xpcall(function()
-tmpdir = lexec 'mktemp -d':gsub('([^/])/*$', '%1/')
+tmpdir = subp.lexec 'mktemp -d':gsub('([^/])/*$', '%1/')
 transforms[tmpdir] = ''  -- tmpdir acts as the build directory too
 
 -- Helper for handling boolean config values
@@ -378,9 +260,9 @@ local function cfgbool(n, d)
   error('CONFIG_'..n..' must be y/n (default is '..(d and 'y' or 'n')..')')
 end
 local function c_slines(...)
-  local s = shell(...)
+  local s = subp.shell(...)
   if cfgbool 'DEBUG_CONFIGURE' then print('CFG:', s) end
-  return plines(s)
+  return subp.plines(s)
 end
 
 -- Step 1: Figure out the build system in use and let it do its thing.
@@ -393,7 +275,7 @@ if glob(srcdir..'configure.ac') then  -- Its an automake thing
   local env = {
     PATH = topdir..'/build/bin:?',
     AUTOM4TE = topdir..'/build/autom4te-no-cache',
-    REALLDD = lexec 'which ldd',
+    REALLDD = subp.lexec 'which ldd',
     CFLAGS = '-g', CXXFLAGS = '-g',
     MPICC=mpicc, MPICXX=mpicxx,
   }
@@ -434,7 +316,7 @@ local function parsemakefile(fn, cwd)
   -- A simple single-state machine for parsing.
   local state = 'preamble'
   local vars,cur = {},nil
-  for l in slines{
+  for l in subp.slines{
     {{'cat', tmpdir..cwd..fn}, {'printf', 'dummyZXZ:\\n\\n'}},
     {'env','-i', 'make', '-C', tmpdir..cwd, '-pqsrRf-', 'dummyZXZ', reerr=false}
   } do
@@ -536,7 +418,7 @@ local function findrule(fn, ruleset)
     if fn.source and glob(fn.path) then return end
 
     -- If it looks like a build file, check whether its a temp file.
-    if fn.build and stestexec{'stat', tmpdir..fn.stem, onlyout=true, reout=false} then
+    if fn.build and subp.stestexec{'stat', tmpdir..fn.stem, onlyout=true, reout=false} then
       return nil, 'tmpdir'
     end
 
@@ -1096,9 +978,9 @@ local function make(fn, ruleset)
       handled[i] = 'Elfutils: ylwrap command'
       check(not info.kind)
       if not glob 'config/ylwrap' then
-        local b64 = slexec{{'gzip', '-n', rein=realsrcdir..'config/ylwrap'},
+        local b64 = subp.slexec{{'gzip', '-n', rein=realsrcdir..'config/ylwrap'},
           {'base64', '-w0'}}
-        tup.rule('^o Copy %o^ '..shell(
+        tup.rule('^o Copy %o^ '..subp.shell(
           {{'echo', b64}, {'base64', '-d'}, {'gzip', '-d', reout='%o'}},
           {'chmod', '+x', '%o'}
         ), {'config/ylwrap'})
@@ -1215,7 +1097,7 @@ function translations.compile(info)  -- Compilation command
     return #p == 0 and '.' or p
   end
   local r = {inputs={extra_inputs={'<_gen>'}}, outputs={}}
-  r.command = '^o CC %o^ '..cd..shell(getopt(info.cmd,
+  r.command = '^o CC %o^ '..cd..subp.shell(getopt(info.cmd,
     'D:I:std:W;w,f:g,O;c,o:l:pthread,m:no-pie,pie,', {
     [true] = function(cc)
       if cc:find '%+%+' then return cc,table.unpack(cxxflags)
@@ -1315,7 +1197,7 @@ function translations.ld(info)  -- Linking command
   table.move(elibs, 1,#elibs, #r.inputs.extra_inputs+1, r.inputs.extra_inputs)
   table.move(exdeps, 1,#exdeps, #r.inputs.extra_inputs+1, r.inputs.extra_inputs)
 
-  r.command = '^o LD %o^ '..shell(r.command)..(info.assert or '')
+  r.command = '^o LD %o^ '..subp.shell(r.command)..(info.assert or '')
   extrald[r.outputs[1]] = elibs
   table.insert(elibs, r.outputs[1])
   if info.linkto then
@@ -1428,11 +1310,11 @@ function translations.cmakeinstall()
               if not odedup[a] then
                 odedup[a] = true
                 local d = tmpdir
-                if not stestexec{'stat', d..a, onlyout=true, reout=false} then
+                if not subp.stestexec{'stat', d..a, onlyout=true, reout=false} then
                   d = fullsrcdir
                 end
-                local b64 = slexec{{'gzip', '-n', rein=d..a}, {'base64', '-w0'}}
-                tup.rule('^o Copy %o^ '..shell{
+                local b64 = subp.slexec{{'gzip', '-n', rein=d..a}, {'base64', '-w0'}}
+                tup.rule('^o Copy %o^ '..subp.shell{
                   {'echo', b64}, {'base64', '-d'}, {'gzip', '-d', reout='%o'}
                 }, {a, '<_gen>'})
               end
@@ -1523,7 +1405,7 @@ function translations.libtool(info)
 end
 function translations.latex2man(info)
   local r = {inputs={}, outputs={}}
-  r.command = '^o DOC %o^ '..shell(getopt(info.cmd, 'H,t:', {
+  r.command = '^o DOC %o^ '..subp.shell(getopt(info.cmd, 'H,t:', {
     [true] = function(x) return path(x, '').path end,
     t = function(x) return '?',path(x, '').path end,
     [false] = function(p)
@@ -1537,7 +1419,7 @@ function translations.latex2man(info)
 end
 function translations.stringify(info)
   local r = {inputs={}, outputs={[2]='<_gen>'}}
-  r.command = '^o STR %o^ '..shell(getopt(info.cmd, '', {
+  r.command = '^o STR %o^ '..subp.shell(getopt(info.cmd, '', {
     ['<'] = function(p)
       p = path(p); assert(p.source)
       r.inputs[1] = p.path
@@ -1589,7 +1471,7 @@ function translations.ylwrap(info)
 end
 function translations.awk(info)  -- Awk call
   local r = {inputs={}, outputs={[2]='<_gen>'}}
-  r.command = '^o AWK %o^ '..shell(getopt(info.cmd, 'f:', {
+  r.command = '^o AWK %o^ '..subp.shell(getopt(info.cmd, 'f:', {
     f = function(p)
       p = path(p); assert(p.source)
       return '?',p.path
@@ -1611,7 +1493,7 @@ end
 function translations.sed(info)  -- Sed call
   local r = {inputs={}, outputs={[2]='<_gen>'}}
   local eseen = false
-  r.command = '^o SED %o^ '..shell({getopt(info.cmd, 'e:', {
+  r.command = '^o SED %o^ '..subp.shell({getopt(info.cmd, 'e:', {
     e = function(x) eseen = true; return '?',(x:gsub('%%', '%%%%')) end,
     [false] = function(x)
       if not eseen then eseen = true; return '?',(x:gsub('%%', '%%%%')) end
@@ -1640,7 +1522,7 @@ function translations.sed(info)  -- Sed call
 end
 function translations.m4(info)
   local r = {inputs={}, outputs={[2]='<_gen>'}}
-  r.command = '^o M4 %o^ '..shell(getopt(info.cmd, 'D:', {
+  r.command = '^o M4 %o^ '..subp.shell(getopt(info.cmd, 'D:', {
     [false] = function(p)
       assert(#r.inputs == 0)
       p = path(p); assert(p.source, p.path)
@@ -1659,7 +1541,7 @@ function translations.m4(info)
 end
 function translations.gendis(info)
   info.inputs,info.outputs = {extra_inputs={}},{}
-  info.command = '^o GEN %o^ '..shell(getopt(info.cmd, '', {
+  info.command = '^o GEN %o^ '..subp.shell(getopt(info.cmd, '', {
     [true] = function()
       info.inputs.extra_inputs[1] = info.deps[2].path
       return info.inputs.extra_inputs[1]
@@ -1696,9 +1578,9 @@ for _,f in ipairs{
 } do
   local d = tmpdir
   if f:sub(1,1) == '@' then d,f = fullsrcdir,f:match '^@(.*)' end
-  if stestexec{'stat', d..f, onlyout=true, reout=false} then
-    local b64 = slexec{{'gzip', '-n', rein=d..f}, {'base64', '-w0'}}
-    tup.rule('^o Copy %o^ '..shell{
+  if subp.stestexec{'stat', d..f, onlyout=true, reout=false} then
+    local b64 = subp.slexec{{'gzip', '-n', rein=d..f}, {'base64', '-w0'}}
+    tup.rule('^o Copy %o^ '..subp.shell{
       {'echo', b64}, {'base64', '-d'}, {'gzip', '-d', reout='%o'}
     }, {f, '<_gen>'})
   end

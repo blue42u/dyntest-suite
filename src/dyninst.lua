@@ -8,6 +8,6 @@ function dyninst(o) return build {
     -DBoost_ROOT_DIR=@/external/boost@
     -DTBB_ROOT_DIR=@/external/tbb@
     -DElfUtils_ROOT_DIR=@]]..o.elfutils..[[@
-    @!/external/zlib@ @!/external/bzlib@ @!/external/lzma@
+    @!/external/zlib@ @!/external/bzip@ @!/external/lzma@
   ]]..(o.cfg or ''),
 } end

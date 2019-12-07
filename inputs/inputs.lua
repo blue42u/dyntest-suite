@@ -66,14 +66,6 @@ if not enabled('ONLY_EXTERNAL', false) then add_inputs{
   },
 } end
 
-local function testexec(cmd)
-  local f = io.popen(cmd..' 2>&1', 'r')
-  f:read 'a'
-  local ok, why = f:close()
-  if why == 'signal' then error('Subprocess killed!') end
-  return ok
-end
-
 -- Pull in the manually-given inputs
 for _,s in ipairs{'1', '2', '3', 'huge'} do
   local sz = tonumber(s) or math.huge
@@ -81,8 +73,8 @@ for _,s in ipairs{'1', '2', '3', 'huge'} do
     local id = f:match '[^/]+$'
     if id ~= '.gitignore' then
       local k
-      if testexec('readelf -h inputs/'..s..'/'..id) then k = 'binary'
-      elseif testexec('tar --test-label -af inputs/'..s..'/'..id) then k = 'trace'
+      if subp.testexec('readelf -h inputs/'..s..'/'..id) then k = 'binary'
+      elseif subp.testexec('tar --test-label -af inputs/'..s..'/'..id) then k = 'trace'
       else error('Unable to determine kind for inputs/'..s..'/'..id) end
       add_inputs{{id = id, fullfn = f, size = sz, kind = k}}
     end
