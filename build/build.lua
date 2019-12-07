@@ -192,6 +192,16 @@ for f in opts.cfgflags:gmatch '%g+' do
         elseif raw == 'CXXF' then table.insert(cxxflags, ed)
         elseif raw == 'LF' then table.insert(ldflags, ed) end
       else
+        if #tup.glob(path..'find.lua') > 0 then
+          -- luacheck: push new globals tup externalProjects
+          tup.include(path..'find.lua')
+          local exp = externalProjects and externalProjects[path:match '([^/]+)/$']
+          if exp then
+            table.insert(runpath, exp.libDir)
+            return exp.rootDir
+          end
+          -- luacheck: pop
+        end
         table.insert(exdeps, path..'<build>')
         transforms[rpath..'dummy'] = path..'install'
         table.insert(runpath, rpath..'install/lib')
