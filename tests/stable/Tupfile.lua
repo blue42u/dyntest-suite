@@ -59,7 +59,7 @@ end, function(ins, i, t)
       local rr = deepcopy(r)
       rr.inputs[1] = f
       rr.outputs[1] = f..'.clean'
-      if idx > 2 then
+      if idx > 2 or t.mpirun then
         table.insert(rr.inputs.extra_inputs, serialend())
       else
         table.insert(rr.outputs.extra_outputs, '../<pre>')

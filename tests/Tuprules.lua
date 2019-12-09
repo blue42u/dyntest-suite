@@ -19,10 +19,12 @@ tup.include '../inputs/inputs.lua'
 tests = {}
 local function add_test(base)
   if base.fnstem then
+    local pre = ''
+    if base.mpirun then pre = '`pwd`/' end
     base.modes = {
-      [false] = cwd..'../latest/'..base.fnstem,
-      ann = cwd..'../annotated/'..base.fnstem,
-      ref = cwd..'../reference/'..base.fnstem,
+      [false] = pre..cwd..'../latest/'..base.fnstem,
+      ann = pre..cwd..'../annotated/'..base.fnstem,
+      ref = pre..cwd..'../reference/'..base.fnstem,
     }
     if base.nofn then
       for _,k in ipairs(base.nofn) do base.modes[k] = nil end
@@ -51,42 +53,56 @@ add_test { id = 'unstrip', size = 2, grouped = true, cfg = '!UNSTRIP',
   env = 'OMP_NUM_THREADS=%T', args = '-f %f -o %o',
   input = 'strip -So %o %f', outclean = 'nm -a %f > %o',
 }
-add_test { id = 'micro-symtab', size = 1, grouped = true, cfg = 'MICRO',
+add_test { id = 'micro-symtab', size = 1, grouped = true, cfg = '!MICRO',
   inkind = 'binary',
   fnstem = 'micro/micro-symtab',
   env = 'OMP_NUM_THREADS=%T', args = '%f',
   nooutput = true,
 }
-add_test { id = 'micro-parse', size = 1, grouped = true, cfg = 'MICRO',
+add_test { id = 'micro-parse', size = 1, grouped = true, cfg = '!MICRO',
   inkind = 'binary',
   fnstem = 'micro/micro-parse',
   env = 'OMP_NUM_THREADS=%T', args = '%f',
   nooutput = true,
 }
-add_test { id = 'hpcprof', size = 3, grouped = true, cfg = '!HPCPROF',
+add_test { id = 'hpcprof', size = 3, grouped = true, cfg = 'HPCPROF',
   inkind = 'trace',
   fnstem = 'hpctoolkit/install/bin/hpcprof.real',
-  env = 'OMP_NUM_THREADS=%T '..cwd..'../tartrans.sh', args = '-o @@%o @%f',
+  tartrans = true,
+  env = 'OMP_NUM_THREADS=%T', args = '-o @@%o @%f',
   outclean = {
     inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
     command='tar xOf %f ./experiment.xml | '..cwd..'../external/lua/luaexec '
       ..cwd..'profclean.lua '..cwd..' %o',
   },
 }
-add_test { id = 'hpcprof-struct', size = 3, grouped = true, cfg = '!HPCPROF',
+add_test { id = 'hpcprof-struct', size = 3, grouped = true, cfg = 'HPCPROF',
   inkind = 'trace',
   fnstem = 'hpctoolkit/install/bin/hpcprof.real',
-  env = 'OMP_NUM_THREADS=%T '..cwd..'../tartrans.sh', args = structs..' -o @@%o @%f',
+  tartrans = true,
+  env = 'OMP_NUM_THREADS=%T', args = structs..' -o @@%o @%f',
   outclean = {
     inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
     command='tar xOf %f ./experiment.xml | '..cwd..'../external/lua/luaexec '
       ..cwd..'profclean.lua '..cwd..' %o',
   },
 }
-add_test { id = 'hpcprofmock', size = 1, grouped = true, cfg = 'HPCPROFMOCK',
+add_test { id = 'hpcprofmock', size = 1, grouped = true, cfg = '!HPCPROFMOCK',
   inkind = 'trace',
   fnstem = 'hpctoolkit/install/bin/hpcprofmock.real', nofn = {'ref'},
-  env = 'OMP_NUM_THREADS=%T '..cwd..'../tartrans.sh', args = '@%f > %o',
+  tartrans = true,
+  env = 'OMP_NUM_THREADS=%T', args = '@%f > %o',
+}
+add_test { id = 'hpcprof-mpi', size = 3, grouped = true, cfg = 'HPCPROF_MPI',
+  inkind = 'trace',
+  fnstem = 'hpctoolkit/install/bin/hpcprof-mpi.real',
+  mpirun = true, tartrans = true,
+  env = 'OMP_NUM_THREADS=%T', args = '-o @@%o @%f',
+  outclean = {
+    inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
+    command='tar xOf %f ./experiment.xml | '..cwd..'../external/lua/luaexec '
+      ..cwd..'profclean.lua '..cwd..' %o',
+  },
 }
 
 local ti,tm = table.insert,tup.append_table
@@ -120,11 +136,31 @@ function forall(harness, post)
   for _,i in ipairs(inputs) do for _,t in ipairs(tests) do if t.inkind == i.kind then
     local single = {}
     for _,h in ipairs{harness(i, t)} do
+      local threads = h.threads or 1
+      local mpirun,env = '',''
+      if t.mpirun then
+        local ranks
+        if threads <= 4 then ranks,threads = threads, 1
+        else ranks,threads = math.floor(threads/4), 4 end
+        mpirun = tup.getconfig 'MPIRUN'
+        if mpirun == '' then mpirun = 'mpirun' end
+        env = 'TUP_PGID=`ps -o pgid $$ | tail -n1` TUP_CWD="`pwd`"'
+        mpirun = mpirun..' -H localhost -wd / -oversubscribe -np '..ranks
+          ..[[ perl -e '$o=getpgrp(0); setpgrp(0,$ENV{"TUP_PGID"});]]
+          ..[[ chdir($ENV{"TUP_CWD"}); system(@ARGV)==0]]
+          ..[[ or print "$ARGV[0]: $?: $!"; setpgrp(0,$o)']]
+      end
+      local tartrans = ''
+      if t.tartrans or h.tartrans then
+        tartrans = cwd..'../tartrans.sh'
+      end
+
       local repl = {
-        T = ('%d'):format(h.threads or 1),
+        T = ('%d'):format(threads),
       }
       local ins = {extra_inputs=table.move(alldeps, 1,#alldeps, 1,{})}
-      local tfn,env = assert(t.modes[h.mode or false]), t.env or ''
+      local tfn = assert(t.modes[h.mode or false])
+      env = env..' '..(t.env or '')..' '..(h.env or '')
 
       local outs = {nil, '^^/tmp/tmp\\.', extra_outputs={}}
       env = env:gsub('%%(.)', repl)
@@ -141,7 +177,7 @@ function forall(harness, post)
       else table.insert(ins, ifn) end
 
       local out = h.output:gsub('%%(.)', { t = t.id:gsub('/','.'), i = i.id:gsub('/','.') })
-      local cmd = env..' '..h.cmd:gsub('%%(.)', {
+      local cmd = env..' '..tartrans..' '..mpirun..' '..h.cmd:gsub('%%(.)', {
         T=tfn, A=args, C=tfn..' '..args,
       })
       local name = '^'..(h.rebuild and '' or 'o')..' '
@@ -152,7 +188,7 @@ function forall(harness, post)
       local fakeaccess = ''
 
       outs[1] = out
-      if h.serialize then
+      if h.serialize or t.mpirun then
         ti(ins.extra_inputs, serialend())
         lastsg = minihash(name)
         ti(outs.extra_outputs, serialend())

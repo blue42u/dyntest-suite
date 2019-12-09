@@ -1,5 +1,7 @@
 -- luacheck: std lua53, no global (Tup-Lua)
 
+sclass = 4
+
 tup.include '../../external/valgrind/find.lua'
 
 local val = VALGRIND_CMD

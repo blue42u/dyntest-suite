@@ -3,13 +3,13 @@
 sclass = 2
 
 local tbblib = '../../external/tbb/install/lib/'
-local env = ''
 local tbbpreload = 'LD_LIBRARY_PATH='..tbblib
   ..' LD_PRELOAD="$LD_PRELOAD":'..tbblib..'libtbbmalloc_proxy.so '
-if tup.getconfig 'TMPDIR' ~= '' then
-  env = 'TMPDIR="'..tup.getconfig 'TMPDIR'..'" '..env
-end
 local hpcrun = '../../reference/hpctoolkit/install/bin/hpcrun.real'
+local env = ''
+if tup.getconfig 'TMPDIR' ~= '' then
+  env = 'TMPDIR="'..tup.getconfig 'TMPDIR'..'" '
+end
 
 local detailed = {}
 if enabled('PERF_DETAIL', true) then
@@ -17,7 +17,8 @@ detailed = forall(function(i)
   if i.size < 3 then return end
   return {
     id = 'Perf (detailed)', threads = maxthreads,
-    cmd = env..tbbpreload..'../../tartrans.sh '..hpcrun..' -e REALTIME@100 -t -o @@%o %C',
+    env = tbbpreload, tartrans = true,
+    cmd = hpcrun..' -e REALTIME@100 -t -o @@%o %C',
     output = 'measurements/%t.%i.tar', serialize = true, redirect = '/dev/null',
   }
 end)
@@ -37,7 +38,8 @@ forall(function(i)
   for r=1,rep do
     table.insert(outs, {
       id = 'Perf (coarse, rep '..r..')', threads=maxthreads,
-      cmd = env..tbbpreload..'../../tartrans.sh '..hpcrun..' -e REALTIME@2000 -t -o @@%o %C',
+      env = tbbpreload, tartrans = true,
+      cmd = hpcrun..' -e REALTIME@2000 -t -o @@%o %C',
       redirect = '/dev/null',
       output = 'measurements/%t.%i.'..r..'.tar', serialize = true,
     })

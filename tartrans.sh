@@ -32,7 +32,7 @@ for a in "$@"; do
 done
 
 # Run the thing to make stuff happen
-eval "${CMD[@]}"
+eval `printf "'%s' " "${CMD[@]}"`
 
 # Tar up all the output files
 for tmp in "${!OUTPUTS[@]}"; do

@@ -18,6 +18,9 @@ config MPICC
 config MPICXX
   string "Executable for compiling MPI C++ programs (mpic++)"
   default "mpic++"
+config MPIRUN
+  string "Command for running MPI programs (mpirun)"
+  default "mpirun"
 config TMPDIR
   string "Path to a temporary directory for very large bits"
   ---help---
@@ -42,9 +45,12 @@ config TEST_UNSTRIP
     in the long run.
 config TEST_MICRO
   bool "Enable microbenchmark testing"
-  default y
+  default n
 config TEST_HPCPROF
   bool "Enable hpcprof testing (HPCToolkit component)"
+  default y
+config TEST_HPCPROF_MPI
+  bool "Enable hpcprof-mpi testing (HPCToolkit component)"
   default n
 config TEST_HPCPROFMOCK
   bool "Enable hpcprofmock testing (HPCToolkit debugging component)"
