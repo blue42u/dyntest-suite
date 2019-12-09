@@ -15,7 +15,5 @@ void g() {
 
 int main() {
   printf("main: Hello, world!\n");
-  f();
-  g();
-  return 0;
+  f(); g(); return 0;
 }
