@@ -85,9 +85,10 @@ local function asub(tag, attr, repl)
 
   for _,a in ipairs(tag.attr) do
     if ns[a.name] then
+      local old = a.value
       a.value = r(a.value)
       tag.attr[a.name] = a.value
-      if a.value == nil then error('Nil replacement value for '..tostring(attr)..'!') end
+      if a.value == nil then error('Nil replacement value for '..tostring(attr)..'='..old..'!') end
     end
   end
 end
@@ -188,10 +189,10 @@ local function cctupdate(tag)
       asub(sub, 'n', trans.procedure)
       asub(sub, 'lm', trans.module)
       asub(sub, 'f', trans.file)
-      asub(sub, 'i', 'cid')
-      asub(sub, 's', 'csid')
-      asub(sub, 'it', 'citid')
-      asub(sub, 'l', 'lineno')
+      asub(sub, 'i', 'Cx')
+      asub(sub, 's', 's')
+      asub(sub, 'it', 'Cx')
+      -- asub(sub, 'l', 'lineno')
       cctupdate(sub)
     end
   end
