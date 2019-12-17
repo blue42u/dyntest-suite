@@ -33,8 +33,13 @@ done
 
 # Run the thing to make stuff happen
 eval `printf "'%s' " "${CMD[@]}"`
+RET=$?
 
-# Tar up all the output files
+# Tar up all the output files. If any don't exist just don't output that file.
 for tmp in "${!OUTPUTS[@]}"; do
-  tar -cf "${OUTPUTS[$tmp]}" -C "$tmp" .
+  if [ -e "$tmp" ]
+  then tar -cf "${OUTPUTS[$tmp]}" -C "$tmp" .
+  fi
 done
+
+exit $RET

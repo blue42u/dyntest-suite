@@ -175,6 +175,13 @@
   fun:fclose@@GLIBC_2.2.5
 }
 
+{
+  OpenMPI
+  Memcheck:Leak
+  ...
+  fun:PMPI_Init
+}
+
 #
 # A handful of inlinings are horrid enough to warrent more specific suppressions
 #

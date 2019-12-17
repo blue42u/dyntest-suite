@@ -104,6 +104,17 @@ add_test { id = 'hpcprof-mpi', size = 3, grouped = true, cfg = 'HPCPROF_MPI',
       ..cwd..'profclean.lua '..cwd..' %o',
   },
 }
+add_test { id = 'hpcprof-mpi-struct', size = 3, grouped = true, cfg = 'HPCPROF_MPI',
+  inkind = 'trace',
+  fnstem = 'hpctoolkit/install/bin/hpcprof-mpi.real',
+  mpirun = true, tartrans = true,
+  env = 'OMP_NUM_THREADS=%T', args = structs..' -o @@%o @%f',
+  outclean = {
+    inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
+    command='tar xOf %f ./experiment.xml | '..cwd..'../external/lua/luaexec '
+      ..cwd..'profclean.lua '..cwd..' %o',
+  },
+}
 
 local ti,tm = table.insert,tup.append_table
 
