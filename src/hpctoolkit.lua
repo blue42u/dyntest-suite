@@ -15,7 +15,7 @@ function hpctoolkit(o)
       --with-lzma=@/external/lzma@
       --with-xed=@/external/xed@
       --with-libunwind=@/external/unwind@
-      --with-papi=@/external/papi@ --with-perfmon=@/external/papi@
+      --with-perfmon=@/external/papi@
       --with-libmonitor=@/external/monitor@
       --with-bzip=@/external/bzip@
       --with-elfutils=@]]..o.elfutils..[[@
