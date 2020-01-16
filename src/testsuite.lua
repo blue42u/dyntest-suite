@@ -2,6 +2,8 @@
 
 function testsuite() end
 
+do return end
+
 tup.include '../build/build.lua'
 function testsuite(o)
   local r = {build {
