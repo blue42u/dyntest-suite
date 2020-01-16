@@ -18,6 +18,7 @@ function hpctoolkit(o)
       --with-perfmon=@/external/papi@
       --with-libmonitor=@/external/monitor@
       --with-bzip=@/external/bzip@
+      --with-mbedtls=@/external/mbedtls@
       --with-elfutils=@]]..o.elfutils..[[@
       --with-dyninst=@]]..o.dyninst..[[@
       --disable-hpcrun-static
@@ -25,15 +26,15 @@ function hpctoolkit(o)
   }}
   -- We also munge the paths in the scripts, use .../hpc*.real for best results.
   local ex = o.builddir:gsub('[^/]+', '..'):gsub('/?$', '/')..'external/'
-  tup.rule('install/bin/hpcrun', ([[^o Generated %o^ sed
-    -e "/^libmonitor_dir/clibmonitor_dir='`realpath ]]..ex..[[monitor/install/lib`'"
-    -e "/^libunwind_dir/clibunwind_dir='`realpath ]]..ex..[[unwind/install/lib`'"
-    -e "/^papi_libdir/cpapi_libdir='`realpath ]]..ex..[[papi/install/lib`'"
-    -e "/^perfmon_libdir/cperfmon_libdir='`realpath ]]..ex..[[papi/install/lib`'"
-    -e "/^export HPCRUN_FN/s:/hpcfnbounds:\0-bin:"
-    -e "/^export LD_PRELOAD/iexport HPCTOOLKIT_EXT_LIBS_DIR='`realpath ]]..ex..[[dwarf/install/lib`'"
-    -e "/^hash_value=/chash_value='no'"
-    %f > %o && chmod +x %o]]):gsub('\n%s*', ' '),
+  tup.rule('install/bin/hpcrun', ([=[^o Generated %o^ sed
+    -e "/^[[:space:]]*libmonitor_dir/clibmonitor_dir='`realpath ]=]..ex..[=[monitor/install/lib`'"
+    -e "/^[[:space:]]*libunwind_dir/clibunwind_dir='`realpath ]=]..ex..[=[unwind/install/lib`'"
+    -e "/^[[:space:]]*papi_libdir/cpapi_libdir='`realpath ]=]..ex..[=[papi/install/lib`'"
+    -e "/^[[:space:]]*perfmon_libdir/cperfmon_libdir='`realpath ]=]..ex..[=[papi/install/lib`'"
+    -e "/^[[:space:]]*export HPCRUN_FN/s:/hpcfnbounds:\0-bin:"
+    -e "/^[[:space:]]*export LD_PRELOAD/iexport HPCTOOLKIT_EXT_LIBS_DIR='`realpath ]=]..ex..[=[dwarf/install/lib`'"
+    -e "/^[[:space:]]*hash_value=/chash_value='no'"
+    %f > %o && chmod +x %o]=]):gsub('\n%s*', ' '),
     {'install/bin/hpcrun.real', '<build>'})
   tup.rule('install/libexec/hpctoolkit/hpcprof-bin',
     '^o Linked %o^ ln -s ../libexec/hpctoolkit/hpcprof-bin %o',
