@@ -3,7 +3,7 @@
 	url = https://github.com/blue42u/hpctoolkit.git
 [submodule "src/dyninst"]
 	path = src/dyninst
-	url = https://github.com/dyninst/dyninst.git
+	url = https://github.com/blue42u/dyninst.git
 [submodule "src/elfutils"]
 	path = src/elfutils
 	url = git://sourceware.org/git/elfutils.git
