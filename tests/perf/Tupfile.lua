@@ -30,23 +30,37 @@ if tup.getconfig 'PERF_REP' ~= '' then
     'Configuration option PERF_REP must be a valid integer!')
 end
 
+local numthreads = {maxthreads}
+if tup.getconfig 'PERF_COARSE_THREADS' ~= '' then
+  local ts = {}
+  for w in tostring(tup.getconfig 'PERF_COARSE_THREADS'):gmatch '[^,]+' do
+    w = assert(math.tointeger(w),
+      'Configuration option PERF_COARSE_THREADS must be a comma-separated sequence of integers!')
+    ts[w] = true
+  end
+  assert(next(ts), 'Configuration option PERF_COARSE_THREADS cannot be empty!')
+  numthreads = {}
+  for t in pairs(ts) do table.insert(numthreads, t) end
+  table.sort(numthreads)
+end
+
 local coarse = {}
-if rep > 0 then
+if rep > 0 then for _,nt in ipairs(numthreads) do
 forall(function(i)
   if i.size < 3 then return end
   local outs = {}
   for r=1,rep do
     table.insert(outs, {
-      id = 'Perf (coarse, rep '..r..')', threads=maxthreads,
+      id = 'Perf (coarse, rep '..r..', '..nt..' threads)', threads=nt,
       env = tbbpreload, tartrans = true,
       cmd = hpcrun..' -e REALTIME@2000 -t -o @@%o %C',
       redirect = '/dev/null',
-      output = 'measurements/%t.%i.'..r..'.tar', serialize = true,
+      output = 'measurements/%t.%i.'..r..'.t'..nt..'.tar', serialize = nt > 1,
     })
   end
   return table.unpack(outs)
-end, function(c, i, t) if #c > 0 then table.insert(coarse, {c, i, t}) end end)
-end
+end, function(c, i, t) if #c > 0 then table.insert(coarse, {c, i, t, nt}) end end)
+end end
 
 local prof = '../../reference/hpctoolkit/install/bin/hpcprof.real'
 
@@ -57,7 +71,7 @@ for _,f in ipairs(detailed) do
 end
 
 for _,x in ipairs(coarse) do
-  local c,i,t = x[1], x[2], x[3]
+  local c,i,t,nt = x[1], x[2], x[3], x[4]
   local lats,tlats = {},{}
   for _,f in ipairs(c) do
     local o = f:gsub('measurements/', 'coarse/')
@@ -69,7 +83,7 @@ for _,x in ipairs(coarse) do
   lats.extra_inputs = {'../../external/lua/luaexec'}
   tup.rule(lats, '^o Dump %o^ '..env..'../../tartrans.sh ../../external/lua/luaexec '
     ..'hpcdump.lua %o '..table.concat(tlats, ' '),
-    {'stats/'..(t.id..'.'..i.id..'.lua'):gsub('/','.'), serialpost()})
+    {'stats/'..(t.id..'.'..i.id..'.t'..nt..'.lua'):gsub('/','.'), serialpost()})
 end
 
 serialfinal()

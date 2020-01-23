@@ -93,13 +93,16 @@ config STABLE_SZ
 
 menu "Performance-specific test settings"
 
+config PERF_DETAIL
+  bool "Enable detailed performance runs"
+  default y
+
 config PERF_REP
   int "Coarse performance testing repeatitions"
   default 3
 
-config PERF_DETAIL
-  bool "Enable detailed performance runs"
-  default y
+config PERF_COARSE_THREADS
+  string "Thread counts to use for coarse performance testing"
 
 endmenu
 
