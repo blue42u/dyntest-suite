@@ -19,7 +19,7 @@ detailed = forall(function(i)
     id = 'Perf (detailed)', threads = maxthreads,
     env = tbbpreload, tartrans = true,
     cmd = hpcrun..' -e REALTIME@100 -t -o @@%o %C',
-    output = 'measurements/%t.%i.tar', serialize = true, redirect = '/dev/null',
+    output = 'measurements/%t.%i.txz', serialize = true, redirect = '/dev/null',
   }
 end)
 end
@@ -55,7 +55,7 @@ forall(function(i)
       env = tbbpreload, tartrans = true,
       cmd = hpcrun..' -e REALTIME@2000 -t -o @@%o %C',
       redirect = '/dev/null',
-      output = 'measurements/%t.%i.'..r..'.t'..nt..'.tar', serialize = nt > 1,
+      output = 'measurements/%t.%i.'..r..'.t'..nt..'.txz', serialize = nt > 1,
     })
   end
   return table.unpack(outs)

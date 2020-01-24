@@ -38,7 +38,7 @@ RET=$?
 # Tar up all the output files. If any don't exist just don't output that file.
 for tmp in "${!OUTPUTS[@]}"; do
   if [ -e "$tmp" ]
-  then tar -cf "${OUTPUTS[$tmp]}" -C "$tmp" .
+  then tar -caf "${OUTPUTS[$tmp]}" -C "$tmp" .
   fi
 done
 

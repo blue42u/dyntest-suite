@@ -6,7 +6,7 @@ source ../init.sh https://tls.mbed.org/download/mbedtls-2.16.3-apache.tgz \
 
 mkdir zzzbuild zzz
 cmake -DENABLE_TESTING=Off -DCMAKE_INSTALL_PREFIX="`realpath zzz`" \
-  -S . -B zzzbuild -Wno-dev > /dev/null
+  -S . -B zzzbuild -Wno-dev -DCMAKE_C_FLAGS=-fPIC > /dev/null
 make -C zzzbuild --quiet > /dev/null
 make -C zzzbuild --quiet install > /dev/null
 
