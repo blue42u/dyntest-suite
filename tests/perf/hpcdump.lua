@@ -150,7 +150,7 @@ local function timepoint(dbpath, traces)
     for _=1,num_datums do
       local time,id = read 'i8 i4'  -- 8-byte integer + 4-byte integer
       if traces[id] then
-        table.insert(tps, time / 1000000)
+        table.insert(tps, time / 1000000000)
         table.insert(trs, traces[id])
       end
     end
