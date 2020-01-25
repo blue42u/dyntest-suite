@@ -63,7 +63,7 @@ local function trace(dbpath)
   -- Parse the XML and generate an (overly large) DOM table from it
   local f = assert(io.open(dbpath..'/experiment.xml'))
   local xml = f:read '*a'
-  xml = xml:match '<!.-]>(.+)'
+  xml = xml:match '<!.-]>(.+)' or xml
   local dom = require 'slaxdom':dom(xml)
   f:close()
 
@@ -99,7 +99,7 @@ end
 
 -- Next we process the timepoint data.
 local function timepoint(dbpath, traces)
-  local tps = {}
+  local tps,trs = {},{}
   local f = io.open(dbpath..'/experiment.mt', 'r')
   local function read(fmt, ...)
     if type(fmt) == 'string' then
@@ -150,13 +150,17 @@ local function timepoint(dbpath, traces)
     for _=1,num_datums do
       local time,id = read 'i8 i4'  -- 8-byte integer + 4-byte integer
       if traces[id] then
-        table.insert(tps, {time=time / 1000000, trace=traces[id]})
+        table.insert(tps, time / 1000000)
+        table.insert(trs, traces[id])
       end
     end
   end
 
   f:close()
-  return tps
+  return setmetatable({}, {__index=function(_,i)
+    if not tps[i] then return end
+    return {time=tps[i], trace=trs[i]}
+  end})
 end
 
 -- Function to find the timeranges (start and end of timepoints) that match a
@@ -182,6 +186,9 @@ local function range(tps, ...)
         else ok = false; break end
       end
     end
+
+    -- If we hit <partial call paths> within a range, call it a match.
+    if tp.trace[1] == '<partial call paths>' then ok = ok or matching end
 
     if ok then
       if matching then
