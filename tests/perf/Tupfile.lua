@@ -70,6 +70,7 @@ for _,f in ipairs(detailed) do
     {f:gsub('measurements/', 'detailed/'), serialpost()})
 end
 
+local stats = {}
 for _,x in ipairs(coarse) do
   local c,i,t,nt = x[1], x[2], x[3], x[4]
   local lats,tlats = {},{}
@@ -81,9 +82,21 @@ for _,x in ipairs(coarse) do
     table.insert(tlats, '@'..o)
   end
   lats.extra_inputs = {'../../external/lua/luaexec'}
+  local out = 'stats/'..(t.id..'.'..i.id..'.t'..nt..'.lua'):gsub('/','.')
   tup.rule(lats, '^o Dump %o^ '..env..'../../tartrans.sh ../../external/lua/luaexec '
-    ..'hpcdump.lua %o '..table.concat(tlats, ' '),
-    {'stats/'..(t.id..'.'..i.id..'.t'..nt..'.lua'):gsub('/','.'), serialpost()})
+    ..'hpcdump.lua %o '..table.concat(tlats, ' '), {out, serialpost()})
+  local id = t.id..'.'..i.id
+  stats[id] = stats[id] or {}
+  stats[id][nt] = out
+end
+for id,fs in pairs(stats) do
+  local ins = {extra_inputs={'../../external/lua/luaexec'}}
+  local tins = {}
+  for nt,f in pairs(fs) do ins[#ins+1],tins[#tins+1] = f, nt..':'..f end
+  table.sort(ins)
+  table.sort(tins)
+  tup.rule(ins, '^o Dumpcat %o^ '..env..'../../external/lua/luaexec '
+    ..'hpccat.lua %o '..table.concat(tins, ' '), {'stats/'..id..'.lua', serialpost()})
 end
 
 serialfinal()

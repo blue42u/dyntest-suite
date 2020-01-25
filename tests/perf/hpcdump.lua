@@ -3,7 +3,8 @@
 -- luacheck: std lua53
 
 -- Make sure we can access SLAXML from here
-package.path = '../../external/slaxml/?.lua;'..package.path
+package.path = '../../external/slaxml/?.lua;../../external/?.lua;'..package.path
+require 'serpent'
 
 -- Helper for walking around XML structures. Had it lying around.
 local xtrav
@@ -256,10 +257,13 @@ for _,stat in pairs(stats) do
 end
 
 -- Last, pop open the output file and cough out everything we gained here.
+--[[
 local ord = {}
 for k in pairs(stats) do table.insert(ord, k) end
 table.sort(ord)
+]]
 local f = io.open(outfn, 'w')
+--[[
 f:write 'return {\n'
 for _,k in ipairs(ord) do
   f:write('  '..k..' = {\n')
@@ -269,4 +273,6 @@ for _,k in ipairs(ord) do
   f:write '  },\n'
 end
 f:write '}\n'
+]]
+f:write(serpent.block(stats, {comment=false}))
 f:close()
