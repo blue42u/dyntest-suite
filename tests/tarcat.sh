@@ -8,14 +8,14 @@ trap 'rm -rf "$TMP"' EXIT
 TMP="`mktemp -d`"
 
 for f in "$@"; do
-  case "$f" in
-  *.tar)
-    mkdir -p "$TMP"/"`basename "$f" .tar`"
+  if [ "`(LD_PRELOAD= tar -taf "$f" | echo -n) 2>&1`" ]; then
+    cp "$f" "$TMP"
+  else
+    OUT="`basename "${f%.*}" .tar`"
+    mkdir -p "$TMP"/"$OUT"
     stat "$f" > /dev/null
-    LD_PRELOAD= tar -C "$TMP"/"`basename "$f" .tar`" -xf "$f"
-    ;;
-  *) cp "$f" "$TMP"
-  esac
+    LD_PRELOAD= tar -C "$TMP"/"$OUT" -xaf "$f"
+  fi
 done
 
 cd "$TMP"
