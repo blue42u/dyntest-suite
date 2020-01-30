@@ -13879,6 +13879,14 @@ FILES += install/lib/cmake/boost_timer-1.70.0/boost_timer-config.cmake
 FILES += install/lib/cmake/boost_timer-1.70.0/boost_timer-config-version.cmake
 FILES += install/lib/cmake/boost_timer-1.70.0/libboost_timer-variant-shared.cmake
 FILES += install/lib/cmake/boost_timer-1.70.0/libboost_timer-variant-static.cmake
+FILES += install/lib/cmake/boost_regex-1.70.0/boost_regex-config.cmake
+FILES += install/lib/cmake/boost_regex-1.70.0/boost_regex-config-version.cmake
+FILES += install/lib/cmake/boost_regex-1.70.0/libboost_regex-variant-shared.cmake
+FILES += install/lib/cmake/boost_regex-1.70.0/libboost_regex-variant-static.cmake
+FILES += install/lib/cmake/boost_graph-1.70.0/boost_graph-config.cmake
+FILES += install/lib/cmake/boost_graph-1.70.0/boost_graph-config-version.cmake
+FILES += install/lib/cmake/boost_graph-1.70.0/libboost_graph-variant-shared.cmake
+FILES += install/lib/cmake/boost_graph-1.70.0/libboost_graph-variant-static.cmake
 FILES += install/lib/libboost_atomic.a
 FILES += install/lib/libboost_atomic.so
 FILES += install/lib/libboost_atomic.so.1
@@ -13914,6 +13922,16 @@ FILES += install/lib/libboost_timer.so
 FILES += install/lib/libboost_timer.so.1
 FILES += install/lib/libboost_timer.so.1.70
 FILES += install/lib/libboost_timer.so.1.70.0
+FILES += install/lib/libboost_graph.a
+FILES += install/lib/libboost_graph.so
+FILES += install/lib/libboost_graph.so.1
+FILES += install/lib/libboost_graph.so.1.70
+FILES += install/lib/libboost_graph.so.1.70.0
+FILES += install/lib/libboost_regex.a
+FILES += install/lib/libboost_regex.so
+FILES += install/lib/libboost_regex.so.1
+FILES += install/lib/libboost_regex.so.1.70
+FILES += install/lib/libboost_regex.so.1.70.0
 
 include find.lua
 ifeq (y,$(BUILD_BOOST))

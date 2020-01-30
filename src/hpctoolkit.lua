@@ -1,5 +1,11 @@
 -- luacheck: std lua53, no global
 
+tup.include '../external/cuda/find.lua'
+local withcuda = externalProjects.cuda and [[
+  --with-cuda=@/external/cuda@
+  --with-cupti=@/external/cuda@
+]] or ''
+
 tup.include '../build/build.lua'
 function hpctoolkit(o)
   local r = {build {
@@ -22,7 +28,7 @@ function hpctoolkit(o)
       --with-elfutils=@]]..o.elfutils..[[@
       --with-dyninst=@]]..o.dyninst..[[@
       --disable-hpcrun-static
-    ]]..(o.cfg or ''),
+    ]]..withcuda..(o.cfg or ''),
   }}
   -- We also munge the paths in the scripts, use .../hpc*.real for best results.
   local ex = o.builddir:gsub('[^/]+', '..'):gsub('/?$', '/')..'external/'

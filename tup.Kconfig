@@ -25,6 +25,12 @@ config TMPDIR
   string "Path to a temporary directory for very large bits"
   ---help---
     Set to use a directory other than $TMPDIR for very large temporaries.
+config CUDA_ROOTDIR
+  string "Path to CUDA toolkit root"
+config CUDA_LIBDIR
+  string "Path to CUDA toolkit libdir for --rpath"
+  ---help---
+    Set if your CUDA setup is split apart a little.
 endmenu
 
 config MAX_THREADS

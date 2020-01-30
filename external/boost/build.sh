@@ -7,7 +7,7 @@ source ../init.sh \
 
 # Bootstrap (booststrap?) Boost
 ./bootstrap.sh --prefix="`realpath zzz`" \
-  --with-libraries=atomic,chrono,date_time,filesystem,system,thread,timer \
+  --with-libraries=atomic,chrono,date_time,filesystem,system,thread,timer,graph \
   > /dev/null
 
 # Build and install
