@@ -1385,9 +1385,12 @@ function translations.libtool(info)
       l = ltldflags[l] or {}
       table.move(l, 1,#l, #ltldflags[info.path], ltldflags[info.path])
     end
-    for w in bcmd:gmatch '%f[%S]%-[lL]%g+%f[%s\0]' do
-      table.insert(ltldflags[info.path], w) end
-    local lf = table.concat(ltldflags[info.path], ' ')
+    for w in bcmd:gmatch '%f[%S]%-%g+%f[%s\0]' do
+      if w:find '^%-[lL]' or w == '-pthread' then
+       table.insert(ltldflags[info.path], w)
+      end
+    end
+    local lf = table.concat(ltldflags[info.path], ' ')..' -pthread'
     if info.path:find '%.la$' then
       info.cmd = bcmd:gsub('%-o%s+(%g+)%.la', '-o %1.so')..' -shared '..lf
       info.path = origp:gsub('%.la$', '.so')

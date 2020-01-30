@@ -37,7 +37,7 @@ function hpctoolkit(o)
     -e "/^[[:space:]]*libunwind_dir/clibunwind_dir='`realpath ]=]..ex..[=[unwind/install/lib`'"
     -e "/^[[:space:]]*papi_libdir/cpapi_libdir='`realpath ]=]..ex..[=[papi/install/lib`'"
     -e "/^[[:space:]]*perfmon_libdir/cperfmon_libdir='`realpath ]=]..ex..[=[papi/install/lib`'"
-    -e "/^[[:space:]]*export HPCRUN_FN/s:/hpcfnbounds:\0-bin:"
+    -e "/HPCRUN_FNBOUNDS_CMD=/s:/hpcfnbounds:\0-bin:"
     -e "/^[[:space:]]*export LD_PRELOAD/iexport HPCTOOLKIT_EXT_LIBS_DIR='`realpath ]=]..ex..[=[dwarf/install/lib`'"
     -e "/^[[:space:]]*hash_value=/chash_value='no'"
     %f > %o && chmod +x %o]=]):gsub('\n%s*', ' '),
