@@ -1,9 +1,9 @@
 #!/bin/bash
 
 source ../init.sh \
-  https://dl.bintray.com/boostorg/release/1.70.0/source/boost_1_70_0.tar.bz2 \
-  430ae8354789de4fd19ee52f3b1f739e1fba576f0aded0897c3c2bc00fb38778 \
-  242ecc63507711d6706b9b0c0d0c7d4f
+  https://dl.bintray.com/boostorg/release/1.71.0/source/boost_1_71_0.tar.bz2 \
+  d73a8da01e8bf8c7eda40b4c84915071a8c8a0df4a6734537ddde4a8580524ee \
+  4cdf9b5c2dc01fb2b7b733d5af30e558
 
 # Bootstrap (booststrap?) Boost
 ./bootstrap.sh --prefix="`realpath zzz`" \
@@ -11,8 +11,7 @@ source ../init.sh \
   > /dev/null
 
 # Build and install
-./b2 --ignore-site-config --link=static --runtime-link=static --threading=multi\
-  > /dev/null
+./b2 --ignore-site-config --link=static --runtime-link=shared,static --threading=multi > /dev/null
 ./b2 install > /dev/null
 
 # Copy the outputs back home
