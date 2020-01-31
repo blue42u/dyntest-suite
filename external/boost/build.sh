@@ -1,9 +1,9 @@
 #!/bin/bash
 
 source ../init.sh \
-  https://dl.bintray.com/boostorg/release/1.71.0/source/boost_1_71_0.tar.bz2 \
-  d73a8da01e8bf8c7eda40b4c84915071a8c8a0df4a6734537ddde4a8580524ee \
-  4cdf9b5c2dc01fb2b7b733d5af30e558
+  https://dl.bintray.com/boostorg/release/1.72.0/source/boost_1_72_0.tar.bz2 \
+  59c9b274bc451cf91a9ba1dd2c7fdcaf5d60b1b3aa83f2c9fa143417cc660722 \
+  cb40943d2a2cb8ce08d42bc48b0f84f0
 
 # Bootstrap (booststrap?) Boost
 ./bootstrap.sh --prefix="`realpath zzz`" \
@@ -11,8 +11,8 @@ source ../init.sh \
   > /dev/null
 
 # Build and install
-./b2 visibility=global link=shared runtime-link=shared threading=multi \
-  install > /dev/null
+./b2 visibility=global link=static,shared runtime-link=shared threading=multi \
+  variant=release install #> /dev/null
 
 # Copy the outputs back home
 tupify cp -r zzz/* "$INSTALL"
