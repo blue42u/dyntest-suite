@@ -11,8 +11,9 @@ source ../init.sh \
   > /dev/null
 
 # Build and install
-./b2 --ignore-site-config --link=static --runtime-link=shared,static --threading=multi > /dev/null
-./b2 install > /dev/null
+./b2 visibility=global link=shared runtime-link=shared threading=multi \
+  install > /dev/null
 
 # Copy the outputs back home
 tupify cp -r zzz/* "$INSTALL"
+
