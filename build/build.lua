@@ -213,6 +213,7 @@ for f in opts.cfgflags:gmatch '%g+' do
   table.insert(cfgflags, f)
 end
 runpath = table.concat(runpath, ':')
+table.insert(ldflags, '-Wl,-rpath-link="'..runpath..'"')
 cxxflags = table.move(cxxflags,1,#cxxflags,
   #cppflags+1,table.move(cppflags,1,#cppflags,1,{}))
 transforms[realsrcdir] = srcdir
@@ -1196,9 +1197,6 @@ function translations.ld(info)  -- Linking command
     static = function() info.ldstatic = true end,
     l = function(x) table.insert(libs, 'lib'..x..'.so') end,
   })
-  for _,l in ipairs(libs) do for _,p in ipairs(searchpaths) do
-    if link(dir(p.path)..l) then break end
-  end end
   for i=#r.inputs+1,#info.deps do if not info.deps[i].external then
     table.insert(r.inputs.extra_inputs, info.deps[i].path)
     if info.deps[i].kind == 'ld' then link(info.deps[i].path)

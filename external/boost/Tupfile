@@ -14175,5 +14175,5 @@ FILES += install/lib/libboost_timer.so.1.72.0
 
 include find.lua
 ifeq (y,$(BUILD_BOOST))
-: |> ^o Built Boost^ $(ENV) ./build.sh |> $(FILES) <build>
+: | ../patchelf/<build> |> ^o Built Boost^ $(ENV) ./build.sh |> $(FILES) <build>
 endif

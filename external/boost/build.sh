@@ -11,8 +11,13 @@ source ../init.sh \
   > /dev/null
 
 # Build and install
-./b2 visibility=hidden link=shared runtime-link=shared threading=multi \
+./b2 visibility=global link=shared runtime-link=shared threading=multi \
   variant=release install > /dev/null
+
+# Fix internal boost links via RUNPATHing everything
+for f in zzz/lib/*.so; do
+  "$INSTALL"/../../patchelf/install/bin/patchelf --set-rpath '$ORIGIN' "$f"
+done
 
 # Copy the outputs back home
 tupify cp -r zzz/* "$INSTALL"
