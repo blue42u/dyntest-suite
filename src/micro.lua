@@ -19,9 +19,9 @@ function micro(o)
     ..':`realpath '..o.dyninst..l..'`'
 
   tup.rule({cwd..'/micro/micro-symtab.cpp', extra_inputs=ex},
-    '^o Compiled %o^ c++ '..cf..' -o %o %f '..lf..' -lsymtabAPI',
+    '^o Compiled %o^ c++ '..cf..' -o %o %f '..lf..' -lsymtabAPI -lboost_system',
     {'micro-symtab', '<build>'})
   tup.rule({cwd..'/micro/micro-parse.cpp', extra_inputs=ex},
-    '^o Compiled %o^ c++ '..cf..' -o %o %f '..lf..' -lparseAPI',
+    '^o Compiled %o^ c++ '..cf..' -o %o %f '..lf..' -lparseAPI -lboost_system',
     {'micro-parse', '<build>'})
 end

@@ -11,9 +11,8 @@ source ../init.sh \
   > /dev/null
 
 # Build and install
-./b2 visibility=global link=static,shared runtime-link=shared threading=multi \
-  variant=release install #> /dev/null
+./b2 visibility=hidden link=shared runtime-link=shared threading=multi \
+  variant=release install > /dev/null
 
 # Copy the outputs back home
 tupify cp -r zzz/* "$INSTALL"
-
