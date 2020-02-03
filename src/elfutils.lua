@@ -7,5 +7,6 @@ function elfutils(o) return build {
   cfgflags = [[
     --enable-maintainer-mode --enable-install-elfh
     --disable-debuginfod
+    --with-bzlib=no --with-lzma=no
   ]]..(o.cfg or ''),
 } end

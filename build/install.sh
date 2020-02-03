@@ -12,7 +12,7 @@ case "`stat -c%F "$1"`" in
   cp -d "$1" "$2"
   if [ -z "$3" ]; then exit 0; fi
   if readelf -d "$2" | grep -q 'There is no dynamic section'; then exit 0; fi
-  "$PATCHELF" --set-rpath "$("$PATCHELF" --print-rpath "$2"):$3" "$2"
+  "$PATCHELF" --set-rpath "$3:$("$PATCHELF" --print-rpath "$2")" "$2"
   ;;
 "symbolic link")
   touch "$2"

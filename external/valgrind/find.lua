@@ -6,8 +6,8 @@ externalProjects.valgrind = {}
 BUILD_VALGRIND = 'n'  -- Let's be hopeful
 local function useours()
   BUILD_VALGRIND = 'y'
-  VALGRIND_CMD = 'VALGRIND_LIB='..tup.getcwd()..'/install/lib/valgrind '
-    ..tup.getcwd()..'/install/bin/valgrind'
+  VALGRIND_ENV = 'VALGRIND_LIB='..tup.getcwd()..'/install/lib/valgrind'
+  VALGRIND_CMD = tup.getcwd()..'/install/bin/valgrind'
   VALGRIND_MS_PRINT = tup.getcwd()..'/install/bin/ms_print'
   externalProjects.valgrind = nil
 end
@@ -42,6 +42,7 @@ if not vM then
 end
 if tonumber(vM) < 3 then return useours() end
 if tonumber(vm) < 14 then return useours() end
+VALGRIND_ENV = ''
 VALGRIND_CMD = 'valgrind'
 
 -- Last, verify that ms_print is on the path. Because we need that too.
