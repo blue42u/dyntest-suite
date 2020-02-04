@@ -1379,18 +1379,36 @@ function translations.libtool(info)
   elseif mode == 'link' then
     assert(not ltldflags[info.path])
     ltldflags[info.path] = {}
-    for _,l in bcmd:gmatch '%g+%.l[oa]' do
-      l = ltldflags[l] or {}
-      table.move(l, 1,#l, #ltldflags[info.path], ltldflags[info.path])
-    end
-    for w in bcmd:gmatch '%f[%S]%-%g+%f[%s\0]' do
-      if w:find '^%-[lL]' or w == '-pthread' then
-       table.insert(ltldflags[info.path], w)
-      end
-    end
+    getopt(bcmd, 'o:std:W;g,O;shared,l:D:f:L:I:pthread,', {
+      [false]=function(x)
+        if x:find '%.l[oa]$' then
+          local l = ltldflags[x] or {}
+          table.move(l, 1,#l, #ltldflags[info.path], ltldflags[info.path])
+        end
+        if x:find '%.l?a$' then table.insert(ltldflags[info.path], x) end
+      end,
+      l=function(x,f) table.insert(ltldflags[info.path], f..x) end,
+      L=function(x,f) table.insert(ltldflags[info.path], f..x) end,
+      pthread=function(_,f) table.insert(ltldflags[info.path], f) end,
+    })
     local lf = table.concat(ltldflags[info.path], ' ')..' -pthread'
     if info.path:find '%.la$' then
-      info.cmd = bcmd:gsub('%-o%s+(%g+)%.la', '-o %1.so')..' -shared '..lf
+      info.cmd = {}
+      do
+        local las = {}
+        local lcmd = bcmd..' -shared '..lf
+        lcmd = getopt(lcmd, 'o:std:W;g,O;shared,l:D:f:L:I:pthread,', {
+          [true]=function(x) info.cmd[1] = x; return false end,
+          [false]=function(x)
+            table.insert(x:find '%.a$' and las or info.cmd, x)
+            return false
+          end,
+          o=function(x,f) return f..x:gsub('%.la$', '.so') end,
+        })
+        table.move(las, 1,#las, #info.cmd, info.cmd)
+        table.move(lcmd, 1,#lcmd, #info.cmd, info.cmd)
+      end
+      info.cmd = table.concat(info.cmd, ' ')
       info.path = origp:gsub('%.la$', '.so')
       info.ltso = info.path
       translations.ld(info)
