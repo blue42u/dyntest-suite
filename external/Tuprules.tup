@@ -1,5 +1,5 @@
 # Common Tupfile bits for externals
 
-ifdef TMPDIR
+ifneq (@(TMPDIR),)
   ENV = TMPDIR="@(TMPDIR)"
 endif
