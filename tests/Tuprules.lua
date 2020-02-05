@@ -69,7 +69,7 @@ add_test { id = 'hpcprof', size = 3, grouped = true, cfg = 'HPCPROF',
   inkind = 'trace',
   fnstem = 'hpctoolkit/install/bin/hpcprof.real',
   tartrans = true,
-  env = 'OMP_NUM_THREADS=%T', args = '-o @@%o @%f',
+  env = 'OMP_NUM_THREADS=%T', args = '--metric-db yes -o @@%o @%f',
   outclean = {
     inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
     command='tar xOf %f ./experiment.xml | '..cwd..'../external/lua/luaexec '
@@ -80,7 +80,7 @@ add_test { id = 'hpcprof-struct', size = 3, grouped = true, cfg = 'HPCPROF',
   inkind = 'trace',
   fnstem = 'hpctoolkit/install/bin/hpcprof.real',
   tartrans = true,
-  env = 'OMP_NUM_THREADS=%T', args = structs..' -o @@%o @%f',
+  env = 'OMP_NUM_THREADS=%T', args = structs..' --metric-db yes -o @@%o @%f',
   outclean = {
     inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
     command='tar xOf %f ./experiment.xml | '..cwd..'../external/lua/luaexec '
