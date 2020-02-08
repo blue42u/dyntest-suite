@@ -42,19 +42,36 @@ function hpctoolkit(o)
     -e "/^[[:space:]]*hash_value=/chash_value='no'"
     %f > %o && chmod +x %o]=]):gsub('\n%s*', ' '),
     {'install/bin/hpcrun.real', '<build>'})
+
+  -- Old-prof bits
   tup.rule('install/libexec/hpctoolkit/hpcprof-bin',
     '^o Linked %o^ ln -s ../libexec/hpctoolkit/hpcprof-bin %o',
     {'install/bin/hpcprof.real', '<build>'})
   tup.rule('install/libexec/hpctoolkit/hpcprof-mpi-bin',
     '^o Linked %o^ ln -s ../libexec/hpctoolkit/hpcprof-mpi-bin %o',
     {'install/bin/hpcprof-mpi.real', '<build>'})
+
+  -- New-prof bits
   if #tup.glob 'install/libexec/hpctoolkit/hpcprofmock-bin' ~= 0 then
   tup.rule('install/libexec/hpctoolkit/hpcprofmock-bin',
     '^o Linked %o^ ln -s ../libexec/hpctoolkit/hpcprofmock-bin %o',
     {'install/bin/hpcprofmock.real', '<build>'})
   end
+  if #tup.glob 'install/bin/hpcprof2' == 0 then
+  tup.rule('install/libexec/hpctoolkit/hpcprof-bin',
+    '^o Linked %o^ ln -s ../libexec/hpctoolkit/hpcprof-bin %o',
+    {'install/bin/hpcprof2', '<build>'})
+  end
+  if #tup.glob 'install/bin/hpcprof2-mpi' == 0 then
+  tup.rule('install/libexec/hpctoolkit/hpcprof-mpi-bin',
+    '^o Linked %o^ ln -s ../libexec/hpctoolkit/hpcprof-mpi-bin %o',
+    {'install/bin/hpcprof2-mpi', '<build>'})
+  end
+
+  -- Struct bits
   tup.rule('install/libexec/hpctoolkit/hpcstruct-bin',
     '^o Linked %o^ ln -s ../libexec/hpctoolkit/hpcstruct-bin %o',
     {'install/bin/hpcstruct.real', '<build>'})
+
   return table.unpack(r)
 end
