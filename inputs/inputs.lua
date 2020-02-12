@@ -73,8 +73,12 @@ for _,s in ipairs{'1', '2', '3', 'huge'} do
     local id = f:match '[^/]+$'
     if id ~= '.gitignore' then
       local k
-      if subp.testexec('readelf -h inputs/'..s..'/'..id) then k = 'binary'
-      elseif subp.testexec('tar --test-label -af inputs/'..s..'/'..id) then k = 'trace'
+      if subp.stestexec{
+        {'readelf', '-h', 'inputs/'..s..'/'..id, reerr = false, reout = false}
+      } then k = 'binary'
+      elseif subp.stestexec{
+        {'tar', '--test-label', '-af', 'inputs/'..s..'/'..id, reerr=false, reout=false}
+      } then k = 'trace'
       else error('Unable to determine kind for inputs/'..s..'/'..id) end
       add_inputs{{id = id, fullfn = f, size = sz, kind = k}}
     end
