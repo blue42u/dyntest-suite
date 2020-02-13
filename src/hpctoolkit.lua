@@ -43,7 +43,7 @@ function hpctoolkit(o)
     %f > %o && chmod +x %o]=]):gsub('\n%s*', ' '),
     {'install/bin/hpcrun.real', '<build>'})
 
-  -- Old-prof bits
+  -- Use hpcprof.real for hpcprof, to make things work better.
   tup.rule('install/libexec/hpctoolkit/hpcprof-bin',
     '^o Linked %o^ ln -s ../libexec/hpctoolkit/hpcprof-bin %o',
     {'install/bin/hpcprof.real', '<build>'})
@@ -51,21 +51,11 @@ function hpctoolkit(o)
     '^o Linked %o^ ln -s ../libexec/hpctoolkit/hpcprof-mpi-bin %o',
     {'install/bin/hpcprof-mpi.real', '<build>'})
 
-  -- New-prof bits
+  -- Add access to hpcprofmock when available (not that is has been, but yeah).
   if #tup.glob 'install/libexec/hpctoolkit/hpcprofmock-bin' ~= 0 then
   tup.rule('install/libexec/hpctoolkit/hpcprofmock-bin',
     '^o Linked %o^ ln -s ../libexec/hpctoolkit/hpcprofmock-bin %o',
     {'install/bin/hpcprofmock.real', '<build>'})
-  end
-  if #tup.glob 'install/bin/hpcprof2' == 0 then
-  tup.rule('install/libexec/hpctoolkit/hpcprof-bin',
-    '^o Linked %o^ ln -s ../libexec/hpctoolkit/hpcprof-bin %o',
-    {'install/bin/hpcprof2', '<build>'})
-  end
-  if #tup.glob 'install/bin/hpcprof2-mpi' == 0 then
-  tup.rule('install/libexec/hpctoolkit/hpcprof-mpi-bin',
-    '^o Linked %o^ ln -s ../libexec/hpctoolkit/hpcprof-mpi-bin %o',
-    {'install/bin/hpcprof2-mpi', '<build>'})
   end
 
   -- Struct bits

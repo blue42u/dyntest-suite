@@ -21,6 +21,7 @@ include_rules
 : ../../latest/dyninst/<build> |> !struct ../../latest/elfutils/install/lib/libelf-0.178.so |> libelf-0.178.so.struct <out>
 : ../../latest/hpctoolkit/<build> |> !struct ../../latest/hpctoolkit/install/libexec/hpctoolkit/hpcstruct-bin |> hpcstruct-bin.struct <out>
 : ../../latest/hpctoolkit/<build> |> !struct ../../latest/hpctoolkit/install/libexec/hpctoolkit/hpcprof-bin |> hpcprof-bin.struct <out>
+: ../../latest/hpctoolkit/<build> |> !struct ../../latest/hpctoolkit/install/bin/hpcprof2 |> hpcprof2.struct <out>
 # : ../../latest/hpctoolkit/<build> |> !struct ../../latest/hpctoolkit/install/libexec/hpctoolkit/hpcprofmock-bin |> hpcprofmock-bin.struct <out>
 : ../../reference/hpctoolkit/<build> |> !struct ../../reference/hpctoolkit/install/lib/hpctoolkit/libhpcrun.so |> libhpcrun.so.struct <out>
 : ../../inputs/<bin> |> !struct ../../inputs/src/fib |> fib.struct <out>

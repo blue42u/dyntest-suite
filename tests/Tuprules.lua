@@ -19,12 +19,16 @@ tup.include '../inputs/inputs.lua'
 tests = {}
 local function add_test(base)
   if base.fnstem then
+    base.fnstems = {[false]=base.fnstem, ann=base.fnstem, ref=base.fnstem}
+    base.fnstem = nil
+  end
+  if base.fnstems then
     local pre = ''
     if base.mpirun then pre = '`pwd`/' end
     base.modes = {
-      [false] = pre..cwd..'../latest/'..base.fnstem,
-      ann = pre..cwd..'../annotated/'..base.fnstem,
-      ref = pre..cwd..'../reference/'..base.fnstem,
+      [false] = pre..cwd..'../latest/'..assert(base.fnstems[false]),
+      ann = pre..cwd..'../annotated/'..assert(base.fnstems.ann),
+      ref = pre..cwd..'../reference/'..assert(base.fnstems.ref),
     }
     if base.nofn then
       for _,k in ipairs(base.nofn) do base.modes[k] = nil end
@@ -37,6 +41,9 @@ local function add_test(base)
     if base.cfg:find '^!' then default,base.cfg = false, base.cfg:sub(2) end
     if not enabled('TEST_'..base.cfg, default) then return end
     base.cfg = nil
+  end
+  if type(base.args) == 'string' then
+    base.args = {[false] = base.args, ann = base.args, ref = base.args}
   end
   table.insert(tests, base)
 end
@@ -67,9 +74,15 @@ add_test { id = 'micro-parse', size = 1, grouped = true, cfg = '!MICRO',
 }
 add_test { id = 'hpcprof2', size = 3, grouped = true, cfg = 'HPCPROF',
   inkind = 'trace',
-  fnstem = 'hpctoolkit/install/bin/hpcprof2',
-  tartrans = true,
-  env = 'OMP_NUM_THREADS=%T', args = '--metric-db yes -o @@%o @%f',
+  fnstems = {
+    [false]='hpctoolkit/install/bin/hpcprof2',
+    ann='hpctoolkit/install/bin/hpcprof2',
+    ref='hpctoolkit/install/bin/hpcprof.real',
+  }, tartrans = true, args = {
+    [false]='-j%T -o @@%o @%f',
+    ann='-j%T -o @@%o @%f',
+    ref='--metric-db yes -o @@%o @%f',
+  },
   outclean = {
     inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
     command='tar xOf %f ./experiment.xml | '..cwd..'../external/lua/luaexec '
@@ -78,9 +91,15 @@ add_test { id = 'hpcprof2', size = 3, grouped = true, cfg = 'HPCPROF',
 }
 add_test { id = 'hpcprof2-struct', size = 3, grouped = true, cfg = 'HPCPROF',
   inkind = 'trace',
-  fnstem = 'hpctoolkit/install/bin/hpcprof2',
-  tartrans = true,
-  env = 'OMP_NUM_THREADS=%T', args = structs..' --metric-db yes -o @@%o @%f',
+  fnstems = {
+    [false]='hpctoolkit/install/bin/hpcprof2',
+    ann='hpctoolkit/install/bin/hpcprof2',
+    ref='hpctoolkit/install/bin/hpcprof.real',
+  }, tartrans = true, args = {
+    [false]=structs..' -j%T -o @@%o @%f',
+    ann=structs..' -j%T -o @@%o @%f',
+    ref=structs..' --metric-db yes -o @@%o @%f',
+  },
   outclean = {
     inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
     command='tar xOf %f ./experiment.xml | '..cwd..'../external/lua/luaexec '
@@ -95,9 +114,15 @@ add_test { id = 'hpcprofmock', size = 1, grouped = true, cfg = '!HPCPROFMOCK',
 }
 add_test { id = 'hpcprof2-mpi', size = 3, grouped = true, cfg = 'HPCPROF_MPI',
   inkind = 'trace',
-  fnstem = 'hpctoolkit/install/bin/hpcprof2-mpi',
-  mpirun = true, tartrans = true,
-  env = 'OMP_NUM_THREADS=%T', args = '-o @@%o @%f',
+  fnstems = {
+    [false]='hpctoolkit/install/bin/hpcprof2-mpi',
+    ann='hpctoolkit/install/bin/hpcprof2-mpi',
+    ref='hpctoolkit/install/bin/hpcprof-mpi.real',
+  }, mpirun=true, tartrans = true, args = {
+    [false]='-j%T -o @@%o @%f',
+    ann='-j%T -o @@%o @%f',
+    ref='--metric-db yes -o @@%o @%f',
+  },
   outclean = {
     inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
     command='tar xOf %f ./experiment.xml | '..cwd..'../external/lua/luaexec '
@@ -106,9 +131,15 @@ add_test { id = 'hpcprof2-mpi', size = 3, grouped = true, cfg = 'HPCPROF_MPI',
 }
 add_test { id = 'hpcprof2-mpi-struct', size = 3, grouped = true, cfg = 'HPCPROF_MPI',
   inkind = 'trace',
-  fnstem = 'hpctoolkit/install/bin/hpcprof2-mpi',
-  mpirun = true, tartrans = true,
-  env = 'OMP_NUM_THREADS=%T', args = structs..' -o @@%o @%f',
+  fnstems = {
+    [false]='hpctoolkit/install/bin/hpcprof2-mpi',
+    ann='hpctoolkit/install/bin/hpcprof2-mpi',
+    ref='hpctoolkit/install/bin/hpcprof-mpi.real',
+  }, miprun=true, tartrans = true, args = {
+    [false]=structs..' -j%T -o @@%o @%f',
+    ann=structs..' -j%T -o @@%o @%f',
+    ref=structs..' --metric-db yes -o @@%o @%f',
+  },
   outclean = {
     inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
     command='tar xOf %f ./experiment.xml | '..cwd..'../external/lua/luaexec '
@@ -179,7 +210,7 @@ function forall(harness, post)
         env = 'TMPDIR="'..tup.getconfig 'TMPDIR'..'" '..env
         table.insert(outs, '^^'..subp.lexec('realpath "'..tup.getconfig 'TMPDIR'..'"'))
       end
-      local args = (t.args or ''):gsub('%%(.)', repl)
+      local args = assert(t.args[h.mode or false]):gsub('%%(.)', repl)
       if h.redirect then args = args:gsub('%%o', h.redirect) end
       if not t.grouped then table.insert(ins.extra_inputs, tfn) end
 

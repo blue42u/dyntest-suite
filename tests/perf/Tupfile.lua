@@ -5,6 +5,7 @@ sclass = 2
 local tbblib = '../../external/tbb/install/lib/'
 local tbbpreload = 'LD_LIBRARY_PATH='..tbblib
   ..' LD_PRELOAD="$LD_PRELOAD":'..tbblib..'libtbbmalloc_proxy.so '
+tbbpreload = ''
 local hpcrun = '../../reference/hpctoolkit/install/bin/hpcrun.real'
 local env = ''
 if tup.getconfig 'TMPDIR' ~= '' then
