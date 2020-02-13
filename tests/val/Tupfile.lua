@@ -18,6 +18,7 @@ local function szclass(name, sz)
     sz = assert(math.tointeger(cfg), 'Configuration option VAL_'
       ..name..' must be a valid integer!')
   end
+  if sz == -1 then sz = math.huge end
   return sz
 end
 

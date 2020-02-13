@@ -67,27 +67,27 @@ menu "Valgrind-specific test settings"
 
 config VAL_MC
   int "Maximum size-class for Memcheck"
-  range 0 3
+  range -1 3
   default 2
 
 config VAL_HEL
   int "Maximum size-class for Helgrind"
-  range 0 3
+  range -1 3
   default 1
 
 config VAL_DRD
   int "Maximum size-class for DRD"
-  range 0 3
+  range -1 3
   default 0
 
 config VAL_MASSIF
   int "Maximum size-class for Massif"
-  range 0 3
+  range -1 3
   default 0
 
 config VAL_CALLGRIND
   int "Maximum size-class for Callgrind"
-  range 0 3
+  range -1 3
   default 0
 
 endmenu
