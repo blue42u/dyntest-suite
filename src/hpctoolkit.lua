@@ -6,6 +6,11 @@ local withcuda = externalProjects.cuda and [[
   --with-cupti=@/external/cuda@
 ]] or ''
 
+local slowlibc = ''
+if tup.getconfig 'SLOW_LIBC' == 'y' then
+  slowlibc = ' CPPFLAGS=-DHPCTOOLKIT_SLOW_LIBC '
+end
+
 tup.include '../build/build.lua'
 function hpctoolkit(o)
   local r = {build {
@@ -28,7 +33,7 @@ function hpctoolkit(o)
       --with-elfutils=@]]..o.elfutils..[[@
       --with-dyninst=@]]..o.dyninst..[[@
       --disable-hpcrun-static
-    ]]..withcuda..(o.cfg or ''),
+    ]]..withcuda..slowlibc..(o.cfg or ''),
   }}
   -- We also munge the paths in the scripts, use .../hpc*.real for best results.
   local ex = o.builddir:gsub('[^/]+', '..'):gsub('/?$', '/')..'external/'

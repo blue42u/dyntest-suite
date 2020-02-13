@@ -31,6 +31,8 @@ config CUDA_LIBDIR
   string "Path to CUDA toolkit libdir for --rpath"
   ---help---
     Set if your CUDA setup is split apart a little.
+config SLOW_LIBC
+  bool "Treat glibc as slow."
 endmenu
 
 config MAX_THREADS
