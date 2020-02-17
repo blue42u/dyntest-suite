@@ -213,7 +213,6 @@ for f in opts.cfgflags:gmatch '%g+' do
   table.insert(cfgflags, f)
 end
 runpath = table.concat(runpath, ':')
-table.insert(ldflags, '-Wl,-rpath-link="'..runpath..'"')
 cxxflags = table.move(cxxflags,1,#cxxflags,
   #cppflags+1,table.move(cppflags,1,#cppflags,1,{}))
 transforms[realsrcdir] = srcdir
@@ -1153,7 +1152,7 @@ function translations.ld(info)  -- Linking command
   local elibs = {}
   local function link(f)
     local e = extrald[f]
-    if e then table.move(e, 1,#e, #elibs, elibs) end
+    if e then table.move(e, 1,#e, #elibs+1, elibs) end
     return not not e
   end
 
@@ -1383,7 +1382,7 @@ function translations.libtool(info)
       [false]=function(x)
         if x:find '%.l[oa]$' then
           local l = ltldflags[x] or {}
-          table.move(l, 1,#l, #ltldflags[info.path], ltldflags[info.path])
+          table.move(l, 1,#l, #ltldflags[info.path]+1, ltldflags[info.path])
         end
         if x:find '%.l?a$' then table.insert(ltldflags[info.path], x) end
       end,
@@ -1391,12 +1390,12 @@ function translations.libtool(info)
       L=function(x,f) table.insert(ltldflags[info.path], f..x) end,
       pthread=function(_,f) table.insert(ltldflags[info.path], f) end,
     })
-    local lf = table.concat(ltldflags[info.path], ' ')..' -pthread'
+    local lf = table.concat(ltldflags[info.path], ' ')
     if info.path:find '%.la$' then
       info.cmd = {}
       do
         local las = {}
-        local lcmd = bcmd..' -shared '..lf
+        local lcmd = bcmd..' '..lf
         lcmd = getopt(lcmd, 'o:std:W;g,O;shared,l:D:f:L:I:pthread,', {
           [true]=function(x) info.cmd[1] = x; return false end,
           [false]=function(x)
@@ -1405,10 +1404,11 @@ function translations.libtool(info)
           end,
           o=function(x,f) return f..x:gsub('%.la$', '.so') end,
         })
-        table.move(las, 1,#las, #info.cmd, info.cmd)
-        table.move(lcmd, 1,#lcmd, #info.cmd, info.cmd)
+        table.move(las, 1,#las, #info.cmd+1, info.cmd)
+        table.move(lcmd, 1,#lcmd, #info.cmd+1, info.cmd)
       end
       info.cmd = table.concat(info.cmd, ' ')
+      info.ldcmd = info.cmd
       info.path = origp:gsub('%.la$', '.so')
       info.ltso = info.path
       translations.ld(info)
