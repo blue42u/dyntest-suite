@@ -1366,12 +1366,18 @@ function translations.libtool(info)
   if mode == 'compile' then
     assert(not ltldflags[info.path])
     ltldflags[info.path] = {}
-    for w in bcmd:gmatch '%f[%S]%-[lL]%g+%f[%s\0]' do
-      table.insert(ltldflags[info.path], w) end
-    info.cmd = bcmd:gsub('%-o%s+(%g+)%.lo', '-o %1.o')
+    bcmd = table.concat(getopt(bcmd, 'o:std:W;w,g,O;shared,l:D:f:L:I:pthread,c,', {
+      l=function(x,f) table.insert(ltldflags[info.path], f..x); return false end,
+      L=function(x,f) table.insert(ltldflags[info.path], f..x); return false end,
+      pthread=function(_,f) table.insert(ltldflags[info.path], f) end,
+      o=function(x)
+        if x:find '%.lo$' then return '?',(x:gsub('%.lo$', '.@!!@')) end
+      end,
+    }), ' ')
+    info.cmd = bcmd:gsub('@!!@', 'o')
     info.path = origp:gsub('%.lo$', '.o')
     translations.compile(info)
-    info.cmd = bcmd:gsub('%-o%s+(%g+)%.lo', '-o %1.os')..' -fPIC -DPIC'
+    info.cmd = bcmd:gsub('@!!@', 'os')..' -fPIC -DPIC'
     info.path = origp:gsub('%.lo$', '.os')
     translations.compile(info)
     info.ltmode = 'compile'
@@ -1395,14 +1401,14 @@ function translations.libtool(info)
       info.cmd = {}
       do
         local las = {}
-        local lcmd = bcmd..' '..lf
+        local lcmd = bcmd..' -shared '..lf..' -pthread'
         lcmd = getopt(lcmd, 'o:std:W;g,O;shared,l:D:f:L:I:pthread,', {
           [true]=function(x) info.cmd[1] = x; return false end,
           [false]=function(x)
             table.insert(x:find '%.a$' and las or info.cmd, x)
             return false
           end,
-          o=function(x,f) return f..x:gsub('%.la$', '.so') end,
+          o=function(x) return '?',(x:gsub('%.la$', '.so')) end,
         })
         table.move(las, 1,#las, #info.cmd+1, info.cmd)
         table.move(lcmd, 1,#lcmd, #info.cmd+1, info.cmd)
@@ -1425,7 +1431,7 @@ function translations.libtool(info)
       translations.ar(info)
       info.ltmode = 'link'
     else
-      info.cmd = bcmd..' '..lf
+      info.cmd = bcmd..' '..lf..' -pthread'
       info.ltso = info.path
       translations.ld(info)
       info.ltmode = 'link'
