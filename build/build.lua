@@ -1074,10 +1074,11 @@ function translations.ar(info)  -- Archive (static library) command
     ..(info.thin and 'T' or '')..'cr %o %f'
   local function pmatch(p)
     for _,a in ipairs(info.deps) do
-      if a.original == p then return a.path
+      if a.original == p then return info.static and a.ltstatic or a.path
       elseif a.path == p then return p end
     end
-    return make(path(p, info.cwd), info.ruleset).path
+    local a = make(path(p, info.cwd), info.ruleset)
+    return info.static and a.ltstatic or a.path
   end
   local cnt = 0
   for w in info.cmd:gmatch '%g+' do
@@ -1108,7 +1109,7 @@ function translations.compile(info)  -- Compilation command
   end
   local r = {inputs={extra_inputs={'<_gen>'}}, outputs={}}
   r.command = '^o CC %o^ '..cd..subp.shell(getopt(info.cmd,
-    'D:I:std:W;w,f:g,O;c,o:l:pthread,m:no-pie,pie,', {
+    'D:I:std:W;w,f:g,O;c,o:pthread,m:no-pie,pie,', {
     [true] = function(cc)
       if cc:find '%+%+' then return cc,table.unpack(cxxflags)
       else return cc,table.unpack(cppflags) end
@@ -1140,11 +1141,11 @@ local extrald = {}
 function translations.ld(info)  -- Linking command
   local function pmatch(p)
     for _,a in ipairs(info.deps) do
-      if a.original == p then return a.path
+      if a.original == p then return info.static and a.ltstatic or a.path
       elseif a.path == p then return p end
     end
     p = make(path(p, info.cwd), info.ruleset)
-    return p.path, p.external
+    return info.static and p.ltstatic or p.path, p.external
   end
   local r = {inputs={extra_inputs={}}, outputs={extra_outputs={}}}
   local searchpaths,libs = {},{}
@@ -1376,6 +1377,7 @@ function translations.libtool(info)
     }), ' ')
     info.cmd = bcmd:gsub('@!!@', 'o')
     info.path = origp:gsub('%.lo$', '.o')
+    info.ltstatic = info.path
     translations.compile(info)
     info.cmd = bcmd:gsub('@!!@', 'os')..' -fPIC -DPIC'
     info.path = origp:gsub('%.lo$', '.os')
@@ -1384,7 +1386,7 @@ function translations.libtool(info)
   elseif mode == 'link' then
     assert(not ltldflags[info.path])
     ltldflags[info.path] = {}
-    getopt(bcmd, 'o:std:W;g,O;shared,l:D:f:L:I:pthread,', {
+    getopt(bcmd, 'o:std:W;g,O;shared,static,l:D:f:L:I:pthread,', {
       [false]=function(x)
         if x:find '%.l[oa]$' then
           local l = ltldflags[x] or {}
@@ -1398,6 +1400,7 @@ function translations.libtool(info)
     })
     local lf = table.concat(ltldflags[info.path], ' ')
     if info.path:find '%.la$' then
+      -- Normal link to shared object
       info.cmd = {}
       do
         local las = {}
@@ -1414,25 +1417,36 @@ function translations.libtool(info)
         table.move(lcmd, 1,#lcmd, #info.cmd+1, info.cmd)
       end
       info.cmd = table.concat(info.cmd, ' ')
-      info.ldcmd = info.cmd
       info.path = origp:gsub('%.la$', '.so')
-      info.ltso = info.path
       translations.ld(info)
-      info.cmd = {}
+      info.ltso = info.path
+      -- Common bits for ar
+      local arcmd = {}
       getopt(bcmd, 'o:std:W;g,O;shared,l:D:f:L:I:', {
         [false]=function(x)
-          if not x:find '%.a$' then table.insert(info.cmd, x) end
+          if not x:find '%.a$' then table.insert(arcmd, x) end
         end,
       })
-      info.cmd = 'ar cr output.a '..table.concat(info.cmd, ' ')
+      arcmd = table.concat(arcmd, ' ')
       info.ranlib,info.thin = true,true
+      -- Static library, without PIC support
+      info.cmd = 'ar cr output.a '..arcmd
       info.path = origp:gsub('%.la$', '.a')
-      info.ltar = info.path
+      info.static = true
       translations.ar(info)
+      info.ltstatic = info.path
+      -- Static library, with PIC support
+      info.cmd = 'ar cr output.as '..arcmd
+      info.path = origp:gsub('%.la$', '.as')
+      info.static = nil
+      translations.ar(info)
+      info.ltar = info.path
       info.ltmode = 'link'
     else
+      -- Link to executable, usually
       info.cmd = bcmd..' '..lf..' -pthread'
       info.ltso = info.path
+      info.static = true
       translations.ld(info)
       info.ltmode = 'link'
     end
