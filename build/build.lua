@@ -1174,7 +1174,7 @@ function translations.ld(info)  -- Linking command
     end,
     W = function(x)
       if x:find '^l,' then
-        return '?',(x:gsub(',%-%-?rpath[^,]*,([^,]*)', function(ps)
+        return '?',(x:gsub(',%-%-?rpath[^,=]*[,=]([^,]*)', function(ps)
           return ',-rpath-link,'..ps:gsub('[^;:]+', function(p)
             p = path(p, info.cwd)
             p = dir(p.path or p.absolute)
