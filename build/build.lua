@@ -1148,7 +1148,7 @@ function translations.ld(info)  -- Linking command
     return info.static and p.ltstatic or p.path, p.external
   end
   local r = {inputs={extra_inputs={}}, outputs={extra_outputs={}}}
-  local searchpaths,libs = {},{}
+  local libs = {}
 
   local elibs = {}
   local function link(f)
@@ -1177,7 +1177,6 @@ function translations.ld(info)  -- Linking command
         return '?',(x:gsub(',%-%-?rpath[^,]*,([^,]*)', function(ps)
           return ',-rpath-link,'..ps:gsub('[^;:]+', function(p)
             p = path(p, info.cwd)
-            if p.build then table.insert(searchpaths, p) end
             p = dir(p.path or p.absolute)
             if p:find '^install/' then return '' end
             return p
@@ -1189,7 +1188,6 @@ function translations.ld(info)  -- Linking command
     end,
     L = function(p)
       p = path(p, info.cwd)
-      if p.build then table.insert(searchpaths, p) end
       return '?',p.path and #p.path == 0 and '.' or p.path or p.absolute
     end,
     D = function(x) return '?',(x:gsub(unmagic(tmpdir), '')) end,
@@ -1386,7 +1384,7 @@ function translations.libtool(info)
   elseif mode == 'link' then
     assert(not ltldflags[info.path])
     ltldflags[info.path] = {}
-    getopt(bcmd, 'o:std:W;g,O;shared,static,l:D:f:L:I:pthread,', {
+    getopt(bcmd, 'o:std:W;g,O;shared,static,l:D:f:L:I:pthread,pie,no-pie,', {
       [false]=function(x)
         if x:find '%.l[oa]$' then
           local l = ltldflags[x] or {}
@@ -1405,7 +1403,7 @@ function translations.libtool(info)
       do
         local las = {}
         local lcmd = bcmd..' -shared '..lf..' -pthread'
-        lcmd = getopt(lcmd, 'o:std:W;g,O;shared,l:D:f:L:I:pthread,', {
+        lcmd = getopt(lcmd, 'o:std:W;g,O;shared,l:D:f:L:I:pthread,pie,no-pie,', {
           [true]=function(x) info.cmd[1] = x; return false end,
           [false]=function(x)
             table.insert(x:find '%.a$' and las or info.cmd, x)
@@ -1422,7 +1420,7 @@ function translations.libtool(info)
       info.ltso = info.path
       -- Common bits for ar
       local arcmd = {}
-      getopt(bcmd, 'o:std:W;g,O;shared,l:D:f:L:I:', {
+      getopt(bcmd, 'o:std:W;g,O;shared,l:D:f:L:I:pie,no-pie,', {
         [false]=function(x)
           if not x:find '%.a$' then table.insert(arcmd, x) end
         end,

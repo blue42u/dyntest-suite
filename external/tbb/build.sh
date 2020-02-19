@@ -10,15 +10,19 @@ make -srf build/Makefile.tbbmalloc tbb_root="$TMP" cfg=release malloc
 make -srf build/Makefile.tbbproxy tbb_root="$TMP" cfg=release tbbproxy
 make -srf build/Makefile.tbb tbb_root="$TMP" cfg=preview tbb_cpf=1
 
-# Construct the RPATH for the files. Makes preloading easier.
-RP="`realpath "$INSTALL"/lib`"
-IS="$INSTALL"/../../../build/install.sh
-
 # Copy out the built .so's first
-tupify "$IS" "$TMP"/libtbb.so.2 "$INSTALL"/lib/libtbb.so.2 "$RP"
-tupify "$IS" "$TMP"/libtbbmalloc.so.2 "$INSTALL"/lib/libtbbmalloc.so.2 "$RP"
-tupify "$IS" "$TMP"/libtbbmalloc_proxy.so.2 "$INSTALL"/lib/libtbbmalloc_proxy.so.2 "$RP"
-tupify "$IS" "$TMP"/libtbb_preview.so.2 "$INSTALL"/lib/libtbb_preview.so.2 "$RP"
+tupify cp "$TMP"/libtbb.so.2 "$INSTALL"/lib/libtbb.so.2
+tupify cp "$TMP"/libtbbmalloc.so.2 "$INSTALL"/lib/libtbbmalloc.so.2
+tupify cp "$TMP"/libtbbmalloc_proxy.so.2 "$INSTALL"/lib/libtbbmalloc_proxy.so.2
+tupify cp "$TMP"/libtbb_preview.so.2 "$INSTALL"/lib/libtbb_preview.so.2
+
+# Stitch in the RUNPATH. Makes preloading easier.
+RP="`realpath "$INSTALL"/lib`"
+PE="$INSTALL"/../../patchelf/install/bin/patchelf
+tupify "$PE" --set-rpath "$RP" "$INSTALL"/lib/libtbb.so.2
+tupify "$PE" --set-rpath "$RP" "$INSTALL"/lib/libtbbmalloc.so.2
+tupify "$PE" --set-rpath "$RP" "$INSTALL"/lib/libtbbmalloc_proxy.so.2
+tupify "$PE" --set-rpath "$RP" "$INSTALL"/lib/libtbb_preview.so.2
 
 # Copy out the headers next
 tupify cp -r "$TMP"/include/tbb "$INSTALL"/include
