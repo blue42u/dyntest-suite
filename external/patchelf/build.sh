@@ -5,6 +5,9 @@ source ../init.sh \
   f670cd462ac7161588c28f45349bc20fb9bd842805e3f71387a320e7a9ddfcf3 \
   6c3f3a06a95705870d129494a6880106
 
+# Apply a patch from the Debian peeps, to fix a very subtle bug
+patch -p1 < "$INSTALL"/../debian.patch > /dev/null
+
 # The usual configure-make-install
 ./configure --prefix="`realpath zzz`" --quiet > /dev/null
 make --quiet > /dev/null
