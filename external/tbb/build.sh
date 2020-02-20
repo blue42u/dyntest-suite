@@ -19,10 +19,11 @@ tupify cp "$TMP"/libtbb_preview.so.2 "$INSTALL"/lib/libtbb_preview.so.2
 # Stitch in the RUNPATH. Makes preloading easier.
 RP="`realpath "$INSTALL"/lib`"
 PE="$INSTALL"/../../patchelf/install/bin/patchelf
-tupify "$PE" --set-rpath "$RP" "$INSTALL"/lib/libtbb.so.2
-tupify "$PE" --set-rpath "$RP" "$INSTALL"/lib/libtbbmalloc.so.2
-tupify "$PE" --set-rpath "$RP" "$INSTALL"/lib/libtbbmalloc_proxy.so.2
-tupify "$PE" --set-rpath "$RP" "$INSTALL"/lib/libtbb_preview.so.2
+rpath() { tupify "$PE" --set-rpath "$RP:$("$PE" --print-rpath "$1")" "$1"; }
+rpath "$INSTALL"/lib/libtbb.so.2
+rpath "$INSTALL"/lib/libtbbmalloc.so.2
+rpath "$INSTALL"/lib/libtbbmalloc_proxy.so.2
+rpath "$INSTALL"/lib/libtbb_preview.so.2
 
 # Copy out the headers next
 tupify cp -r "$TMP"/include/tbb "$INSTALL"/include
