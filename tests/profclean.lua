@@ -190,9 +190,9 @@ local function cctupdate(tag)
       asub(sub, 'lm', trans.module)
       asub(sub, 'f', trans.file)
       asub(sub, 'i', 'Cx')
-      asub(sub, 's', 's')
+      asub(sub, 's', function(x) return trans.procedure[x] or 's' end)
       asub(sub, 'it', 'Cx')
-      -- asub(sub, 'l', 'lineno')
+      asub(sub, 'l', 'lineno')
       cctupdate(sub)
     end
   end
