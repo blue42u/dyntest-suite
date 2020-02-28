@@ -1,8 +1,8 @@
 #!/bin/bash
 
-source ../init.sh https://www.prevanders.net/libdwarf-20190529.tar.gz \
-  b414c3bff758df211d972de72df1da9f496224da3f649b950b7d7239ec69172c \
-  2601496ae97698a7cc9162059341ca7f
+source ../init.sh https://www.prevanders.net/libdwarf-20200114.tar.gz \
+  cffd8d600ca3181a5194324c38d50f94deb197249b2dea92d18969a7eadd2c34 \
+  fa710b5e4662330cbbf55a565e5c497b
 
 # The usual configure-make-install
 ./configure --prefix="`realpath zzz`" --quiet --enable-shared > /dev/null
