@@ -135,7 +135,7 @@ add_test { id = 'hpcprof2-mpi-struct', size = 3, grouped = true, cfg = 'HPCPROF_
     [false]='hpctoolkit/install/bin/hpcprof2-mpi',
     ann='hpctoolkit/install/bin/hpcprof2-mpi',
     ref='hpctoolkit/install/bin/hpcprof-mpi.real',
-  }, miprun=true, tartrans = true, args = {
+  }, mpirun=true, tartrans = true, args = {
     [false]=structs..' -j%T -o @@%o @%f',
     ann=structs..' -j%T -o @@%o @%f',
     ref=structs..' --metric-db yes -o @@%o @%f',

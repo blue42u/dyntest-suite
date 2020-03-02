@@ -88,7 +88,7 @@ for _,x in ipairs(coarse) do
   local out = 'stats/'..(t.id..'.'..i.id..'.t'..nt..'.lua'):gsub('/','.')
   tup.rule(lats, '^o Dump %o^ '..env..'../../tartrans.sh ../../external/lua/luaexec '
     ..'hpcdump.lua %o '..table.concat(tlats, ' '), {out})
-  local id = t.id..'.'..i.id
+  local id = (t.id..'.'..i.id):gsub('/','.')
   stats[id] = stats[id] or {}
   stats[id][nt] = out
 end
