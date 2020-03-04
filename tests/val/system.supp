@@ -197,6 +197,17 @@
   fun:PMPI_Init
 }
 
+{
+  libstdc++ (locales)
+  Helgrind:Race
+  src:local_facets.h
+}
+{
+  libstdc++ (locales)
+  drd:ConflictingAccess
+  src:local_facets.h
+}
+
 #
 # A handful of inlinings are horrid enough to warrent more specific suppressions
 #

@@ -7,7 +7,7 @@ tup.include '../../external/valgrind/find.lua'
 local val = VALGRIND_CMD
 
 local comopts = '--suppressions=system.supp'
-  ..' --fair-sched=yes'
+  ..' --fair-sched=yes --read-var-info=no'
   ..' --soname-synonyms=somalloc=\\*tbbmalloc\\*'
   ..' --merge-recursive-frames=1'
 local com = val..' --log-file=%o '..comopts
