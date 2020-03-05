@@ -23,9 +23,9 @@ if [ "$1" ]; then
 
 # Download the tarball
 if which curl >/dev/null 2>/dev/null
-then curl -Lso dl.tar.ball "$1"
+then curl -kLso dl.tar.ball "$1" || echo "curl $1 failed!"
 elif which wget >/dev/null 2>/dev/null
-then wget -O dl.tar.ball "$1"
+then wget --no-check-certificate -O dl.tar.ball "$1" || echo "wget $1 failed!"
 else
   echo "Neither curl nor wget is available, cannot download!" >&2
   exit 1
@@ -34,16 +34,23 @@ fi
 # Check the checksums
 CHECKED=
 if [ "$#" -gt 1 ]; then
-  if which md5sum >/dev/null 2>/dev/null
-  then echo "$3  dl.tar.ball" | md5sum -c --quiet -; CHECKED=md5
+  if which shasum >/dev/null 2>/dev/null; then
+    if echo "$2  dl.tar.ball" | shasum -qca 256 -
+    then CHECKED=sha
+    else shasum -a 256 dl.tar.ball; CHECKED=fail
+    fi
   fi
-  if which shasum >/dev/null 2>/dev/null
-  then echo "$2  dl.tar.ball" | shasum -qca 256 -; CHECKED=sha
+  if which md5sum >/dev/null 2>/dev/null; then
+    if echo "$3  dl.tar.ball" | md5sum -c --quiet -
+    then CHECKED=md5
+    else md5sum dl.tar.ball; CHECKED=fail
+    fi
   fi
 fi
 if [ -z "$CHECKED" ]
 then echo "WARNING: No checksum program available, not checking download!"
 fi
+if [ "$CHECKED" = "fail" ]; then exit 1; fi
 
 # Decompress to right here
 tar xaf dl.tar.ball --strip-components=1

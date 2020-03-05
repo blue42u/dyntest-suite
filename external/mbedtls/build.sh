@@ -1,8 +1,8 @@
 #!/bin/bash
 
-source ../init.sh https://tls.mbed.org/download/mbedtls-2.16.3-apache.tgz \
-  ec1bee6d82090ed6ea2690784ea4b294ab576a65d428da9fe8750f932d2da661 \
-  90ce7c7a001d2514410280706b3ab1a7
+source ../init.sh https://tls.mbed.org/download/mbedtls-2.16.5-apache.tgz \
+  65b4c6cec83e048fd1c675e9a29a394ea30ad0371d37b5742453f74084e7b04d \
+  339f0505323b29851ef3128a53d2de20
 
 mkdir zzzbuild zzz
 cmake -DENABLE_TESTING=Off -DCMAKE_INSTALL_PREFIX="`realpath zzz`" \
