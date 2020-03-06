@@ -141,7 +141,12 @@ for _,t in ipairs{
   local outt = {['']=t.code..'0000'}
   trans[t.name] = outt
   local tag = xtrav(header, t.xml)()
-  table.sort(tag.kids, function(a,b) return aget(a, 'n') < aget(b, 'n') end)
+  table.sort(tag.kids, function(a,b)
+    if aget(a, 'n') ~= aget(b, 'n') then return aget(a, 'n') < aget(b, 'n') end
+    if t.name == 'procedure' then
+      if aget(a, 'v') ~= aget(b, 'v') then return aget(a, 'v') < aget(b, 'v') end
+    end
+  end)
   for sub in xtrav(tag, t.sub) do
     assert(not outt[aget(sub, 'i')])
     outt[aget(sub, 'i')] = t.code..minihash(aget(sub, 'n'))
