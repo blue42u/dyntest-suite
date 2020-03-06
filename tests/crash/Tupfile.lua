@@ -19,8 +19,8 @@ if sz == -1 then sz = math.huge end
 ruleif(forall(function(i)
   if i.size > sz then return end
   return {
-    id = 'Crash', threads=maxthreads,
-    cmd = './rep.sh '..rep..' %o %C', redirect = '/dev/null',
+    id = 'Crash', threads=maxthreads, dry = true,
+    cmd = './rep.sh '..rep..' %o %C',
     output = 'crashes.%t.%i.log', serialize = true,
   }
 end), '^o Concatinated %o^ cat %f > %o', {'crashes.log', serialpost()})

@@ -19,10 +19,10 @@ if enabled('PERF_DETAIL', true) then
 detailed = forall(function(i)
   if i.size < 3 then return end
   return {
-    id = 'Perf (detailed)', threads = maxthreads,
+    id = 'Perf (detailed)', threads = maxthreads, dry = true,
     env = tbbpreload, tartrans = true,
     cmd = hpcrun..' -e REALTIME@100 -t -o @@%o %C',
-    output = 'measurements/%t.%i.tar', serialize = true, redirect = '/dev/null',
+    output = 'measurements/%t.%i.tar', serialize = true,
   }
 end)
 end
@@ -54,10 +54,9 @@ forall(function(i)
   local outs = {}
   for r=1,rep do
     table.insert(outs, {
-      id = 'Perf (coarse, rep '..r..', '..nt..' threads)', threads=nt,
+      id = 'Perf (coarse, rep '..r..', '..nt..' threads)', threads=nt, dry=true,
       env = tbbpreload, tartrans = true,
       cmd = hpcrun..' -e REALTIME@2000 -t -o @@%o %C',
-      redirect = '/dev/null',
       output = 'measurements/%t.%i.'..r..'.t'..nt..'.tar', serialize = nt > 1,
     })
   end

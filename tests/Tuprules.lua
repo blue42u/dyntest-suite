@@ -79,9 +79,10 @@ add_test { id = 'hpcprof2', size = 3, grouped = true, cfg = 'HPCPROF',
     ann='hpctoolkit/install/bin/hpcprof2',
     ref='hpctoolkit/install/bin/hpcprof.real',
   }, tartrans = true, args = {
-    [false]='-j%T -o @@%o @%f',
-    ann='-j%T -o @@%o @%f',
+    [false]='-j%T -o @@%o @%f', ann=false,
     ref='--metric-db yes -o @@%o @%f',
+  }, dryargs = {
+    [false]='-j%T -Q @%f', ann='-j%T -Q @%f',
   },
   outclean = {
     inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
@@ -96,9 +97,10 @@ add_test { id = 'hpcprof2-struct', size = 3, grouped = true, cfg = 'HPCPROF',
     ann='hpctoolkit/install/bin/hpcprof2',
     ref='hpctoolkit/install/bin/hpcprof.real',
   }, tartrans = true, args = {
-    [false]=structs..' -j%T -o @@%o @%f',
-    ann=structs..' -j%T -o @@%o @%f',
+    [false]=structs..' -j%T -o @@%o @%f', ann=false,
     ref=structs..' --metric-db yes -o @@%o @%f',
+  }, dryargs = {
+    [false]=structs..' -j%T -Q @%f', ann=false,
   },
   outclean = {
     inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
@@ -119,9 +121,10 @@ add_test { id = 'hpcprof2-mpi', size = 3, grouped = true, cfg = 'HPCPROF_MPI',
     ann='hpctoolkit/install/bin/hpcprof2-mpi',
     ref='hpctoolkit/install/bin/hpcprof-mpi.real',
   }, mpirun=true, tartrans = true, args = {
-    [false]='-j%T -o @@%o @%f',
-    ann='-j%T -o @@%o @%f',
+    [false]='-j%T -o @@%o @%f', ann=false,
     ref='--metric-db yes -o @@%o @%f',
+  }, dryargs = {
+    [false]='-j%T -Q @%f', ann=false,
   },
   outclean = {
     inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
@@ -136,9 +139,10 @@ add_test { id = 'hpcprof2-mpi-struct', size = 3, grouped = true, cfg = 'HPCPROF_
     ann='hpctoolkit/install/bin/hpcprof2-mpi',
     ref='hpctoolkit/install/bin/hpcprof-mpi.real',
   }, mpirun=true, tartrans = true, args = {
-    [false]=structs..' -j%T -o @@%o @%f',
-    ann=structs..' -j%T -o @@%o @%f',
+    [false]=structs..' -j%T -o @@%o @%f', ann=false,
     ref=structs..' --metric-db yes -o @@%o @%f',
+  }, dryargs = {
+    [false]='-j%T -Q @%f', ann=false,
   },
   outclean = {
     inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
@@ -210,8 +214,22 @@ function forall(harness, post)
         env = 'TMPDIR="'..tup.getconfig 'TMPDIR'..'" '..env
         table.insert(outs, '^^'..subp.lexec('realpath "'..tup.getconfig 'TMPDIR'..'"'))
       end
-      local args = assert(t.args[h.mode or false]):gsub('%%(.)', repl)
-      if h.redirect then args = args:gsub('%%o', h.redirect) end
+
+      local function f(a, k)
+        if a[k] == false then return a[false] else return a[k] end
+      end
+      local args = assert(f(t.args, h.mode or false)):gsub('%%(.)', repl)
+      if h.dry then
+        if t.dryargs then
+          args = assert(f(t.dryargs, h.mode or false)):gsub('%%(.)', repl)
+          assert(not args:find '%%o', args)
+          assert(not h.redirect)
+        else
+          args = args:gsub('%%o', '/dev/null')
+        end
+      else
+        if h.redirect then args = args:gsub('%%o', h.redirect) end
+      end
       if not t.grouped then table.insert(ins.extra_inputs, tfn) end
 
       local ifn = assert(i.modes[h.mode or false])

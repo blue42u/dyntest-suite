@@ -32,6 +32,13 @@ ruleif(forall(function(i)
     redirect = '/dev/null',
     output = 'mc/%t.%i.log', fakeout = true,
     deps = {'../../external/valgrind/<build>'},
+  }, {
+    id = 'Memcheck (dry run)', mode = 'ann', dry = true,
+    threads = 32,
+    cmd = com..' --tool=memcheck --track-origins=yes --leak-check=full %C || :',
+    env = VALGRIND_ENV,
+    output = 'mc/%t.%i.drylog', fakeout = true,
+    deps = {'../../external/valgrind/<build>'},
   }
 end), '^o Concat %o^ cat %f > %o', {'memcheck.log', '<out>'})
 
@@ -44,6 +51,13 @@ ruleif(forall(function(i)
     env = VALGRIND_ENV,
     redirect = '/dev/null',
     output = 'hg/%t.%i.log', fakeout = true,
+    deps = { '../../external/valgrind/<build>'},
+  }, {
+    id = 'Helgrind (dry run)', mode = 'ann', dry = true,
+    threads = 32,
+    cmd = com..' --tool=helgrind --free-is-write=yes %C || :',
+    env = VALGRIND_ENV,
+    output = 'hg/%t.%i.drylog', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
   }
 end), '^o Concat %o^ cat %f > %o', {'helgrind.log', '<out>'})
@@ -58,6 +72,13 @@ ruleif(forall(function(i)
     redirect = '/dev/null',
     output = 'drd/%t.%i.log', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
+  }, {
+    id = 'DRD (dry run)', mode = 'ann', dry = true,
+    threads = 32,
+    cmd = com..' --tool=drd --free-is-write=yes %C || :',
+    env = VALGRIND_ENV,
+    output = 'drd/%t.%i.drylog', fakeout = true,
+    deps = { '../../external/valgrind/<build>'},
   }
 end), '^o Concat %o^ cat %f > %o', {'drd.log', '<out>'})
 
@@ -66,16 +87,15 @@ do
   local massif = forall(function(i, t)
     if i.size > szclass('MASSIF', 0) then return end
     local o = {
-      id = 'Massif', mode = 'ann',
+      id = 'Massif (dry run)', mode = 'ann', dry = true,
       threads = 32,
       cmd = val..' -q --massif-out-file=%o --tool=massif '..comopts..' %C || :',
       env = VALGRIND_ENV,
-      redirect = '/dev/null',
       output = 'massif/%t.%i.out', fakeout = true,
       deps = {'../../external/valgrind/<build>'},
       _sz = i.size * t.size,
     }
-     if not big or o._sz > big._sz then big = o end
+    if not big or o._sz > big._sz then big = o end
     return o
   end)
   for i,f in ipairs(massif) do
