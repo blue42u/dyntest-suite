@@ -187,7 +187,7 @@ local taghash = {}
 local function ccthash(tag)
   assert(math.maxinteger == 0x7fffffffffffffff)
   local hash = 0
-  for _,sub in ipairs(tag.kids) do
+  for _,sub in ipairs(tag.kids or {}) do
     if sub.name == 'M' then
       hash = hash + tonumber(aget(sub, 'v'))
     else
@@ -201,7 +201,7 @@ ccthash(cct)
 
 -- 4. Walk through the CCT and update the keys, then sort based on those.
 local function cctupdate(tag)
-  for _,sub in ipairs(tag.kids) do
+  for _,sub in ipairs(tag.kids) do if sub.type == 'element' then
     if sub.name == 'M' then
       asub(sub, 'n', trans.metric)
     else
@@ -216,13 +216,17 @@ local function cctupdate(tag)
       asub(sub, 'v', 'Vx', 'append')
       cctupdate(sub)
     end
-  end
+  end end
   local function comp(a, b)
     local function lcomp(x,y)
       if x == y then return 0
       elseif x < y then return 1
       else return -1 end
     end
+    if a.type ~= 'element' then
+      if b.type ~= 'element' then return lcomp(tostring(a), tostring(b))
+      else return 1 end
+    elseif b.type ~= 'element' then return -1 end
     if a.name ~= b.name then
       if a.name == 'M' then return 1
       elseif b.name == 'M' then return -1
