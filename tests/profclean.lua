@@ -66,7 +66,7 @@ do
 end
 
 -- Handy functions for modifying the DOM
-local function asub(tag, attr, repl)
+local function asub(tag, attr, repl, append)
   local r
   if type(repl) == 'string' then r = function() return repl end
   elseif type(repl) == 'table' then r = function(k) return repl[k] end
@@ -83,13 +83,28 @@ local function asub(tag, attr, repl)
   end
   assert(ns)
 
+  local function handle(a)
+    local old = a.value
+    a.value = r(a.value)
+    tag.attr[a.name] = a.value
+    if a.value == nil then
+      error('Nil replacement value for '..tostring(attr)..'='..tostring(old)..'!')
+    end
+  end
+
+  local found = false
   for _,a in ipairs(tag.attr) do
     if ns[a.name] then
-      local old = a.value
-      a.value = r(a.value)
-      tag.attr[a.name] = a.value
-      if a.value == nil then error('Nil replacement value for '..tostring(attr)..'='..old..'!') end
+      found = true
+      handle(a)
     end
+  end
+
+  if not found and append then
+    assert(type(attr) == 'string')
+    local a = {type='attribute', name=attr, value=r(nil)}
+    table.insert(tag.attr, a)
+    handle(a)
   end
 end
 local function xasub(...)
@@ -198,6 +213,7 @@ local function cctupdate(tag)
       asub(sub, 's', function(x) return trans.procedure[x] or 's' end)
       asub(sub, 'it', 'Cx')
       asub(sub, 'l', 'lineno')
+      asub(sub, 'v', 'Vx', 'append')
       cctupdate(sub)
     end
   end
