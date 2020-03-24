@@ -1,8 +1,8 @@
 #!/bin/bash
 
-source ../init.sh https://github.com/intel/tbb/archive/2019_U8.tar.gz \
-  7b1fd8caea14be72ae4175896510bf99c809cd7031306a1917565e6de7382fba \
-  7c371d0f62726154d2c568a85697a0ad
+source ../init.sh https://github.com/oneapi-src/oneTBB/archive/2020_U1.tar.gz \
+  d80ca22c224ab7ef913dfae72c23fc1434b6aa46bfd472916d8c874c90881f5e \
+  1e9c8914683d31d1721ee68d9f1aab5d
 
 # TBB has a very weird build system. We do our best to get around it.
 make -srf build/Makefile.tbb tbb_root="$TMP" cfg=release
