@@ -191,7 +191,7 @@ function forall(harness, post)
         mpirun = tup.getconfig 'MPIRUN'
         if mpirun == '' then mpirun = 'mpirun' end
         env = 'TUP_PGID=`ps -o pgid $$ | tail -n1` TUP_CWD="`pwd`"'
-        mpirun = mpirun..' -H localhost -wd / -oversubscribe -np '..ranks
+        mpirun = mpirun..' -H localhost -wd / -oversubscribe -np '..ranks..' '
           ..[[ perl -e '$o=getpgrp(0); setpgrp(0,$ENV{"TUP_PGID"});]]
           ..[[ chdir($ENV{"TUP_CWD"}); system(@ARGV)==0]]
           ..[[ or print "$ARGV[0]: $?: $!"; setpgrp(0,$o)']]
@@ -232,7 +232,7 @@ function forall(harness, post)
       end
       if not t.grouped then table.insert(ins.extra_inputs, tfn) end
 
-      local ifn = assert(i.modes[h.mode or false])
+      local ifn = assert(i.modes[h.imode or h.mode or false])
       if i.grouped then args = args:gsub('%%f', ifn)
       else table.insert(ins, ifn) end
 
@@ -252,10 +252,10 @@ function forall(harness, post)
         ti(ins.extra_inputs, serialend())
         lastsg = minihash(name)
         ti(outs.extra_outputs, serialend())
-        fakeaccess = 'touch '..serialend()..' && '..fakeaccess
+        fakeaccess = 'date > '..serialend()..' && '..fakeaccess
       else ti(outs, cwd..'<pre>') end
 
-      if h.fakeout then fakeaccess = 'touch %o && '..fakeaccess end
+      if h.fakeout then fakeaccess = 'date > %o && '..fakeaccess end
 
       tup.rule(ins, name..fakeaccess..cmd, outs)
       table.insert(single, out)
@@ -276,6 +276,6 @@ function serialpost() return '<post>' end
 
 function serialfinal()
   tup.rule({serialend(), serialpost()},
-    '^o Serialization bridge^ touch %o',
+    '^o Serialization bridge^ date > %o',
     {'order_post', (cwd..'<s_%d>'):format(sclass)})
 end

@@ -11,6 +11,7 @@ local comopts = '--suppressions=system.supp'
   ..' --soname-synonyms=somalloc=\\*tbbmalloc\\*'
   ..' --merge-recursive-frames=1'
 local com = val..' --log-file=%o '..comopts
+local mpicom = val..' ??LOG?? '..comopts
 
 local function szclass(name, sz)
   local cfg = tup.getconfig('VAL_'..name)
@@ -22,61 +23,67 @@ local function szclass(name, sz)
   return sz
 end
 
-ruleif(forall(function(i)
+ruleif(forall(function(i, t)
   if i.size > szclass('MC', 2) then return end
   return {
     id = 'Memcheck', mode = 'ann',
     threads = 32,
-    cmd = com..' --tool=memcheck --track-origins=yes --leak-check=full %C || :',
-    env = VALGRIND_ENV,
+    cmd = (t.mpirun and mpicom or com)
+      ..' --tool=memcheck --track-origins=yes --leak-check=full %C || :',
+    env = VALGRIND_ENV..(t.mpirun and ' ./tmplog.sh %o' or ''),
     redirect = '/dev/null',
     output = 'mc/%t.%i.log', fakeout = true,
     deps = {'../../external/valgrind/<build>'},
   }, {
     id = 'Memcheck (dry run)', mode = 'ann', dry = true,
     threads = 32,
-    cmd = com..' --tool=memcheck --track-origins=yes --leak-check=full %C || :',
-    env = VALGRIND_ENV,
+    cmd = (t.mpirun and mpicom or com)
+      ..' --tool=memcheck --track-origins=yes --leak-check=full %C || :',
+    env = VALGRIND_ENV..(t.mpirun and ' ./tmplog.sh %o' or ''),
     output = 'mc/%t.%i.drylog', fakeout = true,
     deps = {'../../external/valgrind/<build>'},
   }
 end), '^o Concat %o^ cat %f > %o', {'memcheck.log', '<out>'})
 
-ruleif(forall(function(i)
+ruleif(forall(function(i, t)
   if i.size > szclass('HEL', 1) then return end
   return {
     id = 'Helgrind', mode = 'ann',
     threads = 32,
-    cmd = com..' --tool=helgrind --free-is-write=yes %C || :',
-    env = VALGRIND_ENV,
+    cmd = (t.mpirun and mpicom or com)
+      ..' --tool=helgrind --free-is-write=yes %C || :',
+    env = VALGRIND_ENV..(t.mpirun and ' ./tmplog.sh %o' or ''),
     redirect = '/dev/null',
     output = 'hg/%t.%i.log', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
   }, {
     id = 'Helgrind (dry run)', mode = 'ann', dry = true,
     threads = 32,
-    cmd = com..' --tool=helgrind --free-is-write=yes %C || :',
-    env = VALGRIND_ENV,
+    cmd = (t.mpirun and mpicom or com)
+      ..' --tool=helgrind --free-is-write=yes %C || :',
+    env = VALGRIND_ENV..(t.mpirun and ' ./tmplog.sh %o' or ''),
     output = 'hg/%t.%i.drylog', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
   }
 end), '^o Concat %o^ cat %f > %o', {'helgrind.log', '<out>'})
 
-ruleif(forall(function(i)
+ruleif(forall(function(i, t)
   if i.size > szclass('DRD', 0) then return end
   return {
     id = 'DRD', mode = 'ann',
     threads = 32,
-    cmd = com..' --tool=drd --free-is-write=yes %C || :',
-    env = VALGRIND_ENV,
+    cmd = (t.mpirun and mpicom or com)
+      ..' --tool=drd --free-is-write=yes %C || :',
+    env = VALGRIND_ENV..(t.mpirun and ' ./tmplog.sh %o' or ''),
     redirect = '/dev/null',
     output = 'drd/%t.%i.log', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
   }, {
     id = 'DRD (dry run)', mode = 'ann', dry = true,
     threads = 32,
-    cmd = com..' --tool=drd --free-is-write=yes %C || :',
-    env = VALGRIND_ENV,
+    cmd = (t.mpirun and mpicom or com)
+      ..' --tool=drd --free-is-write=yes %C || :',
+    env = VALGRIND_ENV..(t.mpirun and ' ./tmplog.sh %o' or ''),
     output = 'drd/%t.%i.drylog', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
   }
@@ -86,6 +93,7 @@ do
   local big
   local massif = forall(function(i, t)
     if i.size > szclass('MASSIF', 0) then return end
+    if t.mpirun then return end
     local o = {
       id = 'Massif (dry run)', mode = 'ann', dry = true,
       threads = 32,
@@ -112,6 +120,7 @@ do
   local big
   local callgrind = forall(function(i, t)
     if i.size > szclass('CALLGRIND', 0) then return end
+    if t.mpirun then return end
     local o = {
       id = 'Callgrind', mode = 'ann',
       threads = 32,
