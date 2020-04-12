@@ -74,7 +74,7 @@ ruleif(forall(function(i, t)
     id = 'Regression (ref)', threads = 1, cmd = '%C',
     output = '%t.%i.reg/ref', mode = 'ref',
   }, table.unpack(runs)
-end, function(...) stitch('ref', ...) end),
+end, function(...) return stitch('ref', ...) end),
 '^o Concatinated %o^ cat %f > %o', {'regression.out', serialpost()})
 
 ruleif(forall(function(i, t)
@@ -89,7 +89,7 @@ ruleif(forall(function(i, t)
     }
   end
   return table.unpack(runs)
-end, function(...) stitch('one', ...) end),
+end, function(...) return stitch('one', ...) end),
 '^o Concatinated %o^ cat %f > %o', {'stable.out', serialpost()})
 
 serialfinal()

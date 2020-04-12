@@ -33,6 +33,7 @@ function hpctoolkit(o)
       --with-elfutils=@]]..o.elfutils..[[@
       --with-dyninst=@]]..o.dyninst..[[@
       --disable-hpcrun-static
+      --enable-devtools
     ]]..withcuda..slowlibc..(o.cfg or ''),
   }}
   -- We also munge the paths in the scripts, use .../hpc*.real for best results.

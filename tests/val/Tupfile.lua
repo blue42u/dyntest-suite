@@ -23,9 +23,25 @@ local function szclass(name, sz)
   return sz
 end
 
+local function expand(base)
+  return base,
+    setmetatable({
+      id = base.id..' (dry)', dry = true, redirect = false,
+      output = base.output..'.dry',
+    }, {__index=base}),
+    setmetatable({
+      id = base.id..' (reg)', imode = 'ref',
+      output = base.output..'.reg',
+    }, {__index=base}),
+    setmetatable({
+      id = base.id..' (dry,reg)', imode = 'ref', dry = true, redirect = false,
+      output = base.output..'.dryreg',
+    }, {__index=base})
+end
+
 ruleif(forall(function(i, t)
   if i.size > szclass('MC', 2) then return end
-  return {
+  return expand{
     id = 'Memcheck', mode = 'ann',
     threads = 32,
     cmd = (t.mpirun and mpicom or com)
@@ -34,20 +50,12 @@ ruleif(forall(function(i, t)
     redirect = '/dev/null',
     output = 'mc/%t.%i.log', fakeout = true,
     deps = {'../../external/valgrind/<build>'},
-  }, {
-    id = 'Memcheck (dry run)', mode = 'ann', dry = true,
-    threads = 32,
-    cmd = (t.mpirun and mpicom or com)
-      ..' --tool=memcheck --track-origins=yes --leak-check=full %C || :',
-    env = VALGRIND_ENV..(t.mpirun and ' ./tmplog.sh %o' or ''),
-    output = 'mc/%t.%i.drylog', fakeout = true,
-    deps = {'../../external/valgrind/<build>'},
   }
 end), '^o Concat %o^ cat %f > %o', {'memcheck.log', '<out>'})
 
 ruleif(forall(function(i, t)
   if i.size > szclass('HEL', 1) then return end
-  return {
+  return expand{
     id = 'Helgrind', mode = 'ann',
     threads = 32,
     cmd = (t.mpirun and mpicom or com)
@@ -56,20 +64,12 @@ ruleif(forall(function(i, t)
     redirect = '/dev/null',
     output = 'hg/%t.%i.log', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
-  }, {
-    id = 'Helgrind (dry run)', mode = 'ann', dry = true,
-    threads = 32,
-    cmd = (t.mpirun and mpicom or com)
-      ..' --tool=helgrind --free-is-write=yes %C || :',
-    env = VALGRIND_ENV..(t.mpirun and ' ./tmplog.sh %o' or ''),
-    output = 'hg/%t.%i.drylog', fakeout = true,
-    deps = { '../../external/valgrind/<build>'},
   }
 end), '^o Concat %o^ cat %f > %o', {'helgrind.log', '<out>'})
 
 ruleif(forall(function(i, t)
   if i.size > szclass('DRD', 0) then return end
-  return {
+  return expand{
     id = 'DRD', mode = 'ann',
     threads = 32,
     cmd = (t.mpirun and mpicom or com)
@@ -77,14 +77,6 @@ ruleif(forall(function(i, t)
     env = VALGRIND_ENV..(t.mpirun and ' ./tmplog.sh %o' or ''),
     redirect = '/dev/null',
     output = 'drd/%t.%i.log', fakeout = true,
-    deps = { '../../external/valgrind/<build>'},
-  }, {
-    id = 'DRD (dry run)', mode = 'ann', dry = true,
-    threads = 32,
-    cmd = (t.mpirun and mpicom or com)
-      ..' --tool=drd --free-is-write=yes %C || :',
-    env = VALGRIND_ENV..(t.mpirun and ' ./tmplog.sh %o' or ''),
-    output = 'drd/%t.%i.drylog', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
   }
 end), '^o Concat %o^ cat %f > %o', {'drd.log', '<out>'})
