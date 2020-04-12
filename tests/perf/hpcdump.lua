@@ -176,6 +176,7 @@ local function range(tps, ...)
     local ok = true
     local i = 1
     for pi,p in ipairs(patt) do
+      while tp.trace[i] == '' do i = i + 1 end  -- Make sure we're at an actual node
       if p == '...' then  -- ... matches the minimum number needed to get to the next one (or 0)
         p = assert(patt[pi+1])
         while i <= #tp.trace and not tp.trace[i]:find('^'..p) do i = i + 1 end
@@ -217,6 +218,14 @@ local regions = {
   symtabDW = {'...', 'Dyninst::SymtabAPI::DwarfWalker::parse'},
   -- Parser::parse_frame, the main parallel binary parsing.
   parsePF = {'...', 'Dyninst::ParseAPI::Parser::parse_frames'},
+
+  -- Bits for ProfMock
+  direct = {'...', 'main%f[%s\0]', 'run_direct%('},
+  directtbb = {'...', 'main%f[%s\0]', 'run_directtbb%('},
+  omp = {'...', 'main%f[%s\0]', 'run_omp%('},
+  omptbb = {'...', 'main%f[%s\0]', 'run_omptbb%('},
+  tree = {'...', 'main%f[%s\0]', 'run_tree%('},
+  treetbb = {'...', 'main%f[%s\0]', 'run_treetbb%('},
 }
 
 -- Parse the arguments. First is the output file, rest are databases.
