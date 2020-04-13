@@ -57,7 +57,8 @@ forall(function(i)
       id = 'Perf (coarse, rep '..r..', '..nt..' threads)', threads=nt, dry=true,
       env = tbbpreload, tartrans = true,
       cmd = hpcrun..' -e REALTIME@2000 -t -o @@%o %C',
-      output = 'measurements/%t.%i.'..r..'.t'..nt..'.tar', serialize = nt > 1,
+      output = 'measurements/%t.%i.'..r..'.t'..nt..'.tar',
+      serialize = nt > 1 or i.size > 3,
     })
   end
   return table.unpack(outs)

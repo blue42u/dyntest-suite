@@ -82,7 +82,7 @@ add_test { id = 'hpcprof2', size = 3, grouped = true, cfg = 'HPCPROF',
     [false]='-j%T -o @@%o @%f', ann=false,
     ref='--metric-db yes -o @@%o @%f',
   }, dryargs = {
-    [false]='-j%T -Q @%f', ann='-j%T -Q @%f',
+    [false]='-j%T -Q @%f', ann=false,
   },
   outclean = {
     inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
@@ -121,10 +121,10 @@ add_test { id = 'hpcprof2-mpi', size = 3, grouped = true, cfg = 'HPCPROF_MPI',
     ann='hpctoolkit/install/bin/hpcprof2-mpi',
     ref='hpctoolkit/install/bin/hpcprof-mpi.real',
   }, mpirun=true, tartrans = true, args = {
-    [false]='-j%T -o @@%o @%f', ann=false,
+    [false]='-j%T -o @@%o -f sparse --no-traces @%f', ann=false,
     ref='--metric-db yes -o @@%o @%f',
   }, dryargs = {
-    [false]='-j%T -Q @%f', ann=false,
+    [false]='-j%T -o @@/dev/null -f sparse --no-traces @%f', ann=false,
   },
   outclean = {
     inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
@@ -139,10 +139,10 @@ add_test { id = 'hpcprof2-mpi-struct', size = 3, grouped = true, cfg = 'HPCPROF_
     ann='hpctoolkit/install/bin/hpcprof2-mpi',
     ref='hpctoolkit/install/bin/hpcprof-mpi.real',
   }, mpirun=true, tartrans = true, args = {
-    [false]=structs..' -j%T -o @@%o @%f', ann=false,
+    [false]=structs..' -j%T -o @@%o -f sparse --no-traces @%f', ann=false,
     ref=structs..' --metric-db yes -o @@%o @%f',
   }, dryargs = {
-    [false]='-j%T -Q @%f', ann=false,
+    [false]='-j%T -o @@/dev/null -f sparse --no-traces @%f', ann=false,
   },
   outclean = {
     inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
