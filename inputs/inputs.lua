@@ -80,7 +80,7 @@ for _,s in ipairs{'1', '2', '3', 'huge'} do
   end
   for _,f in ipairs(tup.glob(cwd..s..'/*')) do
     local id = f:match '[^/]+$'
-    if id ~= '.gitignore' and id ~= 'latest' and id ~= 'reference' then
+    if id ~= '.gitignore' then
       if #tup.glob(cwd..s..'.ref/'..id) > 0 then
         add_inputs{{id = id, size = sz, kind = kind(id),
           modes = {[false]=cwd..s..'/'..f, ann=cwd..s..'/'..f, ref=cwd..s..'.ref/'..f},
