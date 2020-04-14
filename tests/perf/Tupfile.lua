@@ -16,14 +16,19 @@ end
 
 local detailed = {}
 if enabled('PERF_DETAIL', true) then
-detailed = forall(function(i)
+detailed = forall(function(i, t)
   if i.size < 3 then return end
   return {
     id = 'Perf (detailed)', threads = maxthreads, dry = true,
     env = tbbpreload, tartrans = true,
     cmd = hpcrun..' -e REALTIME@100 -t -o @@%o %C',
     output = 'measurements/%t.%i.tar', serialize = true,
-  }
+  }, enabled('PERF_REF', false) and i.modes.ref and t.modes.ref and {
+    id = 'Perf (detailed, ref)', threads = maxthreads, dry = true,
+    env = tbbpreload, tartrans = true, mode = 'ref',
+    cmd = hpcrun..' -e REALTIME@100 -t -o @@%o %C',
+    output = 'measurements/%t.%i.ref.tar', serialize = true,
+  } or nil
 end)
 end
 
@@ -48,22 +53,62 @@ if tup.getconfig 'PERF_COARSE_THREADS' ~= '' then
 end
 
 local coarse = {}
-if rep > 0 then for _,nt in ipairs(numthreads) do
-forall(function(i)
-  if i.size < 3 then return end
-  local outs = {}
-  for r=1,rep do
-    table.insert(outs, {
-      id = 'Perf (coarse, rep '..r..', '..nt..' threads)', threads=nt, dry=true,
-      env = tbbpreload, tartrans = true,
-      cmd = hpcrun..' -e REALTIME@2000 -t -o @@%o %C',
-      output = 'measurements/%t.%i.'..r..'.t'..nt..'.tar',
-      serialize = nt > 1 or i.size > 3,
-    })
+if rep > 0 then
+  for _,nt in ipairs(numthreads) do
+    forall(function(i)
+      if i.size < 3 then return end
+      local outs = {}
+      for r=1,rep do
+        table.insert(outs, {
+          id = 'Perf (coarse, rep '..r..', '..nt..' threads)', threads=nt, dry=true,
+          env = tbbpreload, tartrans = true,
+          cmd = hpcrun..' -e REALTIME@2000 -t -o @@%o %C',
+          output = 'measurements/%t.%i.'..r..'.t'..nt..'.tar',
+          serialize = nt > 1 or i.size > 3,
+        })
+      end
+      return table.unpack(outs)
+    end, function(c, i, t) if #c > 0 then table.insert(coarse, {c, i, t, nt}) end end)
+    if enabled('PERF_REF', false) then
+      forall(function(i, t)
+        if i.size < 3 then return end
+        if not i.modes.ref then return end
+        if not t.modes.ref then return end
+        if not t.mpirun then return end  -- Actually not parallel
+        local outs = {}
+        for r=1,rep do
+          table.insert(outs, {
+            id = 'Perf (coarse, rep '..r..', ref '..nt..' threads)', threads=nt, dry=true,
+            env = tbbpreload, tartrans = true, mode = 'ref',
+            cmd = hpcrun..' -e REALTIME@2000 -t -o @@%o %C',
+            output = 'measurements/%t.%i.'..r..'.t'..nt..'.ref.tar',
+            serialize = nt > 1 or i.size > 3,
+          })
+        end
+        return table.unpack(outs)
+      end, function(c, i, t) if #c > 0 then table.insert(coarse, {c, i, t, nt..'.ref'}) end end)
+    end
   end
-  return table.unpack(outs)
-end, function(c, i, t) if #c > 0 then table.insert(coarse, {c, i, t, nt}) end end)
-end end
+  if enabled('PERF_REF', false) then
+    forall(function(i, t)
+      if i.size < 3 then return end
+      if not i.modes.ref then return end
+      if not t.modes.ref then return end
+      if t.mpirun then return end  -- Actually parallel
+      local outs = {}
+      for r=1,rep do
+        table.insert(outs, {
+          id = 'Perf (coarse, rep '..r..', ref)', threads=1, dry=true,
+          env = tbbpreload, tartrans = true, mode = 'ref',
+          cmd = hpcrun..' -e REALTIME@2000 -t -o @@%o %C',
+          output = 'measurements/%t.%i.'..r..'.t1.ref.tar',
+          serialize = i.size > 3,
+        })
+      end
+      return table.unpack(outs)
+    end, function(c, i, t) if #c > 0 then table.insert(coarse, {c, i, t, '1.ref'}) end end)
+  end
+end
 
 local prof = '../../reference/hpctoolkit/install/bin/hpcprof.real'
 

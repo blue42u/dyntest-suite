@@ -60,6 +60,9 @@ config TEST_HPCPROF
 config TEST_HPCPROF_MPI
   bool "Enable hpcprof-mpi testing (HPCToolkit component)"
   default n
+config TEST_HPCPROF_STRUCT
+  bool "Enable hpcprof testing with Structfiles"
+  default y
 config TEST_HPCPROFMOCK
   bool "Enable hpcprofmock testing (HPCToolkit debugging component)"
   default y
@@ -111,6 +114,10 @@ config PERF_REP
 
 config PERF_COARSE_THREADS
   string "Thread counts to use for coarse performance testing"
+
+config PERF_REF
+  bool "Also gather performance data on reference runs"
+  default n
 
 endmenu
 

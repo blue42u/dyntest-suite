@@ -26,9 +26,9 @@ local function add_test(base)
     local pre = ''
     if base.mpirun then pre = '`pwd`/' end
     base.modes = {
-      [false] = pre..cwd..'../latest/'..assert(base.fnstems[false]),
-      ann = pre..cwd..'../annotated/'..assert(base.fnstems.ann),
-      ref = pre..cwd..'../reference/'..assert(base.fnstems.ref),
+      [false] = base.fnstems[false] and pre..cwd..'../latest/'..base.fnstems[false] or nil,
+      ann = base.fnstems.ref and pre..cwd..'../annotated/'..base.fnstems.ann or nil,
+      ref = base.fnstems.ref and pre..cwd..'../reference/'..base.fnstems.ref or nil,
     }
     if base.nofn then
       for _,k in ipairs(base.nofn) do base.modes[k] = nil end
@@ -37,9 +37,11 @@ local function add_test(base)
     base.fnstem = nil
   end
   if base.cfg then
-    local default = true
-    if base.cfg:find '^!' then default,base.cfg = false, base.cfg:sub(2) end
-    if not enabled('TEST_'..base.cfg, default) then return end
+    for cfg in base.cfg:gmatch '[^&%s]+' do
+      local default = true
+      if cfg:find '^!' then default,cfg = false, cfg:sub(2) end
+      if not enabled('TEST_'..cfg, default) then return end
+    end
     base.cfg = nil
   end
   if type(base.args) == 'string' then
@@ -90,7 +92,7 @@ add_test { id = 'hpcprof2', size = 3, grouped = true, cfg = 'HPCPROF',
       ..cwd..'profclean.lua '..cwd..' %o',
   },
 }
-add_test { id = 'hpcprof2-struct', size = 3, grouped = true, cfg = 'HPCPROF',
+add_test { id = 'hpcprof2-struct', size = 3, grouped = true, cfg = 'HPCPROF & HPCPROF_STRUCT',
   inkind = 'trace',
   fnstems = {
     [false]='hpctoolkit/install/bin/hpcprof2',
@@ -121,10 +123,11 @@ add_test { id = 'hpcprof2-mpi', size = 3, grouped = true, cfg = 'HPCPROF_MPI',
     ann='hpctoolkit/install/bin/hpcprof2-mpi',
     ref='hpctoolkit/install/bin/hpcprof-mpi.real',
   }, mpirun=true, tartrans = true, args = {
-    [false]='-j%T -o @@%o -f sparse --no-traces @%f', ann=false,
+    [false]='-j%T -o @@%o @%f', ann=false,
     ref='--metric-db yes -o @@%o @%f',
   }, dryargs = {
-    [false]='-j%T -o @@/dev/null -f sparse --no-traces @%f', ann=false,
+    [false]='-j%T -o @@/dev/null @%f', ann=false,
+    ref='--metric-db yes -o @@/dev/null @%f',
   },
   outclean = {
     inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
@@ -132,17 +135,34 @@ add_test { id = 'hpcprof2-mpi', size = 3, grouped = true, cfg = 'HPCPROF_MPI',
       ..cwd..'profclean.lua '..cwd..' %o',
   },
 }
-add_test { id = 'hpcprof2-mpi-struct', size = 3, grouped = true, cfg = 'HPCPROF_MPI',
+add_test { id = 'hpcprof2-mpi-sparse', size = 3, grouped = true, cfg = 'HPCPROF_MPI',
+  inkind = 'trace',
+  fnstems = {
+    [false]='hpctoolkit/install/bin/hpcprof2-mpi',
+    ann='hpctoolkit/install/bin/hpcprof2-mpi',
+  }, mpirun=true, tartrans = true, args = {
+    [false]='-j%T -o @@%o -f sparse @%f', ann=false,
+  }, dryargs = {
+    [false]='-j%T -o @@/dev/null -f sparse @%f', ann=false,
+  },
+  outclean = {
+    inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
+    command='tar xOf %f ./experiment.xml | '..cwd..'../external/lua/luaexec '
+      ..cwd..'profclean.lua '..cwd..' %o',
+  },
+}
+add_test { id = 'hpcprof2-mpi-struct', size = 3, grouped = true, cfg = 'HPCPROF_MPI & HPCPROF_STRUCT',
   inkind = 'trace',
   fnstems = {
     [false]='hpctoolkit/install/bin/hpcprof2-mpi',
     ann='hpctoolkit/install/bin/hpcprof2-mpi',
     ref='hpctoolkit/install/bin/hpcprof-mpi.real',
   }, mpirun=true, tartrans = true, args = {
-    [false]=structs..' -j%T -o @@%o -f sparse --no-traces @%f', ann=false,
+    [false]=structs..' -j%T -o @@%o -f sparse @%f', ann=false,
     ref=structs..' --metric-db yes -o @@%o @%f',
   }, dryargs = {
-    [false]='-j%T -o @@/dev/null -f sparse --no-traces @%f', ann=false,
+    [false]='-j%T -o @@/dev/null -f sparse @%f', ann=false,
+    ref='--metric-db yes -o @@/dev/null @%f',
   },
   outclean = {
     inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
@@ -186,7 +206,8 @@ function forall(harness, post)
       local mpirun,env = '',''
       if t.mpirun then
         local ranks
-        if threads <= 4 then ranks,threads = threads, 1
+        if h.mode == 'ref' then ranks,threads = threads, 1
+        elseif threads <= 4 then ranks,threads = threads, 1
         else ranks,threads = math.floor(threads/4), 4 end
         mpirun = tup.getconfig 'MPIRUN'
         if mpirun == '' then mpirun = 'mpirun' end

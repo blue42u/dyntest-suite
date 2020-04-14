@@ -70,13 +70,12 @@ if not enabled('ONLY_EXTERNAL', false) then add_inputs{
 for _,s in ipairs{'1', '2', '3', 'huge'} do
   local sz = tonumber(s) or math.huge
   local function kind(id)
-    local k
     if subp.stestexec{
       {'readelf', '-h', 'inputs/'..s..'/'..id, reerr = false, reout = false}
-    } then k = 'binary'
+    } then return 'binary'
     elseif subp.stestexec{
       {'tar', '--test-label', '-af', 'inputs/'..s..'/'..id, reerr=false, reout=false}
-    } then k = 'trace'
+    } then return 'trace'
     else error('Unable to determine kind for inputs/'..s..'/'..id) end
   end
   for _,f in ipairs(tup.glob(cwd..s..'/*')) do
