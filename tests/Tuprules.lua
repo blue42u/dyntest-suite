@@ -122,7 +122,7 @@ add_test { id = 'hpcprof2-mpi', size = 3, grouped = true, cfg = 'HPCPROF_MPI',
     [false]='hpctoolkit/install/bin/hpcprof2-mpi',
     ann='hpctoolkit/install/bin/hpcprof2-mpi',
     ref='hpctoolkit/install/bin/hpcprof-mpi.real',
-  }, mpirun=true, tartrans = true, args = {
+  }, mpirun=true, tartrans = true, imode = 'ref', args = {
     [false]='-j%T -o @@%o @%f', ann=false,
     ref='--metric-db yes -o @@%o @%f',
   }, dryargs = {
@@ -253,7 +253,7 @@ function forall(harness, post)
       end
       if not t.grouped then table.insert(ins.extra_inputs, tfn) end
 
-      local ifn = assert(i.modes[h.imode or h.mode or false])
+      local ifn = assert(i.modes[h.imode or h.mode or t.imode or false])
       if i.grouped then args = args:gsub('%%f', ifn)
       else table.insert(ins, ifn) end
 
