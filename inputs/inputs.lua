@@ -69,18 +69,26 @@ if not enabled('ONLY_EXTERNAL', false) then add_inputs{
 -- Pull in the manually-given inputs
 for _,s in ipairs{'1', '2', '3', 'huge'} do
   local sz = tonumber(s) or math.huge
+  local function kind(id)
+    local k
+    if subp.stestexec{
+      {'readelf', '-h', 'inputs/'..s..'/'..id, reerr = false, reout = false}
+    } then k = 'binary'
+    elseif subp.stestexec{
+      {'tar', '--test-label', '-af', 'inputs/'..s..'/'..id, reerr=false, reout=false}
+    } then k = 'trace'
+    else error('Unable to determine kind for inputs/'..s..'/'..id) end
+  end
   for _,f in ipairs(tup.glob(cwd..s..'/*')) do
     local id = f:match '[^/]+$'
-    if id ~= '.gitignore' then
-      local k
-      if subp.stestexec{
-        {'readelf', '-h', 'inputs/'..s..'/'..id, reerr = false, reout = false}
-      } then k = 'binary'
-      elseif subp.stestexec{
-        {'tar', '--test-label', '-af', 'inputs/'..s..'/'..id, reerr=false, reout=false}
-      } then k = 'trace'
-      else error('Unable to determine kind for inputs/'..s..'/'..id) end
-      add_inputs{{id = id, fullfn = f, size = sz, kind = k}}
+    if id ~= '.gitignore' and id ~= 'latest' and id ~= 'reference' then
+      if #tup.glob(cwd..s..'.ref/'..id) > 0 then
+        add_inputs{{id = id, size = sz, kind = kind(id),
+          modes = {[false]=cwd..s..'/'..f, ann=cwd..s..'/'..f, ref=cwd..s..'.ref/'..f},
+        }}
+      else
+        add_inputs{{id = id, fullfn = f, size = sz, kind = kind(id)}}
+      end
     end
   end
 end
