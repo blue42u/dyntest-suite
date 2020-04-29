@@ -27,7 +27,7 @@ local function add_test(base)
     if base.mpirun then pre = '`pwd`/' end
     base.modes = {
       [false] = base.fnstems[false] and pre..cwd..'../latest/'..base.fnstems[false] or nil,
-      ann = base.fnstems.ref and pre..cwd..'../annotated/'..base.fnstems.ann or nil,
+      ann = base.fnstems.ann and pre..cwd..'../annotated/'..base.fnstems.ann or nil,
       ref = base.fnstems.ref and pre..cwd..'../reference/'..base.fnstems.ref or nil,
     }
     if base.nofn then

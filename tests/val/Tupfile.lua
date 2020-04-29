@@ -46,7 +46,7 @@ ruleif(forall(function(i, t)
     threads = 32,
     cmd = (t.mpirun and mpicom or com)
       ..' --tool=memcheck --track-origins=yes --leak-check=full %C || :',
-    env = VALGRIND_ENV..(t.mpirun and ' ./tmplog.sh %o' or ''),
+    env = VALGRIND_ENV..(t.mpirun and ' "`pwd`"/tmplog.sh %o' or ''),
     redirect = '/dev/null',
     output = 'mc/%t.%i.log', fakeout = true,
     deps = {'../../external/valgrind/<build>'},
@@ -60,7 +60,7 @@ ruleif(forall(function(i, t)
     threads = 32,
     cmd = (t.mpirun and mpicom or com)
       ..' --tool=helgrind --free-is-write=yes %C || :',
-    env = VALGRIND_ENV..(t.mpirun and ' ./tmplog.sh %o' or ''),
+    env = VALGRIND_ENV..(t.mpirun and ' "`pwd`"/tmplog.sh %o' or ''),
     redirect = '/dev/null',
     output = 'hg/%t.%i.log', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
@@ -74,7 +74,7 @@ ruleif(forall(function(i, t)
     threads = 32,
     cmd = (t.mpirun and mpicom or com)
       ..' --tool=drd --free-is-write=yes %C || :',
-    env = VALGRIND_ENV..(t.mpirun and ' ./tmplog.sh %o' or ''),
+    env = VALGRIND_ENV..(t.mpirun and ' "`pwd`"/tmplog.sh %o' or ''),
     redirect = '/dev/null',
     output = 'drd/%t.%i.log', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
