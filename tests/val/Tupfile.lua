@@ -23,7 +23,7 @@ local function szclass(name, sz)
   return sz
 end
 
-local function expand(base)
+local function expanddry(base)
   return base,
     setmetatable({
       id = base.id..' (dry)', dry = true, redirect = false,
@@ -38,10 +38,17 @@ local function expand(base)
       output = base.output..'.dryreg',
     }, {__index=base})
 end
+local function expand(base)
+  return base,
+    setmetatable({
+      id = base.id..' (reg)', imode = 'ref',
+      output = base.output..'.reg',
+    }, {__index=base})
+end
 
 ruleif(forall(function(i, t)
   if i.size > szclass('MC', 2) then return end
-  return expand{
+  return (t.dryargs and expanddry or expand){
     id = 'Memcheck', mode = 'ann',
     threads = 32,
     cmd = (t.mpirun and mpicom or com)

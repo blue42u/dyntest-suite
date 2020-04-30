@@ -54,6 +54,9 @@ config TEST_UNSTRIP
 config TEST_MICRO
   bool "Enable microbenchmark testing"
   default n
+config TEST_CFGTESTS
+  bool "Enable CFG sanity testing"
+  default n
 config TEST_HPCPROF
   bool "Enable hpcprof testing (HPCToolkit component)"
   default y

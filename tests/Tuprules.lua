@@ -74,6 +74,11 @@ add_test { id = 'micro-parse', size = 1, grouped = true, cfg = '!MICRO',
   env = 'OMP_NUM_THREADS=%T', args = '%f',
   nooutput = true,
 }
+add_test { id = 'cfgdump', size = 1, grouped = true, cfg = '!CFGTESTS',
+  inkind = 'binary',
+  fnstem = 'cfgtests/cfgdump',
+  env = 'OMP_NUM_THREADS=%T', args = '%f > %o',
+}
 add_test { id = 'hpcprof2', size = 3, grouped = true, cfg = 'HPCPROF',
   inkind = 'trace',
   fnstems = {

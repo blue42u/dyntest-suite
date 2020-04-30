@@ -34,6 +34,7 @@ for _,d in ipairs{
   'latest/hpctoolkit', 'annotated/hpctoolkit', 'reference/elfutils',
   'reference/dyninst', 'reference/hpctoolkit', 'annotated/elfutils',
   'reference/micro', 'latest/micro', 'annotated/micro',
+  'reference/cfgtests', 'latest/cfgtests', 'annotated/cfgtests',
   'latest/testsuite',
 } do
   table.insert(allbuilds, tup.getcwd()..'/../'..d..'/<build>')
