@@ -13,7 +13,7 @@ using namespace Dyninst::ParseAPI;
 
 std::string bstr(const Block& b) {
   std::ostringstream ss;
-  ss << "B[" << std::hex << b.start() << "," << b.end() << "]";
+  ss << "B[" << std::hex << b.start() << "," << b.end() << ")";
   return ss.str();
 }
 std::string bstr(const Block* b) {
@@ -44,32 +44,74 @@ int main(int argc, const char** argv) {
 
   auto source = std::make_unique<SymtabCodeSource>((char*)argv[1]);
   auto co = std::make_unique<CodeObject>(source.get());
-
   co->parse();
 
-  std::unordered_set<const Block*> blocks_set;
-  for(const Function* func: co->funcs())
-    for(const Block* block: func->blocks())
-      blocks_set.emplace(block);
-
-  std::vector<std::reference_wrapper<const Block>> blocks;
-  for(const Block* block: blocks_set) blocks.emplace_back(*block);
-  std::sort(blocks.begin(), blocks.end(), [](const Block& a, const Block& b){
-    if(a.start() != b.start()) return a.start() < b.start();
-    return a.end() < b.end();
+  std::vector<std::reference_wrapper<const Function>> funcs;
+  for(const Function* func: co->funcs()) {
+    funcs.emplace_back(*func);
+  }
+  std::sort(funcs.begin(), funcs.end(), [](const Function& a, const Function& b){
+    return a.name() < b.name();
   });
 
-  for(const Block& b: blocks) {
-    std::cout << "# " << bstr(b) << "\n";
-    std::vector<std::reference_wrapper<const Edge>> edges;
-    for(const Edge* e: b.targets()) edges.emplace_back(*e);
-    std::sort(edges.begin(), edges.end(), [](const Edge& a, const Edge& b){
-      if(a.trg()->start() != b.trg()->start()) return a.trg()->start() < b.trg()->start();
-      if(a.trg()->end() != b.trg()->end()) return a.trg()->end() < b.trg()->end();
-      return a.type() < b.type();
+  for(const Function& f: funcs) {
+    std::cout << "# " << f.name() << "\n";
+
+    // Nab all this functions blocks, in order
+    std::vector<std::reference_wrapper<const Block>> blocks;
+    for(const Block* block: f.blocks())
+      blocks.emplace_back(*block);
+    std::sort(blocks.begin(), blocks.end(), [](const Block& a, const Block& b){
+      if(a.start() != b.start()) return a.start() < b.start();
+      return a.end() < b.end();
     });
-    for(const Edge& e: edges)
-      std::cout << "  % -(" << etstr(e.type()) << ")> " << bstr(e.trg()) << "\n";
+
+    // Output the ranges of this function, as compact as possible
+    std::pair<std::size_t, std::size_t> cur = {-1,-1};
+    for(const Block& b: blocks) {
+      if(b.start() != cur.second) {
+        if(cur.first != -1) {  // Not the first
+          std::cout << "  range [" <<
+            std::hex << cur.first << ", " << cur.second << std::dec << ")\n";
+        }
+        cur = {b.start(), b.end()};
+      }
+      cur.second = b.end();
+      /* std::cout << "  " << bstr(b) << "\n"; */
+    }
+    std::cout << "  range [" <<
+      std::hex << cur.first << ", " << cur.second << std::dec << ")\n";
+
+    for(const Block& b: blocks) {
+      // Gather up all the destinations for this jump table, if there is one.
+      std::vector<std::reference_wrapper<const Block>> targets;
+      for(const Edge* e: b.targets())
+        if(e->type() == EdgeTypeEnum::INDIRECT)
+          targets.emplace_back(*e->trg());
+      if(targets.empty()) continue;
+      for(const Edge* e: b.targets())
+        if(e->type() != EdgeTypeEnum::INDIRECT)
+          std::cout << "  Malformed jump table on " << bstr(b) << " -> " << bstr(*e->trg()) << "\n";
+
+      // Check for B[-1,-1) targets, they mean something special I think
+      bool unbounded = false;
+      for(const Block& t: targets) {
+        if(t.start() == -1 && t.end() == -1) {
+          unbounded = true;
+          break;
+        }
+      }
+
+      // Print out a clean line about this here jump table
+      if(unbounded && targets.size() != 1) {
+        std::cout << "  Malformed unbounded jump table on " << bstr(b)
+          << " with " << (targets.size()-1) << " bounded jumps\n";
+      } else if(unbounded) {
+        std::cout << "  Unbounded jump table from " << bstr(b) << "\n";
+      } else {
+        std::cout << "  Jump table from " << bstr(b) << " with " << targets.size() << " targets\n";
+      }
+    }
   }
 
   return 0;

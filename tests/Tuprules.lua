@@ -76,7 +76,12 @@ add_test { id = 'micro-parse', size = 1, grouped = true, cfg = '!MICRO',
 }
 add_test { id = 'cfgdump', size = 1, grouped = true, cfg = '!CFGTESTS',
   inkind = 'binary',
-  fnstem = 'cfgtests/cfgdump',
+  modes = {
+    [false] = cwd..'../latest/cfgtests/cfgdump',
+    ann = cwd..'../annotated/cfgtests/cfgdump',
+    ref = cwd..'../external/lua/luaexec '
+      ..cwd..'../src/cfgtests/jtdump.lua $HOME/debbox/rtldumps/',
+  },
   env = 'OMP_NUM_THREADS=%T', args = '%f > %o',
 }
 add_test { id = 'hpcprof2', size = 3, grouped = true, cfg = 'HPCPROF',
