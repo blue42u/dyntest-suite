@@ -21,6 +21,11 @@ std::string bstr(const Block* b) {
   return bstr(*b);
 }
 
+bool bless(const Block& a, const Block& b) {
+  if(a.start() != b.start()) return a.start() < b.start();
+  return a.end() < b.end();
+}
+
 std::string etstr(EdgeTypeEnum et) {
   switch(et) {
   case EdgeTypeEnum::CALL: return "call";
@@ -51,20 +56,18 @@ int main(int argc, const char** argv) {
     funcs.emplace_back(*func);
   }
   std::sort(funcs.begin(), funcs.end(), [](const Function& a, const Function& b){
-    return a.name() < b.name();
+    return bless(*a.entry(), *b.entry());
   });
 
   for(const Function& f: funcs) {
-    std::cout << "# " << f.name() << "\n";
+    std::cout << "# " << std::hex << f.entry()->start() << std::dec
+      << " " << f.name() << "\n";
 
     // Nab all this functions blocks, in order
     std::vector<std::reference_wrapper<const Block>> blocks;
     for(const Block* block: f.blocks())
       blocks.emplace_back(*block);
-    std::sort(blocks.begin(), blocks.end(), [](const Block& a, const Block& b){
-      if(a.start() != b.start()) return a.start() < b.start();
-      return a.end() < b.end();
-    });
+    std::sort(blocks.begin(), blocks.end(), bless);
 
     // Output the ranges of this function, as compact as possible
     std::pair<std::size_t, std::size_t> cur = {-1,-1};

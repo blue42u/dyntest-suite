@@ -40,6 +40,12 @@ do
           curfunc.lname = line:reverse():match '^(.-):[%s%)]':reverse()
         elseif attr == 'name' then
           curfunc.name = line:reverse():match '^(.-):[%s%)]':reverse()
+        elseif attr == 'low_pc' then
+          curfunc.low = tonumber(line:match ':%s*0x(%x+)$', 16)
+        elseif attr == 'high_pc' then
+          curfunc.high = tonumber(line:match ':%s*0x(%x+)$', 16)
+        elseif attr == 'entry_pc' then
+          curfunc.entry = tonumber(line:match ':%s*0x(%x+)$', 16)
         end
       end
     end
@@ -52,6 +58,62 @@ do
   assert(dwarf:close())
 end
 
+-- Clean up the ranges, and mark the entry PC if we can
+for _,f in ipairs(funcs) do
+  if not f.ranges and f.low then
+    assert(f.high < f.low, f.low..' '..f.high)
+    f.ranges = {{from=f.low, to=f.low+(f.high or 1)}}
+    f.low, f.high = nil,nil
+  elseif f.ranges then
+    assert(not f.low)
+    table.sort(f.ranges, function(a,b) return a.from < b.from end)
+    local fin = f.ranges[1].from-1
+    for _,r in ipairs(f.ranges) do
+      if r.from == fin then io.stderr:write("Nonoptimal range detected in "..f.name.."\n")
+      elseif r.from < fin then io.stderr:write("Overlapping ranges in "..f.name.."\n")
+      end
+      fin = r.to
+    end
+  end
+  if not f.entry and f.ranges then
+    f.entry = f.ranges[1].from
+  end
+end
+
+-- ParseAPI uses the names from .dynsym instead of .symtab, so rename functions
+-- based on their entry point. Also add any missing functions.
+do
+  local symbols = {}  -- Entry PC -> {name=, size=}
+  local symtab = io.popen("objdump -t '"..bin.."'")
+  for line in symtab:lines() do
+    local start,size,name = line:match '^(%x+)[%a%s]+F%s+%g+%s+(%x+)%s+.*%f[%S](%g+)$'
+    if start then
+      start = assert(tonumber(start, 16), start)
+      if start > 0 and not symbols[start] then
+        symbols[start] = {
+          name = name,
+          size = assert(tonumber(size, 16), size),
+        }
+      end
+    end
+  end
+  assert(symtab:close())
+
+  for _,f in ipairs(funcs) do
+    if symbols[f.entry] then
+      f.lname = symbols[f.entry].name
+      symbols[f.entry] = nil
+    end
+  end
+
+  for entry,sym in pairs(symbols) do
+    table.insert(funcs, {
+      lname=sym.name, entry=entry,
+      ranges={{from=entry, to=entry+sym.size}},
+    })
+  end
+end
+
 -- Demangle any function names that need it. Done in post to use only one
 -- c++filt process.
 do
@@ -62,7 +124,6 @@ do
     if f.lname then
       table.insert(lfuncs, f)
       filt:write(f.lname, '\n')
-      f.lname = nil
     end
   end
   assert(filt:close())
@@ -73,14 +134,19 @@ do
   end
 end
 
--- Sort the functions by name, so we have a master order for things
+-- Sort the functions by entry PC, so we have a master order for things
 table.sort(funcs, function(a, b)
-  if not a.name then io.stderr:write(tostring(a.source)) end
-  if not b.name then io.stderr:write(tostring(b.source)) end
-  return a.name < b.name
+  if not a.entry then return true end
+  if not b.entry then return false end
+  return a.entry < b.entry
 end)
 
 -- Print out lines for each function we found
 for _,f in ipairs(funcs) do
-  print('# '..f.name)
+  if f.ranges then
+    print(('# %x %s'):format(f.entry, f.name))
+    for _,r in ipairs(f.ranges) do
+      print(('  range [%x, %x)'):format(r.from, r.to))
+    end
+  else print(('# Empty %s'):format(f.name)) end
 end
