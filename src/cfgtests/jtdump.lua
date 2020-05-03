@@ -21,7 +21,7 @@ do
           if not files[curfunc.file] then files[curfunc.file] = {} end
           table.insert(files[curfunc.file], curfunc)
         end
-        curfunc = {file = assert(curfile), source = ''}
+        curfunc = {file = assert(curfile), source = '', jtables={}}
       end
     elseif line:find '^%s*<%x+>%s*DW_AT_%g+' then
       local attr = assert(line:match 'DW_AT_([%a_]+)', line)
@@ -89,13 +89,15 @@ do
   local symtab = io.popen("objdump -t '"..bin.."'")
   for line in symtab:lines() do
     local start,size,name = line:match '^(%x+)[%a%s]+F%s+%g+%s+(%x+)%s+.*%f[%S](%g+)$'
-    if start then
-      start = assert(tonumber(start, 16), start)
-      if start > 0 and not symbols[start] then
+    start = start and assert(tonumber(start, 16), start)
+    if start and start > 0 then
+      if not symbols[start] then
         symbols[start] = {
           name = name,
           size = assert(tonumber(size, 16), size),
         }
+      elseif name < symbols[start].name then
+        symbols[start].name = name
       end
     end
   end
@@ -109,9 +111,28 @@ do
   end
 
   for entry,sym in pairs(symbols) do
+    local to = entry + sym.size
+    if sym.size == 0 then
+      -- Sometimes this happens, and its a pain. There's probably an easier
+      -- way, for now just use the disassembly.
+      local dasm = io.popen("objdump --disassemble="..sym.name.." '"..bin.."'")
+      for line in dasm:lines() do
+        local addr,bytes = line:match '^%s+(%x+):%s*([%x%s]+)'
+        if addr then
+          addr = tonumber(addr, 16)
+          to = addr
+          for b in bytes:gmatch '%x%x%f[%s\0]' do
+            addr = addr + 1
+            if b ~= '00' then to = addr end
+          end
+        end
+      end
+      assert(dasm:close())
+    end
     table.insert(funcs, {
       lname=sym.name, entry=entry,
-      ranges={{from=entry, to=entry+sym.size}},
+      ranges={{from=entry, to=to}},
+      jtables={},
     })
   end
 end
@@ -127,6 +148,7 @@ do
       curentry = {
         lname = name, entry=start,
         ranges={{from=start, to=start}},
+        jtables={-1},
       }
       table.insert(funcs, curentry)
     elseif line:find '^%s+%x+:' and curentry then
@@ -177,6 +199,10 @@ for _,f in ipairs(funcs) do
     print(('# %x %s'):format(f.entry, f.name))
     for _,r in ipairs(f.ranges) do
       print(('  range [%x, %x)'):format(r.from, r.to))
+    end
+    for _,t in ipairs(f.jtables) do
+      if t < 0 then print('  Unbounded jump table')
+      else print(('  Jump table with %d targets'):format(t)) end
     end
   else print(('# Empty %s'):format(f.name)) end
 end

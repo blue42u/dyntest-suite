@@ -110,9 +110,9 @@ int main(int argc, const char** argv) {
         std::cout << "  Malformed unbounded jump table on " << bstr(b)
           << " with " << (targets.size()-1) << " bounded jumps\n";
       } else if(unbounded) {
-        std::cout << "  Unbounded jump table from " << bstr(b) << "\n";
+        std::cout << "  Unbounded jump table\n";
       } else {
-        std::cout << "  Jump table from " << bstr(b) << " with " << targets.size() << " targets\n";
+        std::cout << "  Jump table with " << targets.size() << " targets\n";
       }
     }
   }
