@@ -46,6 +46,8 @@ do
           curfunc.high = tonumber(line:match ':%s*0x(%x+)$', 16)
         elseif attr == 'entry_pc' then
           curfunc.entry = tonumber(line:match ':%s*0x(%x+)$', 16)
+        elseif attr == 'ranges' then
+          error('Full ranges not yet supported!')
         end
       end
     end
@@ -80,7 +82,7 @@ for _,f in ipairs(funcs) do
   end
 end
 
--- ParseAPI uses the names from .dynsym instead of .symtab, so rename functions
+-- ParseAPI uses the names from .symtab, so rename functions
 -- based on their entry point. Also add any missing functions.
 do
   local symbols = {}  -- Entry PC -> {name=, size=}
@@ -112,6 +114,34 @@ do
       ranges={{from=entry, to=entry+sym.size}},
     })
   end
+end
+
+-- ParseAPI can also see PLT entries. So we need to add those in too.
+do
+  local curentry
+  local plt = io.popen("objdump -dj .plt '"..bin.."'")
+  for line in plt:lines() do
+    if line:find '^%x+%s+<[^@]+@plt>:%s*$' then
+      local start,name = line:match '^(%x+)%s+<([^@]+)@plt>:%s*$'
+      start = tonumber(start, 16)
+      curentry = {
+        lname = name, entry=start,
+        ranges={{from=start, to=start}},
+      }
+      table.insert(funcs, curentry)
+    elseif line:find '^%s+%x+:' and curentry then
+      local addr,bytes,instr = line:match '^%s+(%x+):%s*([%x%s]+)(%g+)'
+      addr = tonumber(addr, 16)
+      local nonffaddr = addr
+      for b in bytes:gmatch '%x%x%f[%s\0]' do
+        if b == 'ff' then addr = addr + 1
+        else nonffaddr,addr = addr+1,addr+1 end
+      end
+      curentry.ranges[1].to = nonffaddr
+      if instr:find '^jmp' then curentry = nil end
+    else curentry = nil end
+  end
+  assert(plt:close())
 end
 
 -- Demangle any function names that need it. Done in post to use only one
