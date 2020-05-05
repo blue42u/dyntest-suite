@@ -23,32 +23,26 @@ local function szclass(name, sz)
   return sz
 end
 
-local function expanddry(base)
-  return base,
-    setmetatable({
-      id = base.id..' (dry)', dry = true, redirect = false,
-      output = base.output..'.dry',
-    }, {__index=base}),
-    setmetatable({
-      id = base.id..' (reg)', imode = 'ref',
-      output = base.output..'.reg',
-    }, {__index=base}),
-    setmetatable({
-      id = base.id..' (dry,reg)', imode = 'ref', dry = true, redirect = false,
-      output = base.output..'.dryreg',
-    }, {__index=base})
-end
-local function expand(base)
-  return base,
-    setmetatable({
-      id = base.id..' (reg)', imode = 'ref',
-      output = base.output..'.reg',
-    }, {__index=base})
+local function expand(base, reg, dry)
+  local out = {base}
+  if dry then table.insert(out, setmetatable({
+    id = base.id..' (dry)', dry = true, redirect = false,
+    output = base.output..'.dry',
+  }, {__index=base})) end
+  if reg then table.insert(out, setmetatable({
+    id = base.id..' (reg)', imode = 'ref',
+    output = base.output..'.reg',
+  }, {__index=base})) end
+  if dry and reg then table.insert(out, setmetatable({
+    id = base.id..' (dry,reg)', imode = 'ref', dry = true, redirect = false,
+    output = base.output..'.dryreg',
+  }, {__index=base})) end
+  return table.unpack(out)
 end
 
 ruleif(forall(function(i, t)
   if i.size > szclass('MC', 2) then return end
-  return (t.dryargs and expanddry or expand){
+  return expand({
     id = 'Memcheck', mode = 'ann',
     threads = 32,
     cmd = (t.mpirun and mpicom or com)
@@ -57,12 +51,12 @@ ruleif(forall(function(i, t)
     redirect = '/dev/null',
     output = 'mc/%t.%i.log', fakeout = true,
     deps = {'../../external/valgrind/<build>'},
-  }
+  }, i.modes.ann ~= i.modes.ref, t.dryargs)
 end), '^o Concat %o^ cat %f > %o', {'memcheck.log', '<out>'})
 
 ruleif(forall(function(i, t)
   if i.size > szclass('HEL', 1) then return end
-  return expand{
+  return expand({
     id = 'Helgrind', mode = 'ann',
     threads = 32,
     cmd = (t.mpirun and mpicom or com)
@@ -71,12 +65,12 @@ ruleif(forall(function(i, t)
     redirect = '/dev/null',
     output = 'hg/%t.%i.log', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
-  }
+  }, i.modes.ann ~= i.modes.ref)
 end), '^o Concat %o^ cat %f > %o', {'helgrind.log', '<out>'})
 
 ruleif(forall(function(i, t)
   if i.size > szclass('DRD', 0) then return end
-  return expand{
+  return expand({
     id = 'DRD', mode = 'ann',
     threads = 32,
     cmd = (t.mpirun and mpicom or com)
@@ -85,7 +79,7 @@ ruleif(forall(function(i, t)
     redirect = '/dev/null',
     output = 'drd/%t.%i.log', fakeout = true,
     deps = { '../../external/valgrind/<build>'},
-  }
+  }, i.modes.ann ~= i.modes.ref)
 end), '^o Concat %o^ cat %f > %o', {'drd.log', '<out>'})
 
 do
