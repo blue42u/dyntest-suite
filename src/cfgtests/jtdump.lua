@@ -5,11 +5,28 @@ local rtldir,bin = ...
 assert(bin and rtldir, "Usage: lua jtdump.lua path/to/rtl/root <binary>")
 
 -- First get a list of all the functions and the files they come from
-local funcs,files = {},{}
+local funcs = {}
 do
+  local files = {}
+
+  -- Load in the ranges, so we can build the full ranges.
+  local ranges = {}
+  local dwarf = io.popen("objdump -WR '"..bin.."'")
+  for line in dwarf:lines() do
+    local offset, start, fin = line:match '^%s*(%x+)%s+(%x+)%s+(%x+)%s*$'
+    if offset then
+      offset,start,fin = tonumber(offset,16),tonumber(start,16),tonumber(fin,16)
+      ranges[offset] = ranges[offset] or {}
+      table.insert(ranges[offset], {from=start, to=fin})
+    end
+  end
+  assert(dwarf:close())
+
+  -- Read the .debug_info to find the functions. This'll get the ones that are
+  -- present from the user's perspective
   local curfile, curfunc
   local inside = false
-  local dwarf = io.popen('objdump -Wi '..bin..' 2>/dev/null')
+  dwarf = io.popen('objdump -Wi '..bin..' 2>/dev/null')
   for line in dwarf:lines() do
     if line:find '^%s*<%d+><%x+>:%s*Abbrev Number:%s*%d+%s*%(DW_TAG_%g+%)%s*$' then
       inside = line:match '%(DW_TAG_([%a_]+)%)'
@@ -18,8 +35,7 @@ do
       elseif inside == 'subprogram' then
         if curfunc then
           table.insert(funcs, curfunc)
-          if not files[curfunc.file] then files[curfunc.file] = {} end
-          table.insert(files[curfunc.file], curfunc)
+          files[curfunc.file] = true
         end
         curfunc = {file = assert(curfile), source = '', jtables={}}
       end
@@ -27,19 +43,19 @@ do
       local attr = assert(line:match 'DW_AT_([%a_]+)', line)
       if inside == 'compile_unit' then
         if attr == 'name' then
-          local fn = line:reverse():match '^(.-):[%s%)]':reverse()
+          local fn = line:reverse():match '^(.-)%s*:[%s%)]':reverse()
           curfile = (curfile or '')..fn
         elseif attr == 'comp_dir' then
-          local path = line:reverse():match '^(.-):[%s%)]':reverse()
+          local path = line:reverse():match '^(.-)%s*:[%s%)]':reverse()
           curfile = path:gsub('/*$', '/')..(curfile or '')
         end
       elseif inside == 'subprogram' then
         assert(curfile)
         curfunc.source = curfunc.source..line..'\n'
         if attr == 'linkage_name' then
-          curfunc.lname = line:reverse():match '^(.-):[%s%)]':reverse()
+          curfunc.lname = line:reverse():match '^(.-)%s*:':reverse()
         elseif attr == 'name' then
-          curfunc.name = line:reverse():match '^(.-):[%s%)]':reverse()
+          curfunc.name = line:reverse():match '^(.-)%s*:':reverse()
         elseif attr == 'low_pc' then
           curfunc.low = tonumber(line:match ':%s*0x(%x+)$', 16)
         elseif attr == 'high_pc' then
@@ -47,27 +63,69 @@ do
         elseif attr == 'entry_pc' then
           curfunc.entry = tonumber(line:match ':%s*0x(%x+)$', 16)
         elseif attr == 'ranges' then
-          error('Full ranges not yet supported!')
+          local offset = tonumber(line:match ':%s*0x(%x+)$', 16)
+          if not ranges[offset] then error('Malformed ranges entry!') end
+          curfunc.ranges = ranges[offset]
+          ranges[offset] = nil
         end
       end
     end
   end
   if curfunc then
     table.insert(funcs, curfunc)
-    if not files[curfunc.file] then files[curfunc.file] = {} end
-    table.insert(files[curfunc.file], curfunc)
+    files[curfunc.file] = true
   end
   assert(dwarf:close())
+
+  -- Then read in all the RTL files we have available, and break them up by the
+  -- function headers.
+  for fn in pairs(files) do
+    local f,err = io.open(rtldir..fn..'.318r.dfinish')
+    if not f then
+      io.stderr:write('Unable to read RTL: `'..err..'\'\n')
+    else
+      local ft = {}
+      files[fn] = ft
+      local cur = nil
+      for line in f:lines 'L' do
+        if line:find '^;;' then
+          cur = assert(line:match '^;; Function%s*(%S+)', line)
+        elseif cur then
+          ft[cur] = (ft[cur] or '')..line
+        end
+      end
+      f:close()
+    end
+  end
+
+  -- Then go through the functions again, and try to associate with the
+  -- RTL blobs. If we can.
+  for _,f in ipairs(funcs) do
+    f.rtl = files[f.file] and files[f.file][f.name]
+  end
 end
+
+-- Convert RTL blobs into jump table entries.
+for _,f in ipairs(funcs) do if f.rtl then
+  for insr in f.rtl:gmatch '%b()' do
+    local opcode = assert(insr:match '^%((%S+)', insr)
+    if opcode == 'jump_table_data' then
+      local cnt = 0
+      for _ in assert(insr:match '%b[]', insr):gmatch '%b()' do
+        cnt = cnt + 1
+      end
+      table.insert(f.jtables, cnt)
+    end
+  end
+end end
 
 -- Clean up the ranges, and mark the entry PC if we can
 for _,f in ipairs(funcs) do
   if not f.ranges and f.low then
-    assert(f.high < f.low, f.low..' '..f.high)
     f.ranges = {{from=f.low, to=f.low+(f.high or 1)}}
     f.low, f.high = nil,nil
   elseif f.ranges then
-    assert(not f.low)
+    assert(not f.low, f.low)
     table.sort(f.ranges, function(a,b) return a.from < b.from end)
     local fin = f.ranges[1].from-1
     for _,r in ipairs(f.ranges) do
@@ -188,9 +246,10 @@ end
 
 -- Sort the functions by entry PC, so we have a master order for things
 table.sort(funcs, function(a, b)
-  if not a.entry then return true end
-  if not b.entry then return false end
-  return a.entry < b.entry
+  if a.entry and b.entry then return a.entry < b.entry end
+  if not a.entry and not b.entry then return a.name < b.name end
+  if a.entry then return false end
+  if b.entry then return true end
 end)
 
 -- Print out lines for each function we found
@@ -204,5 +263,6 @@ for _,f in ipairs(funcs) do
       if t < 0 then print('  Unbounded jump table')
       else print(('  Jump table with %d targets'):format(t)) end
     end
-  else print(('# Empty %s'):format(f.name)) end
+  end
+  -- else print(('# Empty %s'):format(f.name)) end
 end
