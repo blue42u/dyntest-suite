@@ -7,8 +7,6 @@ assert(bin and rtldir, "Usage: lua jtdump.lua path/to/rtl/root <binary>")
 -- First get a list of all the functions and the files they come from
 local funcs = {}
 do
-  local files = {}
-
   -- Load in the ranges, so we can build the full ranges.
   local ranges = {}
   local dwarf = io.popen("objdump -WR '"..bin.."'")
@@ -36,7 +34,6 @@ do
       elseif inside == 'subprogram' then
         if curfunc and (curfunc.low or curfunc.ranges) then
           table.insert(funcs, curfunc)
-          files[curfunc.file] = true
         end
         local ref = tonumber(line:match '<%d+><(%x+)>', 16)
         curfunc = {file = assert(curfile), source = '', jtables={}}
@@ -82,56 +79,9 @@ do
   end
   if curfunc then
     table.insert(funcs, curfunc)
-    files[curfunc.file] = true
   end
   assert(dwarf:close())
-
-  -- Then read in all the RTL files we have available, and break them up by the
-  -- function headers.
-  for fn in pairs(files) do
-    local f,err = io.open(rtldir..fn..'.318r.dfinish')
-    if not f then
-      io.stderr:write('Unable to read RTL: `'..err..'\'\n')
-    else
-      local ft = {}
-      files[fn] = ft
-      local cur = nil
-      for line in f:lines 'L' do
-        if line:find '^;;' then
-          cur = assert(line:match '^;; Function%s*(%S+)', line)
-        elseif cur then
-          ft[cur] = (ft[cur] or '')..line
-        end
-      end
-      f:close()
-    end
-  end
-
-  -- Then go through the functions again, and try to associate with the
-  -- RTL blobs. If we can.
-  for _,f in ipairs(funcs) do
-    f.rtl = files[f.file] and files[f.file][f.name]
-  end
 end
-
--- Convert RTL blobs into jump table entries.
-for _,f in ipairs(funcs) do if f.rtl then
-  f.callsReturn = {}
-  for insr in f.rtl:gmatch '%b()' do
-    local opcode = assert(insr:match '^%(([%a_]+)', insr)
-    if opcode == 'jump_table_data' then
-      local targets = {}
-      for t in assert(insr:match '%b[]', insr):gmatch '%b()' do
-        targets[t] = true
-      end
-      local cnt = 0
-      for _ in pairs(targets) do cnt = cnt + 1 end
-      table.insert(f.jtables, cnt)
-    elseif opcode == 'call_insn' then
-      table.insert(f.callsReturn, not insr:find 'REG_NORETURN')
-    end
-  end
-end end
 
 -- Clean up the ranges, and mark the entry PC if we can
 for _,f in ipairs(funcs) do
@@ -209,6 +159,59 @@ do
     })
   end
 end
+
+-- By this point, we have lnames for most things. Since the RTL uses those
+-- we can read assocate it now.
+do
+  local files = {}
+  for _,f in ipairs(funcs) do if f.file then files[f.file] = true end end
+
+  -- Then read in all the RTL files we have available, and break them up by the
+  -- function headers.
+  for fn in pairs(files) do
+    local f,err = io.open(rtldir..fn..'.318r.dfinish')
+    if not f then
+      io.stderr:write('Unable to read RTL: `'..err..'\'\n')
+    else
+      local ft = {}
+      files[fn] = ft
+      local cur = nil
+      for line in f:lines 'L' do
+        if line:find '^;;' then
+          cur = assert(line:match '^;; Function%s*(%S+)', line)
+        elseif cur then
+          ft[cur] = (ft[cur] or '')..line
+        end
+      end
+      f:close()
+    end
+  end
+
+  -- Then go through the functions again, and try to associate with the
+  -- RTL blobs. If we can.
+  for _,f in ipairs(funcs) do
+    f.rtl = files[f.file] and (files[f.file][f.lname] or files[f.file][f.name])
+  end
+end
+
+-- Convert RTL blobs into jump table entries.
+for _,f in ipairs(funcs) do if f.rtl then
+  f.callsReturn = {}
+  for insr in f.rtl:gmatch '%b()' do
+    local opcode = assert(insr:match '^%(([%a_]+)', insr)
+    if opcode == 'jump_table_data' then
+      local targets = {}
+      for t in assert(insr:match '%b[]', insr):gmatch '%b()' do
+        targets[t] = true
+      end
+      local cnt = 0
+      for _ in pairs(targets) do cnt = cnt + 1 end
+      table.insert(f.jtables, cnt)
+    elseif opcode == 'call_insn' then
+      table.insert(f.callsReturn, not insr:find 'REG_NORETURN')
+    end
+  end
+end end
 
 -- ParseAPI can also see PLT entries. So we need to add those in too.
 do
@@ -360,8 +363,10 @@ do
 
         -- While we're here, check for a somewhat obvious unbounded jump
         if maybeunbounded and instr:find '^jmpq%s+%*%%rax'
-          and #origins[ranges[cur]].jtables == 0 then
+          and (#origins[ranges[cur]].jtables == 0
+          or origins[ranges[cur]].jtables.faked) then
           table.insert(origins[ranges[cur]].jtables, -1)
+          origins[ranges[cur]].jtables.faked = true
         end
         maybeunbounded = not instr:find '^add'
       end
