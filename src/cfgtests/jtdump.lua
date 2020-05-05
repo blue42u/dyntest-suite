@@ -213,15 +213,18 @@ do
       if line:find '^%x+%s+<[^@]+@plt>:%s*$' then
         local start,name = line:match '^(%x+)%s+<([^@]+)@plt>:%s*$'
         start = tonumber(start, 16)
-        if not entries[start] then
-          curentry = {
-            lname = name, entry=start,
-            ranges={{from=start, to=start}},
-            jtables={-1},
-          }
+        if entries[start] then
+          curentry = entries[start]
+          for k in pairs(curentry) do curentry[k] = nil end
+        else
+          curentry = {}
           table.insert(funcs, curentry)
           entries[start] = curentry
         end
+        curentry.lname = name
+        curentry.entry = start
+        curentry.ranges = {{from=start, to=start}}
+        curentry.jtables = {-1}
       elseif line:find '^%s+%x+:' and curentry then
         local addr,bytes,instr = line:match '^%s+(%x+):%s*([%x%s]+)(%g+)'
         addr = tonumber(addr, 16)
