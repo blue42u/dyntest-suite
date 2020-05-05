@@ -66,6 +66,7 @@ do
           local offset = tonumber(line:match ':%s*0x(%x+)$', 16)
           if not ranges[offset] then error('Malformed ranges entry!') end
           curfunc.ranges = ranges[offset]
+          curfunc.entry = curfunc.ranges[1].from
           ranges[offset] = nil
         end
       end
@@ -110,10 +111,12 @@ for _,f in ipairs(funcs) do if f.rtl then
   for insr in f.rtl:gmatch '%b()' do
     local opcode = assert(insr:match '^%((%S+)', insr)
     if opcode == 'jump_table_data' then
-      local cnt = 0
-      for _ in assert(insr:match '%b[]', insr):gmatch '%b()' do
-        cnt = cnt + 1
+      local targets = {}
+      for t in assert(insr:match '%b[]', insr):gmatch '%b()' do
+        targets[t] = true
       end
+      local cnt = 0
+      for _ in pairs(targets) do cnt = cnt + 1 end
       table.insert(f.jtables, cnt)
     end
   end
@@ -224,6 +227,28 @@ do
   assert(plt:close())
 end
 
+-- Sometimes some of the ranges for a function are actually part of an outlined
+-- "cold" version. Since by this point they've been claimed already, remove
+-- them from their original functions.
+do
+  local entries = {}
+  for _,f in ipairs(funcs) do
+    if f.entry then entries[f.entry] = f end
+  end
+  for _,f in ipairs(funcs) do
+    local torm = {}
+    for idx,r in ipairs(f.ranges or {}) do
+      local o = entries[r.from]
+      if o ~= f then
+        assert(o.lname == f.lname..'.cold', f.lname..' ~= '..o.lname)
+        table.insert(torm, idx)
+      end
+    end
+    assert(#torm <= 1, #torm)  -- Cold blobs should only need one range
+    if torm[1] then table.remove(f.ranges, torm[1]) end
+  end
+end
+
 -- Demangle any function names that need it. Done in post to use only one
 -- c++filt process.
 do
@@ -264,5 +289,4 @@ for _,f in ipairs(funcs) do
       else print(('  Jump table with %d targets'):format(t)) end
     end
   end
-  -- else print(('# Empty %s'):format(f.name)) end
 end
