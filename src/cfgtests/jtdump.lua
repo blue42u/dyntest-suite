@@ -200,31 +200,33 @@ end
 
 -- ParseAPI can also see PLT entries. So we need to add those in too.
 do
-  local curentry
-  local plt = io.popen("objdump -dj .plt '"..bin.."'")
-  for line in plt:lines() do
-    if line:find '^%x+%s+<[^@]+@plt>:%s*$' then
-      local start,name = line:match '^(%x+)%s+<([^@]+)@plt>:%s*$'
-      start = tonumber(start, 16)
-      curentry = {
-        lname = name, entry=start,
-        ranges={{from=start, to=start}},
-        jtables={-1},
-      }
-      table.insert(funcs, curentry)
-    elseif line:find '^%s+%x+:' and curentry then
-      local addr,bytes,instr = line:match '^%s+(%x+):%s*([%x%s]+)(%g+)'
-      addr = tonumber(addr, 16)
-      local nonffaddr = addr
-      for b in bytes:gmatch '%x%x%f[%s\0]' do
-        if b == 'ff' then addr = addr + 1
-        else nonffaddr,addr = addr+1,addr+1 end
-      end
-      curentry.ranges[1].to = nonffaddr
-      if instr:find '^jmp' then curentry = nil end
-    else curentry = nil end
+  for _,sec in ipairs{'.plt', '.plt.got'} do
+    local curentry
+    local plt = io.popen("objdump -dj "..sec.." '"..bin.."'")
+    for line in plt:lines() do
+      if line:find '^%x+%s+<[^@]+@plt>:%s*$' then
+        local start,name = line:match '^(%x+)%s+<([^@]+)@plt>:%s*$'
+        start = tonumber(start, 16)
+        curentry = {
+          lname = name, entry=start,
+          ranges={{from=start, to=start}},
+          jtables={-1},
+        }
+        table.insert(funcs, curentry)
+      elseif line:find '^%s+%x+:' and curentry then
+        local addr,bytes,instr = line:match '^%s+(%x+):%s*([%x%s]+)(%g+)'
+        addr = tonumber(addr, 16)
+        local nonffaddr = addr
+        for b in bytes:gmatch '%x%x%f[%s\0]' do
+          if b == 'ff' then addr = addr + 1
+          else nonffaddr,addr = addr+1,addr+1 end
+        end
+        curentry.ranges[1].to = nonffaddr
+        if instr:find '^jmp' then curentry = nil end
+      else curentry = nil end
+    end
+    assert(plt:close())
   end
-  assert(plt:close())
 end
 
 -- Sometimes some of the ranges for a function are actually part of an outlined
@@ -247,6 +249,97 @@ do
     assert(#torm <= 1, #torm)  -- Cold blobs should only need one range
     if torm[1] then table.remove(f.ranges, torm[1]) end
   end
+end
+
+-- ParseAPI can see when some "padding" instructions are jumped over within
+-- a range. We do our best to snip out ranges likely to be jumped over.
+do
+  -- First mark down where all the ranges live. Also check that we don't have
+  -- any double-claimed ranges.
+  local ranges,origins,claimed = {},{},{}
+  for _,f in ipairs(funcs) do
+    for _,r in ipairs(f.ranges or {}) do
+      local rstr = ('jj'):pack(r.from, r.to)
+      if claimed[rstr] then
+        error(('Multiple functions claim [%x,%x): %s and %s'):format(
+          r.from, r.to, origins[rstr].lname, f.lname))
+      end
+      claimed[rstr] = f
+      origins[r] = f
+      table.insert(ranges, r)
+    end
+  end
+
+  -- Sort the origins, and make sure they're actually non-overlapping.
+  table.sort(ranges, function(a, b)
+    if a.to <= b.from then return true end
+    if b.to <= a.from then return false end
+    if a == b then return false end
+    error(('Overlapping ranges: [%x,%x) (%q) and [%x,%x) (%q)'):format(a.from, a.to,
+      ('jj'):pack(a.from,a.to), b.from, b.to, ('jj'):pack(b.from,b.to)))
+  end)
+
+  local function indexof(t, x)
+    for idx, y in ipairs(t) do
+      if y == x then return idx end
+    end
+  end
+
+  -- Disassemble the whole thing and split ranges as we go.
+  local cur = 1
+  local ingap = false
+  local maybeunbounded = true
+  local dasm = io.popen("objdump -d '"..bin.."'")
+  for line in dasm:lines() do
+    local addr,instr = line:match '^%s+(%x+):%s*[%x%s]+%s(.*)'
+    if addr then
+      addr = tonumber(addr, 16)
+      -- If we've overstepped our range, go to the next.
+      while ranges[cur] and ranges[cur].to <= addr do cur = cur + 1 end
+      if not ranges[cur] then break end  -- We've walked off what we know
+      if ranges[cur].from <= addr then  -- Only continue if we're in a range
+        if instr:find '^jmp' or instr:find '^call' or instr:find '^ret' then
+          -- Fixup the last gap
+          if ingap == true then ranges[cur].from = addr end
+          -- Gaps can start right after a jump.
+          ingap = 'start'
+        elseif instr:find '^nop' or instr:find '^xchg%s+%%ax,%%ax' or instr == '' then
+          -- Its a no-op. Add or extend the gap.
+          if ingap == 'start' then  -- Split this range into two.
+            table.insert(ranges, cur+1, {from=addr, to=ranges[cur].to})
+            local o = origins[ranges[cur]]
+            origins[ranges[cur+1]] = o
+            table.insert(o.ranges, indexof(o.ranges, ranges[cur])+1, ranges[cur+1])
+            ranges[cur].to = addr
+            ingap = true
+          end
+        elseif ingap then  -- Its not a no-op. End the gap right here.
+          if ingap == true then ranges[cur].from = addr end
+          ingap = false
+        end
+
+        -- While we're here, check for a somewhat obvious unbounded jump
+        if maybeunbounded and instr:find '^jmpq%s+%*%%rax'
+          and #origins[ranges[cur]].jtables == 0 then
+          table.insert(origins[ranges[cur]].jtables, -1)
+        end
+        maybeunbounded = not instr:find '^add'
+      end
+    else
+      addr = line:match '^(%x+)%s+<[^>]+>:%s*$'
+      if addr then  -- Function start/end
+        addr = tonumber(addr, 16)
+        while ranges[cur] and ranges[cur].to <= addr do cur = cur + 1 end
+        if not ranges[cur] then break end  -- We've walked off what we know
+        if ingap == true then  -- If the last range of a function is a no-op, just remove it
+          local o = origins[ranges[cur-1]]
+          table.remove(o.ranges, indexof(o.ranges, ranges[cur-1]))
+        end
+        ingap = false
+      end
+    end
+  end
+  assert(dasm:close())
 end
 
 -- Demangle any function names that need it. Done in post to use only one
