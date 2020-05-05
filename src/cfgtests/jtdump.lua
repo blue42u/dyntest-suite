@@ -152,6 +152,7 @@ do
     local start,size,name = line:match '^(%x+)[%a%s]+F%s+%g+%s+(%x+)%s+.*%f[%S](%g+)$'
     start = start and assert(tonumber(start, 16), start)
     if start and start > 0 then
+      name = name:match '^([^@]+)@@' or name
       if not symbols[start] then
         symbols[start] = {
           name = name,
@@ -200,6 +201,11 @@ end
 
 -- ParseAPI can also see PLT entries. So we need to add those in too.
 do
+  -- Scan for the current set of claimed entry points
+  local entries = {}
+  for _,f in ipairs(funcs) do
+    if f.entry then entries[f.entry] = f end
+  end
   for _,sec in ipairs{'.plt', '.plt.got'} do
     local curentry
     local plt = io.popen("objdump -dj "..sec.." '"..bin.."'")
@@ -207,12 +213,15 @@ do
       if line:find '^%x+%s+<[^@]+@plt>:%s*$' then
         local start,name = line:match '^(%x+)%s+<([^@]+)@plt>:%s*$'
         start = tonumber(start, 16)
-        curentry = {
-          lname = name, entry=start,
-          ranges={{from=start, to=start}},
-          jtables={-1},
-        }
-        table.insert(funcs, curentry)
+        if not entries[start] then
+          curentry = {
+            lname = name, entry=start,
+            ranges={{from=start, to=start}},
+            jtables={-1},
+          }
+          table.insert(funcs, curentry)
+          entries[start] = curentry
+        end
       elseif line:find '^%s+%x+:' and curentry then
         local addr,bytes,instr = line:match '^%s+(%x+):%s*([%x%s]+)(%g+)'
         addr = tonumber(addr, 16)
@@ -223,7 +232,7 @@ do
         end
         curentry.ranges[1].to = nonffaddr
         if instr:find '^jmp' then curentry = nil end
-      else curentry = nil end
+      end
     end
     assert(plt:close())
   end
@@ -242,7 +251,8 @@ do
     for idx,r in ipairs(f.ranges or {}) do
       local o = entries[r.from]
       if o ~= f then
-        assert(o.lname == f.lname..'.cold', f.lname..' ~= '..o.lname)
+        assert(o.lname == f.lname..'.cold',
+          ('%s ~= %s.cold for [%x,%x)'):format(o.lname, f.lname, r.from, r.to))
         table.insert(torm, idx)
       end
     end
