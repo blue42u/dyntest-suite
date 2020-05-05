@@ -26,6 +26,7 @@ do
   -- present from the user's perspective
   local curfile, curfunc
   local inside = false
+  local origins = {}
   dwarf = io.popen('objdump -Wi '..bin..' 2>/dev/null')
   for line in dwarf:lines() do
     if line:find '^%s*<%d+><%x+>:%s*Abbrev Number:%s*%d+%s*%(DW_TAG_%g+%)%s*$' then
@@ -33,11 +34,13 @@ do
       if inside == 'compile_unit' then
         curfile = nil
       elseif inside == 'subprogram' then
-        if curfunc then
+        if curfunc and (curfunc.low or curfunc.ranges) then
           table.insert(funcs, curfunc)
           files[curfunc.file] = true
         end
+        local ref = tonumber(line:match '<%d+><(%x+)>', 16)
         curfunc = {file = assert(curfile), source = '', jtables={}}
+        origins[ref] = curfunc
       end
     elseif line:find '^%s*<%x+>%s*DW_AT_%g+' then
       local attr = assert(line:match 'DW_AT_([%a_]+)', line)
@@ -56,6 +59,11 @@ do
           curfunc.lname = line:reverse():match '^(.-)%s*:':reverse()
         elseif attr == 'name' then
           curfunc.name = line:reverse():match '^(.-)%s*:':reverse()
+        elseif attr == 'abstract_origin' then
+          local o = tonumber(line:match '<0x(%x+)>$', 16)
+          curfunc.name = origins[o].name
+          curfunc.lname = origins[o].lname
+          curfunc.file = origins[o].file
         elseif attr == 'low_pc' then
           curfunc.low = tonumber(line:match ':%s*0x(%x+)$', 16)
         elseif attr == 'high_pc' then
@@ -108,8 +116,9 @@ end
 
 -- Convert RTL blobs into jump table entries.
 for _,f in ipairs(funcs) do if f.rtl then
+  f.callsReturn = {}
   for insr in f.rtl:gmatch '%b()' do
-    local opcode = assert(insr:match '^%((%S+)', insr)
+    local opcode = assert(insr:match '^%(([%a_]+)', insr)
     if opcode == 'jump_table_data' then
       local targets = {}
       for t in assert(insr:match '%b[]', insr):gmatch '%b()' do
@@ -118,6 +127,8 @@ for _,f in ipairs(funcs) do if f.rtl then
       local cnt = 0
       for _ in pairs(targets) do cnt = cnt + 1 end
       table.insert(f.jtables, cnt)
+    elseif opcode == 'call_insn' then
+      table.insert(f.callsReturn, not insr:find 'REG_NORETURN')
     end
   end
 end end
@@ -302,6 +313,7 @@ do
   local cur = 1
   local ingap = false
   local maybeunbounded = true
+  local callpos = {}
   local dasm = io.popen("objdump -d '"..bin.."'")
   for line in dasm:lines() do
     local addr,instr = line:match '^%s+(%x+):%s*[%x%s]+%s(.*)'
@@ -311,7 +323,22 @@ do
       while ranges[cur] and ranges[cur].to <= addr do cur = cur + 1 end
       if not ranges[cur] then break end  -- We've walked off what we know
       if ranges[cur].from <= addr then  -- Only continue if we're in a range
-        if instr:find '^jmp' or instr:find '^call' or instr:find '^ret' then
+        if instr:find '^call' or instr:find '^jmp[^<]+<[^>+]+>' then
+          if ingap == true then ranges[cur].from = addr end
+          ingap = false
+
+          -- Calls are weird, they don't always return. So we try to match up
+          -- with the RTL to figure them out.
+          local o = origins[ranges[cur]]
+          if o.callsReturn then
+            if o.callsReturn[callpos[o] or 1] == false then
+              ingap = 'start'
+            end
+            callpos[o] = (callpos[o] or 1) + 1
+          end
+          -- No matter what the RTL says, a jump is non-returning
+          if instr:find '^jmp' then ingap = 'start' end
+        elseif instr:find '^jmp' or instr:find '^ret' then
           -- Fixup the last gap
           if ingap == true then ranges[cur].from = addr end
           -- Gaps can start right after a jump.
