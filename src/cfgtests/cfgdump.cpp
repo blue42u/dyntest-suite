@@ -54,18 +54,9 @@ int main(int argc, const char** argv) {
   std::unordered_set<const Function*> funcs_s;
   for(const Function* func: co->funcs()) funcs_s.emplace(func);
 
-  // Sometimes there's an outlined .cold blob in another function. Since the
-  // interaction between the two functions is difficult, we treat them as one.
-  std::unordered_map<const Function*, const Function*> cold;
-  {
-    std::unordered_map<std::string, const Function*> masters;
-    for(const Function* f: funcs_s) masters.emplace(f->name()+".cold", f);
-    for(const Function* f: funcs_s) {
-      auto it = masters.find(f->name());
-      if(it != masters.end()) cold.emplace(it->second, f);
-    }
-    for(const auto& fc: cold) funcs_s.erase(fc.second);
-  }
+  // Make sure each entry block is only owned by one function.
+  std::unordered_map<const Block*, const Function*> entries_s;
+  for(const Function* func: co->funcs()) entries_s.emplace(func->entry(), func);
 
   // Convert the functions into a sorted vector
   std::vector<std::reference_wrapper<const Function>> funcs;
@@ -81,11 +72,11 @@ int main(int argc, const char** argv) {
 
     // Nab all this function's blocks, and all the blocks for the .cold side
     std::unordered_set<const Block*> blocks_s;
-    for(const Block* block: f.blocks()) blocks_s.emplace(block);
-    auto coldf = cold.find(&f);
-    if(coldf != cold.end())
-      for(const Block* block: coldf->second->blocks())
+    for(const Block* block: f.blocks()) {
+      auto it = entries_s.find(block);
+      if(it == entries_s.end() || it->second == &f)
         blocks_s.emplace(block);
+    }
 
     // Convert the blocks into a sorted vector
     std::vector<std::reference_wrapper<const Block>> blocks;

@@ -134,31 +134,29 @@ do
   end
 
   for entry,sym in pairs(symbols) do
-    if not sym.name:find '%.cold$' then
-      local to = entry + sym.size
-      if sym.size == 0 then
-        -- Sometimes this happens, and its a pain. There's probably an easier
-        -- way, for now just use the disassembly.
-        local dasm = io.popen("objdump --disassemble="..sym.name.." '"..bin.."'")
-        for line in dasm:lines() do
-          local addr,bytes = line:match '^%s+(%x+):%s*([%x%s]+)'
-          if addr then
-            addr = tonumber(addr, 16)
-            to = addr
-            for b in bytes:gmatch '%x%x%f[%s\0]' do
-              addr = addr + 1
-              if b ~= '00' then to = addr end
-            end
+    local to = entry + sym.size
+    if sym.size == 0 then
+      -- Sometimes this happens, and its a pain. There's probably an easier
+      -- way, for now just use the disassembly.
+      local dasm = io.popen("objdump --disassemble="..sym.name.." '"..bin.."'")
+      for line in dasm:lines() do
+        local addr,bytes = line:match '^%s+(%x+):%s*([%x%s]+)'
+        if addr then
+          addr = tonumber(addr, 16)
+          to = addr
+          for b in bytes:gmatch '%x%x%f[%s\0]' do
+            addr = addr + 1
+            if b ~= '00' then to = addr end
           end
         end
-        assert(dasm:close())
       end
-      table.insert(funcs, {
-        lname=sym.name, entry=entry,
-        ranges={{from=entry, to=to}},
-        jtables={},
-      })
+      assert(dasm:close())
     end
+    table.insert(funcs, {
+      lname=sym.name, entry=entry,
+      ranges={{from=entry, to=to}},
+      jtables={},
+    })
   end
 end
 
@@ -258,6 +256,29 @@ do
       end
     end
     assert(plt:close())
+  end
+end
+
+-- Sometimes some of the ranges for a function are actually part of an outlined
+-- "cold" version. Since by this point they've been claimed already, remove
+-- them from their original functions.
+do
+  local entries = {}
+  for _,f in ipairs(funcs) do
+    if f.entry then entries[f.entry] = f end
+  end
+  for _,f in ipairs(funcs) do
+    local torm = {}
+    for idx,r in ipairs(f.ranges or {}) do
+      local o = entries[r.from]
+      if o and o ~= f then
+        assert(o.lname == f.lname..'.cold',
+          ('%s ~= %s.cold for [%x,%x)'):format(o.lname, f.lname, r.from, r.to))
+        table.insert(torm, idx)
+      end
+    end
+    assert(#torm <= 1, #torm)  -- Cold blobs should only need one range
+    if torm[1] then table.remove(f.ranges, torm[1]) end
   end
 end
 
