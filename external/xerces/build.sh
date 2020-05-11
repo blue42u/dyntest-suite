@@ -1,9 +1,9 @@
 #!/bin/bash
 
 source ../init.sh \
-  http://mirror.cogentco.com/pub/apache//xerces/c/3/sources/xerces-c-3.2.2.tar.xz \
-  6daca3b23364d8d883dc77a73f681242f69389e3564543287ed3d073007e0a8e \
-  bb5daaa307f961aea3b9f4060d8758ba
+  https://downloads.apache.org//xerces/c/3/sources/xerces-c-3.2.3.tar.xz \
+  12fc99a9fc1d1a79bd0e927b8b5637a576d6656f45b0d5e70ee3694d379cc149 \
+  3ec27d8e07d1486cb68740bd2806f109
 
 ./configure --prefix="$TMP"/install --quiet > /dev/null
 make --quiet > /dev/null

@@ -51,10 +51,26 @@ int main(int argc, const char** argv) {
   auto co = std::make_unique<CodeObject>(source.get());
   co->parse();
 
-  std::vector<std::reference_wrapper<const Function>> funcs;
-  for(const Function* func: co->funcs()) {
-    funcs.emplace_back(*func);
+  std::unordered_set<const Function*> funcs_s;
+  for(const Function* func: co->funcs()) funcs_s.emplace(func);
+
+  // Sometimes there's an outlined .cold blob in another function. Since the
+  // interaction between the two functions is difficult, we treat them as one.
+  std::unordered_map<const Function*, const Function*> cold;
+  {
+    std::unordered_map<std::string, const Function*> masters;
+    for(const Function* f: funcs_s) masters.emplace(f->name()+".cold", f);
+    for(const Function* f: funcs_s) {
+      auto it = masters.find(f->name());
+      if(it != masters.end()) cold.emplace(it->second, f);
+    }
+    for(const auto& fc: cold) funcs_s.erase(fc.second);
   }
+
+  // Convert the functions into a sorted vector
+  std::vector<std::reference_wrapper<const Function>> funcs;
+  for(const Function* f: funcs_s) funcs.emplace_back(*f);
+  funcs_s.clear();
   std::sort(funcs.begin(), funcs.end(), [](const Function& a, const Function& b){
     return bless(*a.entry(), *b.entry());
   });
@@ -63,10 +79,18 @@ int main(int argc, const char** argv) {
     std::cout << "# " << std::hex << f.entry()->start() << std::dec
       << " " << f.name() << "\n";
 
-    // Nab all this functions blocks, in order
+    // Nab all this function's blocks, and all the blocks for the .cold side
+    std::unordered_set<const Block*> blocks_s;
+    for(const Block* block: f.blocks()) blocks_s.emplace(block);
+    auto coldf = cold.find(&f);
+    if(coldf != cold.end())
+      for(const Block* block: coldf->second->blocks())
+        blocks_s.emplace(block);
+
+    // Convert the blocks into a sorted vector
     std::vector<std::reference_wrapper<const Block>> blocks;
-    for(const Block* block: f.blocks())
-      blocks.emplace_back(*block);
+    for(const Block* b: blocks_s) blocks.emplace_back(*b);
+    blocks_s.clear();
     std::sort(blocks.begin(), blocks.end(), bless);
 
     // Output the ranges of this function, as compact as possible
@@ -80,7 +104,6 @@ int main(int argc, const char** argv) {
         cur = {b.start(), b.end()};
       }
       cur.second = b.end();
-      /* std::cout << "  " << bstr(b) << "\n"; */
     }
     std::cout << "  range [" <<
       std::hex << cur.first << ", " << cur.second << std::dec << ")\n";

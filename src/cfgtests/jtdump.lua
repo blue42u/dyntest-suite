@@ -134,29 +134,31 @@ do
   end
 
   for entry,sym in pairs(symbols) do
-    local to = entry + sym.size
-    if sym.size == 0 then
-      -- Sometimes this happens, and its a pain. There's probably an easier
-      -- way, for now just use the disassembly.
-      local dasm = io.popen("objdump --disassemble="..sym.name.." '"..bin.."'")
-      for line in dasm:lines() do
-        local addr,bytes = line:match '^%s+(%x+):%s*([%x%s]+)'
-        if addr then
-          addr = tonumber(addr, 16)
-          to = addr
-          for b in bytes:gmatch '%x%x%f[%s\0]' do
-            addr = addr + 1
-            if b ~= '00' then to = addr end
+    if not sym.name:find '%.cold$' then
+      local to = entry + sym.size
+      if sym.size == 0 then
+        -- Sometimes this happens, and its a pain. There's probably an easier
+        -- way, for now just use the disassembly.
+        local dasm = io.popen("objdump --disassemble="..sym.name.." '"..bin.."'")
+        for line in dasm:lines() do
+          local addr,bytes = line:match '^%s+(%x+):%s*([%x%s]+)'
+          if addr then
+            addr = tonumber(addr, 16)
+            to = addr
+            for b in bytes:gmatch '%x%x%f[%s\0]' do
+              addr = addr + 1
+              if b ~= '00' then to = addr end
+            end
           end
         end
+        assert(dasm:close())
       end
-      assert(dasm:close())
+      table.insert(funcs, {
+        lname=sym.name, entry=entry,
+        ranges={{from=entry, to=to}},
+        jtables={},
+      })
     end
-    table.insert(funcs, {
-      lname=sym.name, entry=entry,
-      ranges={{from=entry, to=to}},
-      jtables={},
-    })
   end
 end
 
@@ -235,6 +237,10 @@ do
           table.insert(funcs, curentry)
           entries[start] = curentry
         end
+        if sec == '.plt.got' then
+          -- For now, match ParseAPI and name it as a targ thing
+          name = ('targ%x'):format(start)
+        end
         curentry.lname = name
         curentry.entry = start
         curentry.ranges = {{from=start, to=start}}
@@ -255,29 +261,6 @@ do
   end
 end
 
--- Sometimes some of the ranges for a function are actually part of an outlined
--- "cold" version. Since by this point they've been claimed already, remove
--- them from their original functions.
-do
-  local entries = {}
-  for _,f in ipairs(funcs) do
-    if f.entry then entries[f.entry] = f end
-  end
-  for _,f in ipairs(funcs) do
-    local torm = {}
-    for idx,r in ipairs(f.ranges or {}) do
-      local o = entries[r.from]
-      if o ~= f then
-        assert(o.lname == f.lname..'.cold',
-          ('%s ~= %s.cold for [%x,%x)'):format(o.lname, f.lname, r.from, r.to))
-        table.insert(torm, idx)
-      end
-    end
-    assert(#torm <= 1, #torm)  -- Cold blobs should only need one range
-    if torm[1] then table.remove(f.ranges, torm[1]) end
-  end
-end
-
 -- ParseAPI can see when some "padding" instructions are jumped over within
 -- a range. We do our best to snip out ranges likely to be jumped over.
 do
@@ -289,7 +272,7 @@ do
       local rstr = ('jj'):pack(r.from, r.to)
       if claimed[rstr] then
         error(('Multiple functions claim [%x,%x): %s and %s'):format(
-          r.from, r.to, origins[rstr].lname, f.lname))
+          r.from, r.to, claimed[rstr].lname, f.lname))
       end
       claimed[rstr] = f
       origins[r] = f
@@ -362,7 +345,7 @@ do
         end
 
         -- While we're here, check for a somewhat obvious unbounded jump
-        if maybeunbounded and instr:find '^jmpq%s+%*%%rax'
+        if maybeunbounded and instr:find '^jmpq%s+%*'
           and (#origins[ranges[cur]].jtables == 0
           or origins[ranges[cur]].jtables.faked) then
           table.insert(origins[ranges[cur]].jtables, -1)
