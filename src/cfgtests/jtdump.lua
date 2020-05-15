@@ -413,26 +413,6 @@ do
   assert(dasm:close())
 end
 
--- Demangle any function names that need it. Done in post to use only one
--- c++filt process.
-do
-  local filtout = os.tmpname()
-  local filt = io.popen("c++filt -n > '"..filtout.."'", 'w')
-  local lfuncs = {}
-  for _,f in ipairs(funcs) do
-    if f.lname then
-      table.insert(lfuncs, f)
-      filt:write(f.lname, '\n')
-    end
-  end
-  assert(filt:close())
-  local idx = 1
-  for name in io.lines(filtout) do
-    lfuncs[idx].name = name
-    idx = idx + 1
-  end
-end
-
 -- Sort the functions by entry PC, so we have a master order for things
 table.sort(funcs, function(a, b)
   if a.entry and b.entry then return a.entry < b.entry end
@@ -444,7 +424,7 @@ end)
 -- Print out lines for each function we found
 for _,f in ipairs(funcs) do
   if f.ranges then
-    print(('# %x %s'):format(f.entry, f.name))
+    print(('# %x'):format(f.entry))
     for _,r in ipairs(f.ranges) do
       print(('  range [%x, %x)'):format(r.from, r.to))
     end

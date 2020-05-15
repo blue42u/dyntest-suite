@@ -67,8 +67,7 @@ int main(int argc, const char** argv) {
   });
 
   for(const Function& f: funcs) {
-    std::cout << "# " << std::hex << f.entry()->start() << std::dec
-      << " " << f.name() << "\n";
+    std::cout << "# " << std::hex << f.entry()->start() << std::dec << "\n";
 
     // Nab all this function's blocks, and all the blocks for the .cold side
     std::unordered_set<const Block*> blocks_s;
