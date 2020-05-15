@@ -36,7 +36,7 @@ do
           table.insert(funcs, curfunc)
         end
         local ref = tonumber(line:match '<%d+><(%x+)>', 16)
-        curfunc = {file = assert(curfile), source = '', jtables={}}
+        curfunc = {file = assert(curfile), source = '.debug_info:', jtables={}}
         origins[ref] = curfunc
       end
     elseif line:find '^%s*<%x+>%s*DW_AT_%g+' then
@@ -51,12 +51,12 @@ do
         end
       elseif inside == 'subprogram' then
         assert(curfile)
-        curfunc.source = curfunc.source..line..'\n'
+        curfunc.source = curfunc.source..'\n'..line
         if attr == 'linkage_name' then
           curfunc.lname = line:reverse():match '^(.-)%s*:':reverse()
         elseif attr == 'name' then
           curfunc.name = line:reverse():match '^(.-)%s*:':reverse()
-        elseif attr == 'abstract_origin' then
+        elseif attr == 'abstract_origin' or attr == 'specification' then
           local o = tonumber(line:match '<0x(%x+)>$', 16)
           curfunc.name = origins[o].name
           curfunc.lname = origins[o].lname
@@ -118,6 +118,7 @@ do
         symbols[start] = {
           name = name,
           size = assert(tonumber(size, 16), size),
+          line = line,
         }
       elseif name < symbols[start].name then
         symbols[start].name = name
@@ -156,8 +157,21 @@ do
       lname=sym.name, entry=entry,
       ranges={{from=entry, to=to}},
       jtables={},
+      source = '.symtab: '..sym.line:gsub('^%s*', ''),
     })
   end
+end
+
+-- Sometimes things get merged, especially with C++ code. Remove any functions
+-- with duplicate lnames.
+do
+  local claims = {}
+  local torm = {}
+  for idx,f in ipairs(funcs) do
+    if not claims[f.lname] then claims[f.lname] = f
+    else table.insert(torm, idx) end
+  end
+  for i=#torm,1,-1 do table.remove(funcs, torm[i]) end
 end
 
 -- By this point, we have lnames for most things. Since the RTL uses those
@@ -243,6 +257,7 @@ do
         curentry.entry = start
         curentry.ranges = {{from=start, to=start}}
         curentry.jtables = {-1}
+        curentry.source = sec
       elseif line:find '^%s+%x+:' and curentry then
         local addr,bytes,instr = line:match '^%s+(%x+):%s*([%x%s]+)(%g+)'
         addr = tonumber(addr, 16)
@@ -265,15 +280,22 @@ end
 do
   local entries = {}
   for _,f in ipairs(funcs) do
-    if f.entry then entries[f.entry] = f end
+    if f.entry and not entries[f.entry] then entries[f.entry] = f end
   end
   for _,f in ipairs(funcs) do
     local torm = {}
     for idx,r in ipairs(f.ranges or {}) do
       local o = entries[r.from]
       if o and o ~= f then
-        assert(o.lname == f.lname..'.cold',
-          ('%s ~= %s.cold for [%x,%x)'):format(o.lname, f.lname, r.from, r.to))
+        if not o.lname:match '%.cold$' and o.name ~= f.name then
+          io.stderr:write(tostring(o.source),'\n')
+          io.stderr:write(tostring(f.source),'\n')
+          error(("Multiple claims on [%x,%x): %s (%s) and %s (%s)"):format(
+            r.from, r.to, o.lname, o.name, f.lname, f.name))
+        elseif o.lname ~= f.lname..'.cold' and o.name ~= f.name then
+          io.stderr:write(("Cleaning claims on [%x,%x): %s (%s) and %s (%s)\n"):format(
+            r.from, r.to, o.lname, o.name, f.lname, f.name))
+        end
         table.insert(torm, idx)
       end
     end
