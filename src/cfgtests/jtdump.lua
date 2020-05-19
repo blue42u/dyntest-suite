@@ -44,10 +44,14 @@ do
       if inside == 'compile_unit' then
         if attr == 'name' then
           local fn = line:reverse():match '^(.-)%s*:[%s%)]':reverse()
-          curfile = (curfile or '')..fn
+          if fn:find '^/' then curfile = fn
+          else curfile = (curfile or '')..fn end
         elseif attr == 'comp_dir' then
           local path = line:reverse():match '^(.-)%s*:[%s%)]':reverse()
-          curfile = path:gsub('/*$', '/')..(curfile or '')
+          while path:find '^%.%./' do path = path:gsub('^%.%./', '') end
+          if not curfile or not curfile:find '^/' then
+            curfile = path:gsub('/*$', '/')..(curfile or '')
+          end
         end
       elseif inside == 'subprogram' then
         assert(curfile)
@@ -57,10 +61,12 @@ do
         elseif attr == 'name' then
           curfunc.name = line:reverse():match '^(.-)%s*:':reverse()
         elseif attr == 'abstract_origin' or attr == 'specification' then
-          local o = tonumber(line:match '<0x(%x+)>$', 16)
-          curfunc.name = origins[o].name
-          curfunc.lname = origins[o].lname
-          curfunc.file = origins[o].file
+          local o = assert(tonumber(line:match '<0x(%x+)>$', 16), line)
+          if origins[o] then
+            curfunc.name = origins[o].name
+            curfunc.lname = origins[o].lname
+            curfunc.file = origins[o].file
+          end
         elseif attr == 'low_pc' then
           curfunc.low = tonumber(line:match ':%s*0x(%x+)$', 16)
         elseif attr == 'high_pc' then
@@ -134,7 +140,7 @@ do
     end
   end
 
-  for entry,sym in pairs(symbols) do
+  for entry,sym in pairs(symbols) do if entry > 0 and not sym.name:find '%.cold$' then
     local to = entry + sym.size
     if sym.size == 0 then
       -- Sometimes this happens, and its a pain. There's probably an easier
@@ -159,18 +165,23 @@ do
       jtables={},
       source = '.symtab: '..sym.line:gsub('^%s*', ''),
     })
-  end
+  end end
 end
 
 -- Sometimes things get merged, especially with C++ code. Remove any functions
--- with duplicate lnames.
+-- with duplicate entry points.
 do
   local claims = {}
   local torm = {}
-  for idx,f in ipairs(funcs) do
-    if not claims[f.lname] then claims[f.lname] = f
-    else table.insert(torm, idx) end
-  end
+  for idx,f in ipairs(funcs) do if f.entry then
+    if not claims[f.entry] then claims[f.entry] = f else
+      local o = claims[f.entry]
+      if o.lname ~= f.lname then
+        io.stderr:write("Entry point collision: ",tostring(o.lname),' ',tostring(f.lname),'\n')
+      end
+      table.insert(torm, idx)
+    end
+  end end
   for i=#torm,1,-1 do table.remove(funcs, torm[i]) end
 end
 
@@ -186,13 +197,14 @@ do
     local f,err = io.open(rtldir..fn..'.318r.dfinish')
     if not f then
       io.stderr:write('Unable to read RTL: `'..err..'\'\n')
+      files[fn] = nil
     else
       local ft = {}
       files[fn] = ft
       local cur = nil
       for line in f:lines 'L' do
         if line:find '^;;' then
-          cur = assert(line:match '^;; Function%s*(%S+)', line)
+          cur = assert(line:match '^;; Function[^(]+%(([^,]+)', line)
         elseif cur then
           ft[cur] = (ft[cur] or '')..line
         end

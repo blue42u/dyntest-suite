@@ -54,9 +54,23 @@ int main(int argc, const char** argv) {
   std::unordered_set<const Function*> funcs_s;
   for(const Function* func: co->funcs()) funcs_s.emplace(func);
 
-  // Make sure each entry block is only owned by one function.
-  std::unordered_map<const Block*, const Function*> entries_s;
-  for(const Function* func: co->funcs()) entries_s.emplace(func->entry(), func);
+  // Mark down the entries
+  std::unordered_map<const Block*, std::reference_wrapper<const Function>> entries;
+  for(const Function* f: funcs_s) entries.emplace(f->entry(), *f);
+
+  // Look up the mangled names for everything, and remove any .cold blobs.
+  auto symtab = source->getSymtabObject();
+  std::unordered_map<const Function*, bool> frozen;
+  for(const Function* f: funcs_s) {
+    bool cold = false;
+    for(const auto& sym: symtab->findSymbolByOffset(f->entry()->start())) {
+      if(sym->getMangledName().find(".cold") != std::string::npos) {
+        cold = true;
+        break;
+      }
+    }
+    frozen.emplace(f, cold);
+  }
 
   // Convert the functions into a sorted vector
   std::vector<std::reference_wrapper<const Function>> funcs;
@@ -67,14 +81,31 @@ int main(int argc, const char** argv) {
   });
 
   for(const Function& f: funcs) {
+    // Check that this isn't a cold blob.
+    if(frozen.at(&f)) continue;
+
     std::cout << "# " << std::hex << f.entry()->start() << std::dec << "\n";
 
     // Nab all this function's blocks, and all the blocks for the .cold side
     std::unordered_set<const Block*> blocks_s;
     for(const Block* block: f.blocks()) {
-      auto it = entries_s.find(block);
-      if(it == entries_s.end() || it->second == &f)
-        blocks_s.emplace(block);
+      // If the only outgoing edge from this block is an "interprocedural"
+      // fallthough edge, elide it.
+      if(block->targets().size() == 1 && (*block->targets().begin())->interproc()
+         && (*block->targets().begin())->type() == FALLTHROUGH)
+        continue;
+
+      // If there's an outgoing edge to a frozen entry, pull in all its blocks
+      for(const Edge* e : block->targets()) {
+        auto it = entries.find(e->trg());
+        if(it == entries.end()) continue;
+        const Function& ef = it->second;
+        if(frozen.at(&ef))
+          for(const Block* b : ef.blocks())
+            blocks_s.emplace(b);
+      }
+
+      blocks_s.emplace(block);
     }
 
     // Convert the blocks into a sorted vector
@@ -84,10 +115,13 @@ int main(int argc, const char** argv) {
     std::sort(blocks.begin(), blocks.end(), bless);
 
     // Output the ranges of this function, as compact as possible
+    auto fname = f.name();
+    bool cold = fname.size() > 5 && fname.substr(fname.size()-5) == ".cold";
     std::pair<std::size_t, std::size_t> cur = {-1,-1};
     for(const Block& b: blocks) {
       if(b.start() != cur.second) {
         if(cur.first != -1) {  // Not the first
+          if(cold) break;  // Only one range for cold blobs
           std::cout << "  range [" <<
             std::hex << cur.first << ", " << cur.second << std::dec << ")\n";
         }
