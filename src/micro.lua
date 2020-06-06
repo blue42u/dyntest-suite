@@ -24,4 +24,8 @@ function micro(o)
   tup.rule({cwd..'/micro/micro-parse.cpp', extra_inputs=ex},
     '^o Compiled %o^ c++ '..cf..' -o %o %f '..lf..' -lparseAPI -lboost_system',
     {'micro-parse', '<build>'})
+  tup.rule({cwd..'/micro/micro-struct.cpp', extra_inputs=ex},
+    '^o Compiled %o^ c++ '..cf..' -o %o %f '..lf..' -fopenmp '
+    ..'-lsymtabAPI -lparseAPI -linstructionAPI -lboost_system',
+    {'micro-struct', '<build>'})
 end
