@@ -30,6 +30,7 @@ function hpctoolkit(o)
       --with-libmonitor=@/external/monitor@
       --with-bzip=@/external/bzip@
       --with-mbedtls=@/external/mbedtls@
+      --with-gotcha=@/external/gotcha@
       --with-elfutils=@]]..o.elfutils..[[@
       --with-dyninst=@]]..o.dyninst..[[@
       --disable-hpcrun-static

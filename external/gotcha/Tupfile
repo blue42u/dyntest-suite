@@ -1,0 +1,16 @@
+include_rules
+
+FILES += install/include/gotcha/gotcha.h
+FILES += install/include/gotcha/gotcha_types.h
+FILES += install/lib/cmake/gotcha/gotcha-config.cmake
+FILES += install/lib/cmake/gotcha/gotcha-config-version.cmake
+FILES += install/lib/cmake/gotcha/gotcha-targets.cmake
+FILES += install/lib/cmake/gotcha/gotcha-targets-noconfig.cmake
+FILES += install/lib/libgotcha.so
+FILES += install/lib/libgotcha.so.2
+FILES += install/lib/libgotcha.so.2.0.2
+
+include find.lua
+ifeq (y,$(BUILD_GOTCHA))
+: |> ^o Built Gotcha^ $(ENV) ./build.sh |> $(FILES) <build>
+endif
