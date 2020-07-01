@@ -145,7 +145,7 @@ add_test { id = 'hpcprof2-mpi', size = 3, grouped = true, cfg = 'HPCPROF_MPI',
       ..cwd..'profclean.lua '..cwd..' %o',
   },
 }
-add_test { id = 'hpcprof2-mpi-sparse', size = 3, grouped = true, cfg = 'HPCPROF_MPI',
+add_test { id = 'hpcprof2-mpi-sparse', size = 3, grouped = true, cfg = 'HPCPROF_MPI & HPCPROF_SPARSE',
   inkind = 'trace',
   fnstems = {
     [false]='hpctoolkit/install/bin/hpcprof2-mpi',
@@ -168,11 +168,27 @@ add_test { id = 'hpcprof2-mpi-struct', size = 3, grouped = true, cfg = 'HPCPROF_
     ann='hpctoolkit/install/bin/hpcprof2-mpi',
     ref='hpctoolkit/install/bin/hpcprof-mpi.real',
   }, mpirun=true, tartrans = true, args = {
-    [false]=structs..' -j%T -o @@%o -f sparse @%f', ann=false,
+    [false]=structs..' -j%T -o @@%o @%f', ann=false,
     ref=structs..' --metric-db yes -o @@%o @%f',
   }, dryargs = {
-    [false]='-j%T -o @@/dev/null -f sparse @%f', ann=false,
+    [false]='-j%T -o @@/dev/null @%f', ann=false,
     ref='--metric-db yes -o @@/dev/null @%f',
+  },
+  outclean = {
+    inputs={extra_inputs={cwd..'../external/lua/luaexec'}},
+    command='tar xOf %f ./experiment.xml | '..cwd..'../external/lua/luaexec '
+      ..cwd..'profclean.lua '..cwd..' %o',
+  },
+}
+add_test { id = 'hpcprof2-mpi-sparse-struct', size = 3, grouped = true, cfg = 'HPCPROF_MPI & HPCPROF_STRUCT & HPCPROF_SPARSE',
+  inkind = 'trace',
+  fnstems = {
+    [false]='hpctoolkit/install/bin/hpcprof2-mpi',
+    ann='hpctoolkit/install/bin/hpcprof2-mpi',
+  }, mpirun=true, tartrans = true, args = {
+    [false]=structs..' -j%T -o @@%o -f sparse @%f', ann=false,
+  }, dryargs = {
+    [false]='-j%T -o @@/dev/null -f sparse @%f', ann=false,
   },
   outclean = {
     inputs={extra_inputs={cwd..'../external/lua/luaexec'}},

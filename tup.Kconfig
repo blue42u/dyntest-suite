@@ -66,6 +66,9 @@ config TEST_HPCPROF_MPI
 config TEST_HPCPROF_STRUCT
   bool "Enable hpcprof testing with Structfiles"
   default y
+config TEST_HPCPROF_SPARSE
+  bool "Enable hpcprof testing with sparse output"
+  default n
 config TEST_HPCPROFMOCK
   bool "Enable hpcprofmock testing (HPCToolkit debugging component)"
   default y
