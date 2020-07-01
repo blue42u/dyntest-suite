@@ -112,6 +112,8 @@ end
 
 -- ParseAPI uses the names from .symtab, so rename functions
 -- based on their entry point. Also add any missing functions.
+-- Also build a list of all the regions that lie in "cold" blobs.
+local coldregions = {}
 do
   local symbols = {}  -- Entry PC -> {name=, size=}
   local symtab = io.popen("objdump -t '"..bin.."'")
@@ -140,7 +142,7 @@ do
     end
   end
 
-  for entry,sym in pairs(symbols) do if entry > 0 and not sym.name:find '%.cold$' then
+  for entry,sym in pairs(symbols) do if entry > 0 then
     local to = entry + sym.size
     if sym.size == 0 then
       -- Sometimes this happens, and its a pain. There's probably an easier
@@ -159,12 +161,16 @@ do
       end
       assert(dasm:close())
     end
-    table.insert(funcs, {
-      lname=sym.name, entry=entry,
-      ranges={{from=entry, to=to}},
-      jtables={},
-      source = '.symtab: '..sym.line:gsub('^%s*', ''),
-    })
+    if sym.name:find '%.cold$' then
+      coldregions[{from=entry, to=to}] = sym.name
+    else
+      table.insert(funcs, {
+        lname=sym.name, entry=entry,
+        ranges={{from=entry, to=to}},
+        jtables={},
+        source = '.symtab: '..sym.line:gsub('^%s*', ''),
+      })
+    end
   end end
 end
 
@@ -286,33 +292,59 @@ do
   end
 end
 
--- Sometimes some of the ranges for a function are actually part of an outlined
--- "cold" version. Since by this point they've been claimed already, remove
--- them from their original functions.
+-- Sometimes a cold region is marked in the DWARF as being part of a function,
+-- but no call or jump ever targets that location. So we scan such situations
+-- and remove them from their origin functions.
 do
-  local entries = {}
+  -- First mark down where all the ranges live. Also check that we don't have
+  -- any double-claimed ranges.
+  local claimed = {}
   for _,f in ipairs(funcs) do
-    if f.entry and not entries[f.entry] then entries[f.entry] = f end
+    for _,r in ipairs(f.ranges or {}) do
+      local rstr = ('jj'):pack(r.from, r.to)
+      if claimed[rstr] then
+        error(('Multiple functions claim [%x,%x): %s and %s'):format(
+          r.from, r.to, claimed[rstr].lname, f.lname))
+      end
+      claimed[rstr] = f
+    end
   end
-  for _,f in ipairs(funcs) do
-    local torm = {}
-    for idx,r in ipairs(f.ranges or {}) do
-      local o = entries[r.from]
-      if o and o ~= f then
-        if not o.lname:match '%.cold$' and o.name ~= f.name then
-          io.stderr:write(tostring(o.source),'\n')
-          io.stderr:write(tostring(f.source),'\n')
-          error(("Multiple claims on [%x,%x): %s (%s) and %s (%s)"):format(
-            r.from, r.to, o.lname, o.name, f.lname, f.name))
-        elseif o.lname ~= f.lname..'.cold' and o.name ~= f.name then
-          io.stderr:write(("Cleaning claims on [%x,%x): %s (%s) and %s (%s)\n"):format(
-            r.from, r.to, o.lname, o.name, f.lname, f.name))
+
+  -- Then we mark all the cold regions that are targeted
+  local validcold = {}
+  local dasm = io.popen("objdump -d '"..bin.."'")
+  for line in dasm:lines() do
+    local addr,instr = line:match '^%s+(%x+):%s*[%x%s]+%s(.*)'
+    if addr then
+      if instr:find '^call' or instr:find '^j' then
+        local target = instr:match '%s(%x+)%s'
+        if target then
+          target = tonumber(target, 16)
+          for r in pairs(coldregions) do
+            if r.from <= target and target < r.to then
+              validcold[r] = true
+              break
+            end
+          end
         end
-        table.insert(torm, idx)
       end
     end
-    assert(#torm <= 1, #torm)  -- Cold blobs should only need one range
-    if torm[1] then table.remove(f.ranges, torm[1]) end
+  end
+  assert(dasm:close())
+
+  -- Then go through the "invalid" cold regions and remove them from their funcs
+  for r in pairs(coldregions) do
+    if not validcold[r] then
+      local f = assert(claimed[('jj'):pack(r.from, r.to)])
+      local i
+      for fi,fr in ipairs(f.ranges) do
+        if fr.from == r.from and fr.to == r.to then
+          i = fi
+          break
+        end
+      end
+      table.remove(f.ranges, i)
+    end
   end
 end
 
@@ -436,7 +468,7 @@ end)
 -- Print out lines for each function we found
 for _,f in ipairs(funcs) do
   if f.ranges then
-    print(('# %x'):format(f.entry))
+    print(('# %x %s'):format(f.entry, f.lname))
     for _,r in ipairs(f.ranges) do
       print(('  range [%x, %x)'):format(r.from, r.to))
     end

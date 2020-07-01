@@ -84,7 +84,9 @@ int main(int argc, const char** argv) {
     // Check that this isn't a cold blob.
     if(frozen.at(&f)) continue;
 
-    std::cout << "# " << std::hex << f.entry()->start() << std::dec << "\n";
+    std::cout << "# " << std::hex << f.entry()->start() << std::dec
+              << " " << f.name()
+              << "\n";
 
     // Nab all this function's blocks, and all the blocks for the .cold side
     std::unordered_set<const Block*> blocks_s;
@@ -94,16 +96,6 @@ int main(int argc, const char** argv) {
       if(block->targets().size() == 1 && (*block->targets().begin())->interproc()
          && (*block->targets().begin())->type() == FALLTHROUGH)
         continue;
-
-      // If there's an outgoing edge to a frozen entry, pull in all its blocks
-      for(const Edge* e : block->targets()) {
-        auto it = entries.find(e->trg());
-        if(it == entries.end()) continue;
-        const Function& ef = it->second;
-        if(frozen.at(&ef))
-          for(const Block* b : ef.blocks())
-            blocks_s.emplace(b);
-      }
 
       blocks_s.emplace(block);
     }
